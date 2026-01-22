@@ -1,0 +1,2 @@
+# Keeps the data/ directory in git. SQLite DB will live here by default.
+

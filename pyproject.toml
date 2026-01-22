@@ -1,0 +1,30 @@
+[project]
+name = "signals-bot"
+version = "0.1.0"
+description = "Signal-only breakout momentum scanner with SQLite journaling and Slack notifications."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML>=6.0.1",
+  "python-dotenv>=1.0.1",
+  "rich>=13.7.1",
+  "pandas>=2.2.0",
+  "numpy>=1.26.0",
+  "yfinance>=0.2.40",
+  "requests>=2.31.0",
+  "slack_sdk>=3.27.0",
+]
+
+[project.scripts]
+signals-bot = "signals_bot.main:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

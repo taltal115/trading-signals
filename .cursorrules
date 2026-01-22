@@ -1,0 +1,22 @@
+You are working in a Python algo-trading research repo.
+
+Rules:
+- Never add broker execution or auto-trading. This repo is signal-only.
+- Prefer simple, readable code over clever code.
+- Use typed dataclasses for core domain objects (Signal, Config).
+- Keep modules small; avoid hidden side effects.
+- Configuration must be via YAML + env vars (Slack token) and be easy to override.
+- All outputs must be either logs, Slack messages, or SQLite rows.
+- Always log clearly with BUY/WAIT/SELL tags and a numeric confidence (0–100).
+- Do not store secrets in git. Load Slack token from .env (local only).
+- Use UTC for stored timestamps; include asof_date for daily bars.
+- Treat market data as unreliable: handle missing data and provider errors gracefully.
+- No client-side/UI code. No notebooks required for runtime.
+- keep all docs and md files in the docs directory.
+- keep all the script and test files in the scripts directory.
+
+Style:
+- Use f-strings, pathlib, and explicit error messages.
+- Keep dependencies minimal.
+- Prefer deterministic scoring: no ML in v1.
+
