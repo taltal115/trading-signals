@@ -50,42 +50,15 @@ class SlackNotifier:
         sigs = [s for s in signals if s.confidence >= min_confidence]
         sigs = sigs[:top_n]
         if not sigs:
-            return
-
-        buys = [s for s in sigs if s.action == "BUY"]
-        sells = [s for s in sigs if s.action == "SELL"]
-        waits = [s for s in sigs if s.action == "WAIT"]
-
-        lines: list[str] = []
-        lines.append(f"*signals-bot* `{run_name}` as-of *{asof_date.isoformat()}*")
-        lines.append(f"Filters: min_conf={min_confidence}, top_n={top_n}")
-        lines.append("")
-
-        if sells:
-            lines.append("*SELL candidates*")
-            for s in sells:
-                lines.append(_fmt_line(s))
-            lines.append("")
-
-        if buys:
-            lines.append("*BUY candidates*")
-            for s in buys:
-                lines.append(_fmt_line(s))
-            lines.append("")
-
-        if waits:
-            lines.append("*WATCH/WAIT*")
-            for s in waits[: min(5, len(waits))]:
-                lines.append(_fmt_line(s))
-            lines.append("")
-
-        summary = _fmt_action_table(sigs)
-        if summary:
-            lines.append("*Action Summary*")
-            lines.append(summary)
-            lines.append("")
-
-        text = "\n".join(lines).strip()
+            text = f"*signals-bot* `{run_name}` as-of *{asof_date.isoformat()}*\\nNo signals."
+        else:
+            actionable = [s for s in sigs if s.action in {"BUY", "SELL"}]
+            if not actionable:
+                text = f"*signals-bot* `{run_name}` as-of *{asof_date.isoformat()}*\\nNo BUY/SELL signals."
+            else:
+                text = _fmt_action_table(actionable)
+                if not text:
+                    text = f"*signals-bot* `{run_name}` as-of *{asof_date.isoformat()}*\\nNo BUY/SELL signals."
 
         try:
             self.client.chat_postMessage(channel=self.channel, text=text)
@@ -119,12 +92,47 @@ def _fmt_line(s: Signal) -> str:
     return " | ".join(parts)
 
 
+def _fmt_money(x: float | None) -> str:
+    if x is None:
+        return "-"
+    return f"${x:,.2f}"
+
+
+def _fmt_pct(x: float | None) -> str:
+    if x is None:
+        return "-"
+    return f"{x:,.2f}%"
+
+
 def _fmt_action_table(signals: Iterable[Signal]) -> str:
     rows = []
     for s in signals:
-        if s.action not in {"BUY", "SELL", "WAIT"}:
+        if s.action not in {"BUY", "SELL"}:
             continue
-        rows.append((s.action, s.ticker, int(s.confidence)))
+        close = s.close
+        stop = s.suggested_stop
+        target = s.suggested_target
+
+        def pct_from_close(level: float | None, base: float | None) -> float | None:
+            if level is None or base is None or base == 0:
+                return None
+            return ((level - base) / base) * 100.0
+
+        stop_pct = pct_from_close(stop, close)
+        target_pct = pct_from_close(target, close)
+
+        rows.append(
+            (
+                s.action,
+                s.ticker,
+                int(s.confidence),
+                int(s.max_hold_days),
+                stop,
+                stop_pct,
+                target,
+                target_pct,
+            )
+        )
 
     if not rows:
         return ""
@@ -132,10 +140,28 @@ def _fmt_action_table(signals: Iterable[Signal]) -> str:
     action_w = max(len("ACTION"), max(len(r[0]) for r in rows))
     ticker_w = max(len("TICKER"), max(len(str(r[1])) for r in rows))
     conf_w = max(len("CONF"), max(len(str(r[2])) for r in rows))
+    hold_w = max(len("HOLD"), max(len(str(r[3])) for r in rows))
+    sl_w = max(len("SL"), max(len(_fmt_money(r[4])) for r in rows))
+    slp_w = max(len("SL%"), max(len(_fmt_pct(r[5])) for r in rows))
+    tp_w = max(len("TP"), max(len(_fmt_money(r[6])) for r in rows))
+    tpp_w = max(len("TP%"), max(len(_fmt_pct(r[7])) for r in rows))
 
-    header = f"{'ACTION':<{action_w}}  {'TICKER':<{ticker_w}}  {'CONF':>{conf_w}}"
-    sep = f"{'-' * action_w}  {'-' * ticker_w}  {'-' * conf_w}"
-    body = [f"{a:<{action_w}}  {t:<{ticker_w}}  {c:>{conf_w}}" for a, t, c in rows]
+    header = (
+        f"{'ACTION':<{action_w}}  {'TICKER':<{ticker_w}}  {'CONF':>{conf_w}}  "
+        f"{'HOLD':>{hold_w}}  {'SL':>{sl_w}}  {'SL%':>{slp_w}}  {'TP':>{tp_w}}  {'TP%':>{tpp_w}}"
+    )
+    sep = (
+        f"{'-' * action_w}  {'-' * ticker_w}  {'-' * conf_w}  "
+        f"{'-' * hold_w}  {'-' * sl_w}  {'-' * slp_w}  {'-' * tp_w}  {'-' * tpp_w}"
+    )
+    body = [
+        (
+            f"{a:<{action_w}}  {t:<{ticker_w}}  {c:>{conf_w}}  {h:>{hold_w}}  "
+            f"{_fmt_money(sl):>{sl_w}}  {_fmt_pct(slp):>{slp_w}}  "
+            f"{_fmt_money(tp):>{tp_w}}  {_fmt_pct(tpp):>{tpp_w}}"
+        )
+        for a, t, c, h, sl, slp, tp, tpp in rows
+    ]
     table = "\n".join([header, sep, *body])
     return f"```{table}```"
 

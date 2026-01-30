@@ -572,3 +572,469 @@
 │ BUY    │ ALGM   │         92 │        5 │ $35.36 │ -6.90% │ $43.22 │ 13.79% │
 └────────┴────────┴────────────┴──────────┴────────┴────────┴────────┴────────┘
 [01/30/26 10:44:11] INFO     Done. Signals generated: 111                                                                                          
+[01/30/26 10:54:18] INFO     signals-bot starting                                                                                                  
+                    INFO     run_id=daily_close_scan-20260130T085418Z                                                                              
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                       
+                    INFO     Universe size: 114 tickers                                                                                            
+                    WARNING  Data provider failed for AA (stooq): empty dataframe from stooq                                                       
+[01/30/26 10:54:19] WARNING  Data provider failed for AA (yahoo): ['close']                                                                        
+                    WARNING  Data provider failed for AAL (stooq): empty dataframe from stooq                                                      
+[01/30/26 10:54:20] WARNING  Data provider failed for AAL (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AAMI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AAMI (yahoo): ['close']                                                                      
+[01/30/26 10:54:21] WARNING  Data provider failed for AAOI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AAOI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AAP (stooq): empty dataframe from stooq                                                      
+[01/30/26 10:54:22] WARNING  Data provider failed for AAP (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AAUC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AAUC (yahoo): ['close']                                                                      
+[01/30/26 10:54:23] WARNING  Data provider failed for ABAT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ABAT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ABCL (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ABCL (yahoo): ['close']                                                                      
+[01/30/26 10:54:24] WARNING  Data provider failed for ABEO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ABEO (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ABSI (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:25] WARNING  Data provider failed for ABSI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ABUS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ABUS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACAD (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:26] WARNING  Data provider failed for ACAD (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACHC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACHC (yahoo): ['close']                                                                      
+[01/30/26 10:54:27] WARNING  Data provider failed for ACHR (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACHR (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACIW (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:28] WARNING  Data provider failed for ACIW (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACLX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACLX (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACMR (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:29] WARNING  Data provider failed for ACMR (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACRS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACRS (yahoo): ['close']                                                                      
+[01/30/26 10:54:30] WARNING  Data provider failed for ACVA (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACVA (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AD (stooq): empty dataframe from stooq                                                       
+[01/30/26 10:54:31] WARNING  Data provider failed for AD (yahoo): ['close']                                                                        
+                    WARNING  Data provider failed for ADEA (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADEA (yahoo): ['close']                                                                      
+[01/30/26 10:54:32] WARNING  Data provider failed for ADMA (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADMA (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ADNT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADNT (yahoo): ['close']                                                                      
+[01/30/26 10:54:33] WARNING  Data provider failed for ADPT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADPT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ADTN (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:34] WARNING  Data provider failed for ADTN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ADUR (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADUR (yahoo): ['close']                                                                      
+[01/30/26 10:54:35] WARNING  Data provider failed for AEHR (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AEHR (yahoo): ['close']                                                                      
+[01/30/26 10:54:36] WARNING  Data provider failed for AEO (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AEO (yahoo): ['close']                                                                       
+[01/30/26 10:54:37] WARNING  Data provider failed for AES (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AES (yahoo): ['close']                                                                       
+[01/30/26 10:54:38] WARNING  Data provider failed for AESI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AESI (yahoo): ['close']                                                                      
+[01/30/26 10:54:39] WARNING  Data provider failed for AEVA (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AEVA (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AFRM (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:40] WARNING  Data provider failed for AFRM (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AG (stooq): empty dataframe from stooq                                                       
+                    WARNING  Data provider failed for AG (yahoo): ['close']                                                                        
+[01/30/26 10:54:41] WARNING  Data provider failed for AGI (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AGI (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AGIO (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:42] WARNING  Data provider failed for AGIO (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AGRO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AGRO (yahoo): ['close']                                                                      
+[01/30/26 10:54:43] WARNING  Data provider failed for AHCO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AHCO (yahoo): ['close']                                                                      
+[01/30/26 10:54:44] WARNING  Data provider failed for AI (stooq): empty dataframe from stooq                                                       
+                    WARNING  Data provider failed for AI (yahoo): ['close']                                                                        
+                    WARNING  Data provider failed for AIP (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AIP (yahoo): ['close']                                                                       
+[01/30/26 10:54:45] WARNING  Data provider failed for AIRO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AIRO (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AIRS (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:50] WARNING  Data provider failed for AIRS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALGM (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALGM (yahoo): ['close']                                                                      
+[01/30/26 10:54:51] WARNING  Data provider failed for ALH (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ALH (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for ALHC (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:52] WARNING  Data provider failed for ALHC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALK (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ALK (yahoo): ['close']                                                                       
+[01/30/26 10:54:53] WARNING  Data provider failed for ALKS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALKS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALKT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALKT (yahoo): ['close']                                                                      
+[01/30/26 10:54:54] WARNING  Data provider failed for ALLY (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALLY (yahoo): ['close']                                                                      
+[01/30/26 10:54:55] WARNING  Data provider failed for ALM (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ALM (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for ALMS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALMS (yahoo): ['close']                                                                      
+[01/30/26 10:54:56] WARNING  Data provider failed for ALMU (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALMU (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALNT (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:57] WARNING  Data provider failed for ALNT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALT (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ALT (yahoo): ['close']                                                                       
+[01/30/26 10:54:58] WARNING  Data provider failed for ALTS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALTS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMAL (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:54:59] WARNING  Data provider failed for AMAL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMBA (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMBA (yahoo): ['close']                                                                      
+[01/30/26 10:55:00] WARNING  Data provider failed for AMBQ (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMBQ (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMKR (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:01] WARNING  Data provider failed for AMKR (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMLX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMLX (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMN (stooq): empty dataframe from stooq                                                      
+[01/30/26 10:55:02] WARNING  Data provider failed for AMN (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AMPH (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMPH (yahoo): ['close']                                                                      
+[01/30/26 10:55:03] WARNING  Data provider failed for AMPL (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMPL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMPX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMPX (yahoo): ['close']                                                                      
+[01/30/26 10:55:04] WARNING  Data provider failed for AMRC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMRC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMSC (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:05] WARNING  Data provider failed for AMSC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMTB (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMTB (yahoo): ['close']                                                                      
+[01/30/26 10:55:06] WARNING  Data provider failed for AMWD (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMWD (yahoo): ['close']                                                                      
+[01/30/26 10:55:07] WARNING  Data provider failed for ANAB (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:08] WARNING  Data provider failed for ANAB (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANDE (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:09] WARNING  Data provider failed for ANDE (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANGH (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANGH (yahoo): ['close']                                                                      
+[01/30/26 10:55:10] WARNING  Data provider failed for ANGI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANGI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANGO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANGO (yahoo): ['close']                                                                      
+[01/30/26 10:55:11] WARNING  Data provider failed for ANIP (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANIP (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANNX (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:12] WARNING  Data provider failed for ANNX (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AORT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AORT (yahoo): ['close']                                                                      
+[01/30/26 10:55:13] WARNING  Data provider failed for AOSL (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AOSL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APA (stooq): empty dataframe from stooq                                                      
+[01/30/26 10:55:14] WARNING  Data provider failed for APA (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for APEI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APEI (yahoo): ['close']                                                                      
+[01/30/26 10:55:15] WARNING  Data provider failed for APGE (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APGE (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APLD (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APLD (yahoo): ['close']                                                                      
+[01/30/26 10:55:16] WARNING  Data provider failed for APLS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APLS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APOG (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:17] WARNING  Data provider failed for APOG (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APPN (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APPN (yahoo): ['close']                                                                      
+[01/30/26 10:55:18] WARNING  Data provider failed for APPS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APPS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APTV (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APTV (yahoo): ['close']                                                                      
+[01/30/26 10:55:19] WARNING  Data provider failed for AQST (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AQST (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AR (stooq): empty dataframe from stooq                                                       
+[01/30/26 10:55:20] WARNING  Data provider failed for AR (yahoo): ['close']                                                                        
+                    WARNING  Data provider failed for ARAI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARAI (yahoo): ['close']                                                                      
+[01/30/26 10:55:21] WARNING  Data provider failed for ARDX (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:23] WARNING  Data provider failed for ARDX (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AREC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AREC (yahoo): ['close']                                                                      
+[01/30/26 10:55:24] WARNING  Data provider failed for ARHS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARHS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARLO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARLO (yahoo): ['close']                                                                      
+[01/30/26 10:55:25] WARNING  Data provider failed for ARQQ (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARQQ (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARQT (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:26] WARNING  Data provider failed for ARQT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARRY (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARRY (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARVN (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:27] WARNING  Data provider failed for ARVN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARWR (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARWR (yahoo): ['close']                                                                      
+[01/30/26 10:55:28] WARNING  Data provider failed for ARX (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ARX (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AS (stooq): empty dataframe from stooq                                                       
+[01/30/26 10:55:29] WARNING  Data provider failed for AS (yahoo): ['close']                                                                        
+                    WARNING  Data provider failed for ASAN (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASAN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASGN (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:30] WARNING  Data provider failed for ASGN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASIX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASIX (yahoo): ['close']                                                                      
+[01/30/26 10:55:31] WARNING  Data provider failed for ASO (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ASO (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for ASPI (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:32] WARNING  Data provider failed for ASPI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASPN (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASPN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASTE (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:33] WARNING  Data provider failed for ASTE (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASTH (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASTH (yahoo): ['close']                                                                      
+[01/30/26 10:55:34] WARNING  Data provider failed for ASTL (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASTL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASYS (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:35] WARNING  Data provider failed for ASYS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ATAI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ATAI (yahoo): ['close']                                                                      
+[01/30/26 10:55:36] WARNING  Data provider failed for ATEC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ATEC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ATEX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ATEX (yahoo): ['close']                                                                      
+[01/30/26 10:55:37] WARNING  Data provider failed for ATRC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ATRC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ATRO (stooq): empty dataframe from stooq                                                     
+[01/30/26 10:55:38] WARNING  Data provider failed for ATRO (yahoo): ['close']                                                                      
+                    INFO     Done. Signals generated: 0                                                                                            
+[01/30/26 11:01:58] INFO     signals-bot starting                                                                                                  
+                    INFO     run_id=daily_close_scan-20260130T090158Z                                                                              
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                       
+                    INFO     Universe size: 114 tickers                                                                                            
+                    WARNING  Data provider failed for AA (stooq): empty dataframe from stooq                                                       
+[01/30/26 11:01:59] WARNING  Data provider failed for AA (yahoo): ['close']                                                                        
+[01/30/26 11:02:00] WARNING  Data provider failed for AAL (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AAL (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AAMI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AAMI (yahoo): ['close']                                                                      
+[01/30/26 11:02:01] WARNING  Data provider failed for AAOI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AAOI (yahoo): ['close']                                                                      
+[01/30/26 11:02:02] WARNING  Data provider failed for AAP (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AAP (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AAUC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AAUC (yahoo): ['close']                                                                      
+[01/30/26 11:02:03] WARNING  Data provider failed for ABAT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ABAT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ABCL (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:04] WARNING  Data provider failed for ABCL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ABEO (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:05] WARNING  Data provider failed for ABEO (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ABSI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ABSI (yahoo): ['close']                                                                      
+[01/30/26 11:02:06] WARNING  Data provider failed for ABUS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ABUS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACAD (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:07] WARNING  Data provider failed for ACAD (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACHC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACHC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACHR (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:08] WARNING  Data provider failed for ACHR (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACIW (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACIW (yahoo): ['close']                                                                      
+[01/30/26 11:02:09] WARNING  Data provider failed for ACLX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACLX (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACMR (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACMR (yahoo): ['close']                                                                      
+[01/30/26 11:02:10] WARNING  Data provider failed for ACRS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ACRS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ACVA (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:11] WARNING  Data provider failed for ACVA (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AD (stooq): empty dataframe from stooq                                                       
+                    WARNING  Data provider failed for AD (yahoo): ['close']                                                                        
+[01/30/26 11:02:12] WARNING  Data provider failed for ADEA (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADEA (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ADMA (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:13] WARNING  Data provider failed for ADMA (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ADNT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADNT (yahoo): ['close']                                                                      
+[01/30/26 11:02:14] WARNING  Data provider failed for ADPT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADPT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ADTN (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:15] WARNING  Data provider failed for ADTN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ADUR (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ADUR (yahoo): ['close']                                                                      
+[01/30/26 11:02:16] WARNING  Data provider failed for AEHR (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AEHR (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AEO (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:02:17] WARNING  Data provider failed for AEO (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AES (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AES (yahoo): ['close']                                                                       
+[01/30/26 11:02:18] WARNING  Data provider failed for AESI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AESI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AEVA (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:19] WARNING  Data provider failed for AEVA (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AFRM (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AFRM (yahoo): ['close']                                                                      
+[01/30/26 11:02:20] WARNING  Data provider failed for AG (stooq): empty dataframe from stooq                                                       
+                    WARNING  Data provider failed for AG (yahoo): ['close']                                                                        
+                    WARNING  Data provider failed for AGI (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:02:21] WARNING  Data provider failed for AGI (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AGIO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AGIO (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AGRO (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:22] WARNING  Data provider failed for AGRO (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AHCO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AHCO (yahoo): ['close']                                                                      
+[01/30/26 11:02:23] WARNING  Data provider failed for AI (stooq): empty dataframe from stooq                                                       
+                    WARNING  Data provider failed for AI (yahoo): ['close']                                                                        
+                    WARNING  Data provider failed for AIP (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AIP (yahoo): ['close']                                                                       
+[01/30/26 11:02:24] WARNING  Data provider failed for AIRO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AIRO (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AIRS (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:25] WARNING  Data provider failed for AIRS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALGM (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALGM (yahoo): ['close']                                                                      
+[01/30/26 11:02:26] WARNING  Data provider failed for ALH (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ALH (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for ALHC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALHC (yahoo): ['close']                                                                      
+[01/30/26 11:02:27] WARNING  Data provider failed for ALK (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ALK (yahoo): ['close']                                                                       
+[01/30/26 11:02:28] WARNING  Data provider failed for ALKS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALKS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALKT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALKT (yahoo): ['close']                                                                      
+[01/30/26 11:02:29] WARNING  Data provider failed for ALLY (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALLY (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALM (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:02:30] WARNING  Data provider failed for ALM (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for ALMS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALMS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALMU (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:31] WARNING  Data provider failed for ALMU (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALNT (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:32] WARNING  Data provider failed for ALNT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ALT (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ALT (yahoo): ['close']                                                                       
+[01/30/26 11:02:33] WARNING  Data provider failed for ALTS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ALTS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMAL (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:34] WARNING  Data provider failed for AMAL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMBA (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMBA (yahoo): ['close']                                                                      
+[01/30/26 11:02:35] WARNING  Data provider failed for AMBQ (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMBQ (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMKR (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:36] WARNING  Data provider failed for AMKR (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMLX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMLX (yahoo): ['close']                                                                      
+[01/30/26 11:02:37] WARNING  Data provider failed for AMN (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for AMN (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AMPH (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:38] WARNING  Data provider failed for AMPH (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMPL (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMPL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMPX (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:39] WARNING  Data provider failed for AMPX (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMRC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMRC (yahoo): ['close']                                                                      
+[01/30/26 11:02:40] WARNING  Data provider failed for AMSC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMSC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMTB (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:41] WARNING  Data provider failed for AMTB (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AMWD (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AMWD (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANAB (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:42] WARNING  Data provider failed for ANAB (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANDE (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANDE (yahoo): ['close']                                                                      
+[01/30/26 11:02:43] WARNING  Data provider failed for ANGH (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANGH (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANGI (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:44] WARNING  Data provider failed for ANGI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANGO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANGO (yahoo): ['close']                                                                      
+[01/30/26 11:02:45] WARNING  Data provider failed for ANIP (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANIP (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ANNX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANNX (yahoo): ['close']                                                                      
+[01/30/26 11:02:46] WARNING  Data provider failed for AORT (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AORT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AOSL (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:47] WARNING  Data provider failed for AOSL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APA (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for APA (yahoo): ['close']                                                                       
+[01/30/26 11:02:48] WARNING  Data provider failed for APEI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APEI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APGE (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APGE (yahoo): ['close']                                                                      
+[01/30/26 11:02:49] WARNING  Data provider failed for APLD (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APLD (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APLS (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:50] WARNING  Data provider failed for APLS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APOG (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APOG (yahoo): ['close']                                                                      
+[01/30/26 11:02:51] WARNING  Data provider failed for APPN (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APPN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APPS (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:52] WARNING  Data provider failed for APPS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for APTV (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for APTV (yahoo): ['close']                                                                      
+[01/30/26 11:02:53] WARNING  Data provider failed for AQST (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AQST (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AR (stooq): empty dataframe from stooq                                                       
+                    WARNING  Data provider failed for AR (yahoo): ['close']                                                                        
+[01/30/26 11:02:54] WARNING  Data provider failed for ARAI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARAI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARDX (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:55] WARNING  Data provider failed for ARDX (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for AREC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for AREC (yahoo): ['close']                                                                      
+[01/30/26 11:02:56] WARNING  Data provider failed for ARHS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARHS (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARLO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARLO (yahoo): ['close']                                                                      
+[01/30/26 11:02:57] WARNING  Data provider failed for ARQQ (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARQQ (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARQT (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:02:58] WARNING  Data provider failed for ARQT (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARRY (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARRY (yahoo): ['close']                                                                      
+[01/30/26 11:02:59] WARNING  Data provider failed for ARVN (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ARVN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ARWR (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:03:09] WARNING  Data provider failed for ARWR (yahoo): empty dataframe from yfinance                                                  
+[01/30/26 11:03:10] WARNING  Data provider failed for ARX (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ARX (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for AS (stooq): empty dataframe from stooq                                                       
+                    WARNING  Data provider failed for AS (yahoo): ['close']                                                                        
+[01/30/26 11:03:11] WARNING  Data provider failed for ASAN (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASAN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASGN (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:03:12] WARNING  Data provider failed for ASGN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASIX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASIX (yahoo): ['close']                                                                      
+[01/30/26 11:03:13] WARNING  Data provider failed for ASO (stooq): empty dataframe from stooq                                                      
+                    WARNING  Data provider failed for ASO (yahoo): ['close']                                                                       
+                    WARNING  Data provider failed for ASPI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASPI (yahoo): ['close']                                                                      
+[01/30/26 11:03:14] WARNING  Data provider failed for ASPN (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASPN (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASTE (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:03:15] WARNING  Data provider failed for ASTE (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASTH (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASTH (yahoo): ['close']                                                                      
+[01/30/26 11:03:16] WARNING  Data provider failed for ASTL (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASTL (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ASYS (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ASYS (yahoo): ['close']                                                                      
+[01/30/26 11:03:17] WARNING  Data provider failed for ATAI (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ATAI (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ATEC (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:03:18] WARNING  Data provider failed for ATEC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ATEX (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ATEX (yahoo): ['close']                                                                      
+[01/30/26 11:03:19] WARNING  Data provider failed for ATRC (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ATRC (yahoo): ['close']                                                                      
+                    WARNING  Data provider failed for ATRO (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ATRO (yahoo): ['close']                                                                      
+[01/30/26 11:03:20] INFO     Done. Signals generated: 0                                                                                            
