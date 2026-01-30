@@ -1038,3 +1038,349 @@
                     WARNING  Data provider failed for ATRO (stooq): empty dataframe from stooq                                                     
                     WARNING  Data provider failed for ATRO (yahoo): ['close']                                                                      
 [01/30/26 11:03:20] INFO     Done. Signals generated: 0                                                                                            
+[01/30/26 11:09:24] INFO     signals-bot starting                                                                                                  
+                    INFO     run_id=daily_close_scan-20260130T090924Z                                                                              
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                       
+                    INFO     Universe size: 114 tickers                                                                                            
+[01/30/26 11:09:25] WARNING  Data provider failed for AA (stooq): empty dataframe from stooq                                                       
+[01/30/26 11:09:26] INFO     WAIT AA conf=6 score=0.059 close=$60.64 volRatio=0.89 ret5=-3.96% brkDist=9.42% atr=5.19% :: no breakout, weak        
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AAL (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:09:27] INFO     WAIT AAL conf=8 score=0.079 close=$13.51 volRatio=1.18 ret5=-10.05% brkDist=18.12% atr=4.53% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AAMI (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:28] WARNING  Data provider failed for AAOI (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AAOI conf=20 score=0.204 close=$39.57 volRatio=1.75 ret5=3.72% brkDist=14.54% atr=9.41% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AAP (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:09:29] INFO     WAIT AAP conf=17 score=0.170 close=$48.12 volRatio=0.76 ret5=5.09% brkDist=4.64% atr=4.82% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AAUC (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AAUC conf=57 score=0.570 close=$32.01 volRatio=1.06 ret5=4.27% brkDist=-0.31% atr=3.22% :: weak momentum, low    
+                             volume                                                                                                                
+[01/30/26 11:09:30] WARNING  Data provider failed for ABAT (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ABAT conf=6 score=0.060 close=$4.32 volRatio=0.90 ret5=-8.57% brkDist=18.95% atr=12.96% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ABCL (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ABCL conf=3 score=0.032 close=$3.86 volRatio=0.49 ret5=-16.81% brkDist=20.41% atr=8.22% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:31] WARNING  Data provider failed for ABEO (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ABEO conf=8 score=0.083 close=$5.08 volRatio=1.25 ret5=-5.22% brkDist=10.72% atr=5.17% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ABSI (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:32] INFO     WAIT ABSI conf=7 score=0.067 close=$3.03 volRatio=1.01 ret5=-4.11% brkDist=27.08% atr=6.35% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ABUS (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ABUS conf=3 score=0.029 close=$4.13 volRatio=0.43 ret5=-0.72% brkDist=18.22% atr=6.17% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:33] WARNING  Data provider failed for ACAD (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ACAD conf=6 score=0.057 close=$25.70 volRatio=0.85 ret5=-6.58% brkDist=7.59% atr=3.65% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ACHC (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:34] INFO     WAIT ACHC conf=6 score=0.059 close=$13.05 volRatio=0.88 ret5=-13.86% brkDist=17.35% atr=8.16% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ACHR (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ACHR conf=6 score=0.057 close=$7.43 volRatio=0.86 ret5=-17.54% brkDist=20.02% atr=7.84% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ACIW (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:35] INFO     WAIT ACIW conf=10 score=0.096 close=$43.20 volRatio=1.44 ret5=-1.21% brkDist=11.40% atr=3.12% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ACLX (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ACLX conf=3 score=0.034 close=$68.26 volRatio=0.51 ret5=-0.52% brkDist=10.77% atr=5.01% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:36] WARNING  Data provider failed for ACMR (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ACMR conf=18 score=0.176 close=$54.68 volRatio=0.71 ret5=5.83% brkDist=3.14% atr=6.05% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ACRS (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:37] INFO     WAIT ACRS conf=2 score=0.016 close=$3.43 volRatio=0.24 ret5=-24.28% brkDist=29.86% atr=13.53% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ACVA (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ACVA conf=5 score=0.052 close=$7.88 volRatio=0.77 ret5=-8.58% brkDist=13.12% atr=4.75% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:38] WARNING  Data provider failed for AD (stooq): empty dataframe from stooq                                                       
+                    INFO     WAIT AD conf=3 score=0.031 close=$47.38 volRatio=0.47 ret5=-21.40% brkDist=22.10% atr=6.14% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ADEA (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:39] INFO     WAIT ADEA conf=8 score=0.079 close=$18.10 volRatio=1.19 ret5=-9.09% brkDist=10.97% atr=3.97% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ADMA (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ADMA conf=5 score=0.046 close=$17.01 volRatio=0.70 ret5=-2.24% brkDist=11.36% atr=4.54% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:40] WARNING  Data provider failed for ADNT (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ADNT conf=4 score=0.044 close=$21.04 volRatio=0.66 ret5=-3.71% brkDist=11.45% atr=5.00% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ADPT (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ADPT conf=5 score=0.052 close=$18.37 volRatio=0.79 ret5=-3.62% brkDist=5.41% atr=5.70% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:41] WARNING  Data provider failed for ADTN (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ADTN conf=9 score=0.089 close=$9.37 volRatio=1.34 ret5=-5.35% brkDist=9.47% atr=4.57% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ADUR (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:42] INFO     WAIT ADUR conf=4 score=0.040 close=$14.37 volRatio=0.61 ret5=9.69% brkDist=6.98% atr=8.49% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AEHR (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AEHR conf=5 score=0.051 close=$26.88 volRatio=0.76 ret5=-13.04% brkDist=15.58% atr=10.74% :: no breakout, weak   
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AEO (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:09:43] INFO     WAIT AEO conf=5 score=0.052 close=$23.31 volRatio=0.78 ret5=-7.28% brkDist=18.10% atr=4.96% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AES (stooq): empty dataframe from stooq                                                      
+                    INFO     WAIT AES conf=15 score=0.149 close=$15.04 volRatio=1.21 ret5=2.94% brkDist=1.57% atr=3.44% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:44] WARNING  Data provider failed for AESI (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AESI conf=12 score=0.120 close=$11.83 volRatio=1.78 ret5=0.08% brkDist=4.56% atr=4.73% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:45] WARNING  Data provider failed for AEVA (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AEVA conf=3 score=0.034 close=$13.25 volRatio=0.50 ret5=-27.56% brkDist=41.42% atr=16.40% :: no breakout, weak   
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AFRM (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AFRM conf=10 score=0.096 close=$62.80 volRatio=1.44 ret5=-13.78% brkDist=25.81% atr=6.51% :: no breakout, weak   
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:46] WARNING  Data provider failed for AG (stooq): empty dataframe from stooq                                                       
+                    INFO     WAIT AG conf=19 score=0.188 close=$25.17 volRatio=1.44 ret5=3.92% brkDist=9.78% atr=6.95% :: no breakout, weak        
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AGI (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:09:47] INFO     WAIT AGI conf=12 score=0.117 close=$42.12 volRatio=1.75 ret5=-0.14% brkDist=6.77% atr=5.20% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AGIO (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AGIO conf=6 score=0.057 close=$27.61 volRatio=0.85 ret5=-3.66% brkDist=7.75% atr=4.08% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:48] WARNING  Data provider failed for AGRO (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AGRO conf=5 score=0.046 close=$8.80 volRatio=0.69 ret5=-1.35% brkDist=4.76% atr=3.50% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:49] WARNING  Data provider failed for AHCO (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AHCO conf=6 score=0.057 close=$9.79 volRatio=0.86 ret5=-6.76% brkDist=10.35% atr=3.99% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AI (stooq): empty dataframe from stooq                                                       
+                    INFO     WAIT AI conf=11 score=0.106 close=$12.26 volRatio=1.58 ret5=-5.47% brkDist=15.33% atr=5.72% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:50] WARNING  Data provider failed for AIP (stooq): empty dataframe from stooq                                                      
+                    INFO     WAIT AIP conf=6 score=0.064 close=$15.66 volRatio=0.96 ret5=-7.61% brkDist=14.19% atr=5.93% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AIRO (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:51] INFO     WAIT AIRO conf=3 score=0.034 close=$10.92 volRatio=0.51 ret5=-12.85% brkDist=20.87% atr=9.15% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AIRS (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AIRS conf=3 score=0.028 close=$2.90 volRatio=0.42 ret5=-0.34% brkDist=11.72% atr=12.94% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALGM (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:52] INFO     BUY ALGM conf=92 score=0.920 close=$37.98 volRatio=3.65 ret5=12.33% brkDist=-7.32% atr=4.60% :: breakout + momentum + 
+                             volume                                                                                                                
+                    WARNING  Data provider failed for ALH (stooq): empty dataframe from stooq                                                      
+                    INFO     WAIT ALH conf=6 score=0.056 close=$21.81 volRatio=0.84 ret5=-0.55% brkDist=3.79% atr=3.79% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:53] WARNING  Data provider failed for ALHC (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ALHC conf=5 score=0.045 close=$22.50 volRatio=0.68 ret5=-4.70% brkDist=5.74% atr=5.15% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALK (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:09:54] INFO     WAIT ALK conf=27 score=0.270 close=$53.30 volRatio=1.36 ret5=9.09% brkDist=0.84% atr=4.22% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALKS (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ALKS conf=55 score=0.549 close=$34.88 volRatio=1.27 ret5=2.74% brkDist=-0.61% atr=3.38% :: weak momentum, low    
+                             volume                                                                                                                
+[01/30/26 11:09:55] WARNING  Data provider failed for ALKT (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ALKT conf=14 score=0.138 close=$21.19 volRatio=2.07 ret5=0.05% brkDist=13.39% atr=5.26% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALLY (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:56] INFO     WAIT ALLY conf=5 score=0.051 close=$42.96 volRatio=0.77 ret5=2.31% brkDist=9.12% atr=3.00% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALM (stooq): empty dataframe from stooq                                                      
+                    INFO     WAIT ALM conf=31 score=0.314 close=$11.44 volRatio=1.47 ret5=9.26% brkDist=11.86% atr=7.42% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALMS (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:09:57] INFO     WAIT ALMS conf=6 score=0.061 close=$26.84 volRatio=0.17 ret5=2.13% brkDist=4.55% atr=7.81% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALMU (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ALMU conf=5 score=0.052 close=$17.17 volRatio=0.79 ret5=-2.72% brkDist=29.05% atr=10.56% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[01/30/26 11:09:58] WARNING  Data provider failed for ALNT (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ALNT conf=6 score=0.062 close=$61.21 volRatio=0.93 ret5=-3.98% brkDist=6.42% atr=4.12% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALT (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:09:59] INFO     WAIT ALT conf=4 score=0.041 close=$5.10 volRatio=0.62 ret5=-5.20% brkDist=20.81% atr=9.35% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ALTS (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ALTS conf=8 score=0.077 close=$2.15 volRatio=1.16 ret5=-6.52% brkDist=21.53% atr=13.75% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AMAL (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:00] INFO     WAIT AMAL conf=15 score=0.150 close=$39.06 volRatio=1.03 ret5=1.61% brkDist=0.71% atr=3.29% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AMBA (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMBA conf=3 score=0.034 close=$65.90 volRatio=0.51 ret5=-4.59% brkDist=18.99% atr=4.49% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:01] WARNING  Data provider failed for AMBQ (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMBQ conf=10 score=0.101 close=$32.99 volRatio=1.51 ret5=0.89% brkDist=11.82% atr=7.76% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AMKR (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:02] INFO     WAIT AMKR conf=5 score=0.052 close=$50.00 volRatio=0.77 ret5=-4.67% brkDist=9.37% atr=6.36% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AMLX (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMLX conf=5 score=0.052 close=$14.85 volRatio=0.78 ret5=-8.50% brkDist=15.09% atr=7.37% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:03] WARNING  Data provider failed for AMN (stooq): empty dataframe from stooq                                                      
+                    INFO     WAIT AMN conf=9 score=0.094 close=$20.19 volRatio=0.64 ret5=2.96% brkDist=11.25% atr=6.53% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AMPH (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMPH conf=4 score=0.038 close=$26.15 volRatio=0.58 ret5=0.00% brkDist=11.42% atr=3.94% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:04] WARNING  Data provider failed for AMPL (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMPL conf=8 score=0.076 close=$9.37 volRatio=1.13 ret5=-10.42% brkDist=21.72% atr=5.66% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:05] WARNING  Data provider failed for AMPX (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMPX conf=87 score=0.867 close=$13.58 volRatio=2.23 ret5=13.64% brkDist=-11.86% atr=7.39% :: low volume          
+                    WARNING  Data provider failed for AMRC (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMRC conf=6 score=0.056 close=$32.37 volRatio=0.85 ret5=-1.07% brkDist=4.82% atr=5.01% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:06] WARNING  Data provider failed for AMSC (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMSC conf=6 score=0.063 close=$31.45 volRatio=0.95 ret5=-4.98% brkDist=8.84% atr=5.36% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AMTB (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:07] INFO     WAIT AMTB conf=7 score=0.071 close=$21.73 volRatio=1.06 ret5=-2.16% brkDist=4.32% atr=3.61% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AMWD (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AMWD conf=9 score=0.094 close=$58.54 volRatio=1.40 ret5=-8.65% brkDist=9.87% atr=4.00% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ANAB (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:08] INFO     WAIT ANAB conf=4 score=0.045 close=$47.85 volRatio=0.67 ret5=1.10% brkDist=6.18% atr=6.37% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ANDE (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:09] WARNING  Data provider failed for ANGH (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ANGH conf=0 score=0.001 close=$2.73 volRatio=0.01 ret5=-1.80% brkDist=48.20% atr=14.24% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ANGI (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:10] INFO     WAIT ANGI conf=8 score=0.079 close=$13.15 volRatio=1.11 ret5=0.23% brkDist=9.81% atr=4.18% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ANGO (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ANGO conf=3 score=0.029 close=$9.98 volRatio=0.44 ret5=-6.11% brkDist=25.36% atr=3.97% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:11] WARNING  Data provider failed for ANIP (stooq): empty dataframe from stooq                                                     
+                    WARNING  Data provider failed for ANNX (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ANNX conf=3 score=0.032 close=$6.52 volRatio=0.48 ret5=-6.32% brkDist=9.19% atr=6.85% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:12] WARNING  Data provider failed for AORT (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AORT conf=9 score=0.089 close=$40.42 volRatio=1.34 ret5=-7.97% brkDist=13.71% atr=3.43% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AOSL (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:13] INFO     WAIT AOSL conf=8 score=0.077 close=$22.50 volRatio=1.16 ret5=-2.89% brkDist=5.26% atr=4.22% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for APA (stooq): empty dataframe from stooq                                                      
+                    INFO     WAIT APA conf=13 score=0.132 close=$26.26 volRatio=1.97 ret5=2.78% brkDist=4.02% atr=4.04% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:14] WARNING  Data provider failed for APEI (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT APEI conf=4 score=0.043 close=$42.27 volRatio=0.65 ret5=-3.32% brkDist=3.91% atr=3.62% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for APGE (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:15] INFO     WAIT APGE conf=6 score=0.065 close=$69.98 volRatio=0.97 ret5=-12.37% brkDist=17.24% atr=5.75% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for APLD (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:16] INFO     WAIT APLD conf=13 score=0.133 close=$38.07 volRatio=0.73 ret5=9.59% brkDist=9.94% atr=10.44% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for APLS (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT APLS conf=19 score=0.192 close=$23.05 volRatio=1.21 ret5=4.77% brkDist=16.06% atr=6.27% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:17] WARNING  Data provider failed for APOG (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT APOG conf=4 score=0.041 close=$37.49 volRatio=0.62 ret5=-5.42% brkDist=7.55% atr=3.58% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:18] WARNING  Data provider failed for APPN (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT APPN conf=9 score=0.090 close=$28.86 volRatio=1.35 ret5=-1.60% brkDist=19.99% atr=5.29% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:19] WARNING  Data provider failed for APPS (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT APPS conf=13 score=0.131 close=$5.41 volRatio=1.21 ret5=4.64% brkDist=5.58% atr=6.79% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:20] WARNING  Data provider failed for APTV (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT APTV conf=6 score=0.060 close=$78.83 volRatio=0.89 ret5=1.68% brkDist=11.36% atr=3.60% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AQST (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AQST conf=4 score=0.036 close=$3.16 volRatio=0.53 ret5=-2.77% brkDist=52.05% atr=13.16% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:21] WARNING  Data provider failed for AR (stooq): empty dataframe from stooq                                                       
+                    INFO     WAIT AR conf=11 score=0.113 close=$35.30 volRatio=0.76 ret5=2.68% brkDist=0.93% atr=3.77% :: no breakout, weak        
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ARAI (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:22] INFO     WAIT ARAI conf=2 score=0.023 close=$2.11 volRatio=0.35 ret5=-21.85% brkDist=37.01% atr=13.72% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ARDX (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ARDX conf=2 score=0.024 close=$7.85 volRatio=0.35 ret5=-1.01% brkDist=6.55% atr=6.41% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:23] WARNING  Data provider failed for AREC (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT AREC conf=7 score=0.069 close=$3.70 volRatio=1.04 ret5=-11.69% brkDist=22.92% atr=12.97% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ARHS (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:24] INFO     WAIT ARHS conf=8 score=0.078 close=$9.92 volRatio=1.16 ret5=-7.38% brkDist=15.50% atr=4.95% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ARLO (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ARLO conf=6 score=0.064 close=$13.02 volRatio=0.97 ret5=-6.47% brkDist=8.70% atr=3.96% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ARQQ (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:25] INFO     WAIT ARQQ conf=6 score=0.063 close=$22.27 volRatio=0.94 ret5=-12.15% brkDist=23.74% atr=8.13% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ARQT (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ARQT conf=5 score=0.054 close=$25.73 volRatio=0.81 ret5=-3.45% brkDist=16.33% atr=4.80% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:26] WARNING  Data provider failed for ARRY (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ARRY conf=27 score=0.272 close=$11.71 volRatio=1.12 ret5=8.43% brkDist=2.09% atr=6.80% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ARVN (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ARVN conf=23 score=0.232 close=$13.38 volRatio=1.23 ret5=6.44% brkDist=2.41% atr=4.58% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:27] WARNING  Data provider failed for ARWR (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ARWR conf=5 score=0.050 close=$69.12 volRatio=0.74 ret5=-0.68% brkDist=9.95% atr=4.44% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ARX (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:10:28] INFO     WAIT ARX conf=7 score=0.071 close=$13.83 volRatio=1.06 ret5=-3.02% brkDist=16.94% atr=5.29% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for AS (stooq): empty dataframe from stooq                                                       
+                    INFO     WAIT AS conf=9 score=0.093 close=$37.34 volRatio=1.02 ret5=2.33% brkDist=6.65% atr=3.41% :: no breakout, weak         
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:29] WARNING  Data provider failed for ASAN (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ASAN conf=9 score=0.090 close=$10.41 volRatio=1.35 ret5=-6.72% brkDist=25.88% atr=5.68% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ASGN (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ASGN conf=9 score=0.086 close=$49.65 volRatio=1.29 ret5=-3.63% brkDist=5.25% atr=3.46% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:30] WARNING  Data provider failed for ASIX (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ASIX conf=9 score=0.086 close=$16.05 volRatio=1.28 ret5=-6.14% brkDist=14.76% atr=4.11% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ASO (stooq): empty dataframe from stooq                                                      
+[01/30/26 11:10:31] INFO     WAIT ASO conf=5 score=0.051 close=$55.36 volRatio=0.76 ret5=-2.93% brkDist=6.94% atr=4.29% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ASPI (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ASPI conf=6 score=0.062 close=$7.24 volRatio=0.94 ret5=-10.95% brkDist=15.81% atr=11.90% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:32] WARNING  Data provider failed for ASPN (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ASPN conf=8 score=0.076 close=$3.61 volRatio=1.13 ret5=-7.44% brkDist=8.26% atr=5.86% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ASTE (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ASTE conf=6 score=0.055 close=$48.42 volRatio=0.83 ret5=-2.75% brkDist=4.91% atr=3.16% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:33] WARNING  Data provider failed for ASTH (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ASTH conf=6 score=0.062 close=$22.41 volRatio=0.93 ret5=-18.80% brkDist=23.59% atr=7.86% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ASTL (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:34] INFO     WAIT ASTL conf=8 score=0.080 close=$4.45 volRatio=1.20 ret5=1.60% brkDist=7.68% atr=6.59% :: no breakout, weak        
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ASYS (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ASYS conf=19 score=0.191 close=$17.39 volRatio=1.05 ret5=5.20% brkDist=5.85% atr=6.41% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ATAI (stooq): empty dataframe from stooq                                                     
+[01/30/26 11:10:35] INFO     WAIT ATAI conf=6 score=0.055 close=$3.84 volRatio=0.83 ret5=-3.27% brkDist=8.35% atr=5.41% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ATEC (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ATEC conf=7 score=0.070 close=$14.85 volRatio=1.06 ret5=-6.01% brkDist=36.24% atr=8.42% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:36] WARNING  Data provider failed for ATEX (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ATEX conf=24 score=0.239 close=$26.60 volRatio=1.11 ret5=9.65% brkDist=12.12% atr=5.94% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    WARNING  Data provider failed for ATRC (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ATRC conf=6 score=0.061 close=$36.95 volRatio=0.92 ret5=-7.67% brkDist=14.43% atr=5.83% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[01/30/26 11:10:37] WARNING  Data provider failed for ATRO (stooq): empty dataframe from stooq                                                     
+                    INFO     WAIT ATRO conf=5 score=0.054 close=$76.80 volRatio=0.42 ret5=1.11% brkDist=3.99% atr=4.47% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                                Signal Summary                                 
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃ HoldDays ┃     SL ┃    SL% ┃     TP ┃    TP% ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ BUY    │ ALGM   │         92 │        5 │ $35.36 │ -6.90% │ $43.22 │ 13.79% │
+└────────┴────────┴────────────┴──────────┴────────┴────────┴────────┴────────┘
+[01/30/26 11:10:38] INFO     Done. Signals generated: 111                                                                                          

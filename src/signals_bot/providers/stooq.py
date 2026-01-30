@@ -78,6 +78,8 @@ class StooqProvider(MarketDataProvider):
         )
         if "date" not in df.columns:
             raise ValueError("stooq missing date column")
+        if "close" not in df.columns:
+            raise ValueError("stooq missing close column")
 
         df["date"] = pd.to_datetime(df["date"])
         df = df.set_index("date").sort_index()

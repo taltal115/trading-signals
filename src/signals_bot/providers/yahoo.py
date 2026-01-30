@@ -58,6 +58,14 @@ class YahooProvider(MarketDataProvider):
         if df is None or df.empty:
             raise ValueError("empty dataframe from yfinance")
 
+        # yfinance can return MultiIndex columns in some cases; normalize to a single symbol.
+        if isinstance(df.columns, pd.MultiIndex):
+            sym = symbol.upper()
+            if sym in df.columns.get_level_values(-1):
+                df = df.xs(sym, axis=1, level=-1)
+            else:
+                df.columns = df.columns.get_level_values(0)
+
         # Normalize column names.
         df = df.rename(
             columns={
@@ -71,6 +79,8 @@ class YahooProvider(MarketDataProvider):
         )
         keep = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
         df = df[keep].copy()
+        if "close" not in df.columns:
+            raise ValueError("yfinance missing close column")
 
         df = df.dropna(subset=["close"]).copy()
         df.index = pd.to_datetime(df.index)
