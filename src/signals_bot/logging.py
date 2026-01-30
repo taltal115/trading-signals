@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
-from typing import Any
+from typing import Any, Iterable
 
 from rich.logging import RichHandler
+from rich.console import Console
+from rich.table import Table
 
 
 def get_logger(level: str = "INFO") -> logging.Logger:
@@ -71,4 +73,57 @@ def log_signal(logger: logging.Logger, signal: Any) -> None:
     )
 
     logger.debug("signal_details=%s", asdict(signal))
+
+
+def print_action_table(signals: Iterable[Any]) -> None:
+    table = Table(title="Signal Summary", show_lines=False)
+    table.add_column("Action", justify="left")
+    table.add_column("Ticker", justify="left")
+    table.add_column("Confidence", justify="right")
+    table.add_column("HoldDays", justify="right")
+    table.add_column("SL", justify="right")
+    table.add_column("SL%", justify="right")
+    table.add_column("TP", justify="right")
+    table.add_column("TP%", justify="right")
+
+    rows = []
+    for s in signals:
+        action = getattr(s, "action", "")
+        if action not in {"BUY", "SELL"}:
+            continue
+        ticker = getattr(s, "ticker", "-")
+        conf = int(getattr(s, "confidence", 0))
+        hold_days = getattr(s, "max_hold_days", None)
+        close = getattr(s, "close", None)
+        stop = getattr(s, "suggested_stop", None)
+        target = getattr(s, "suggested_target", None)
+
+        def pct_from_close(level: float | None, base: float | None) -> float | None:
+            if level is None or base is None or base == 0:
+                return None
+            return ((level - base) / base) * 100.0
+
+        stop_pct = pct_from_close(stop, close)
+        target_pct = pct_from_close(target, close)
+
+        rows.append(
+            (
+                action,
+                str(ticker),
+                str(conf),
+                str(int(hold_days)) if hold_days is not None else "-",
+                _fmt_money(stop),
+                _fmt_pct(stop_pct),
+                _fmt_money(target),
+                _fmt_pct(target_pct),
+            )
+        )
+
+    if not rows:
+        return
+
+    for action, ticker, conf, hold_days, stop, stop_pct, target, target_pct in rows:
+        table.add_row(action, ticker, conf, hold_days, stop, stop_pct, target, target_pct)
+
+    Console().print(table)
 

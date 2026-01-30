@@ -4,13 +4,14 @@ run:
 
 universe:
   # Option A: inline symbols (fastest to start)
-  symbols: ["AAPL", "NVDA", "TSLA", "AMD", "PLTR"]
+  # Leave empty when using a dynamic universe CSV.
+  symbols: []
   # Option B: CSV with a `symbol` column (recommended once you grow)
-  # symbols_csv: "./data/universe.csv"
+  symbols_csv: "./data/universe.csv"
   # Option C: IBKR scanner (dynamic intraday universe)
   # When enabled, the bot will pull symbols from IBKR scanners each run and merge with symbols/symbols_csv.
   ibkr_scanner:
-    enabled: true
+    enabled: false
     merge_with_static: true
     max_symbols: 200
     # Common scan codes: TOP_PERC_GAIN, HOT_BY_VOLUME, MOST_ACTIVE
@@ -20,7 +21,7 @@ universe:
 
 data:
   lookback_days: 90
-  provider_order: ["yahoo", "stooq"]
+  provider_order: ["stooq", "yahoo"]
   request_timeout_sec: 20
   # If your network uses SSL interception (corporate proxy), set a CA bundle path.
   # Example: "/path/to/corporate-ca.pem"
@@ -46,10 +47,10 @@ strategy:
 
   # Breakout + momentum thresholds
   breakout_lookback_days: 20
-  breakout_dist_pct_max: 1.0    # within 1% of 20D high counts as "near breakout"
-  ret_5d_min_pct: 8.0
-  ret_10d_min_pct: 12.0
-  vol_ratio_min: 2.0            # volume / avg20 volume
+  breakout_dist_pct_max: 0.8    # tighter = higher confidence
+  ret_5d_min_pct: 10.0          # >10% in ~1 week
+  ret_10d_min_pct: 15.0         # keep 2-week trend strong
+  vol_ratio_min: 2.5            # volume / avg20 volume
 
   # Position guidance (manual)
   max_hold_days: 5
@@ -68,7 +69,7 @@ sqlite:
 
 slack:
   enabled: true
-  channel: "YOUR_CHANNEL_ID"
+  channel: "#trading-8080"
   post_top_n: 10
   min_confidence: 60
 

@@ -1,0 +1,111 @@
+[01/27/26 14:23:43] INFO     signals-bot starting                                                                                                                          
+                    INFO     run_id=daily_close_scan-20260127T122343Z                                                                                                      
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                                               
+                    INFO     Universe size: 25 tickers                                                                                                                     
+[01/27/26 14:23:49] INFO     WAIT DKNG conf=9 score=0.088 close=$30.58 volRatio=1.32 ret5=-6.25% brkDist=17.31% atr=5.50% :: no breakout, weak momentum, low volume        
+[01/27/26 14:23:50] INFO     WAIT ENPH conf=25 score=0.248 close=$39.42 volRatio=0.93 ret5=12.69% brkDist=7.53% atr=5.29% :: no breakout, weak momentum, low volume        
+                    INFO     WAIT MARA conf=7 score=0.067 close=$9.98 volRatio=1.00 ret5=-12.15% brkDist=13.71% atr=7.37% :: no breakout, weak momentum, low volume        
+[01/27/26 14:23:56] INFO     WAIT RBLX conf=9 score=0.090 close=$74.01 volRatio=1.36 ret5=-15.20% brkDist=18.75% atr=6.48% :: no breakout, weak momentum, low volume       
+[01/27/26 14:23:57] INFO     WAIT RIOT conf=7 score=0.070 close=$16.23 volRatio=1.05 ret5=-15.64% brkDist=16.30% atr=7.67% :: no breakout, weak momentum, low volume       
+[01/27/26 14:23:58] INFO     WAIT SMCI conf=4 score=0.041 close=$30.80 volRatio=0.62 ret5=-5.64% brkDist=8.43% atr=5.19% :: no breakout, weak momentum, low volume         
+[01/27/26 14:23:59] INFO     WAIT SOFI conf=5 score=0.053 close=$25.80 volRatio=0.79 ret5=-1.26% brkDist=13.60% atr=4.47% :: no breakout, weak momentum, low volume        
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         25 │
+│ WAIT   │ RBLX   │          9 │
+│ WAIT   │ DKNG   │          9 │
+│ WAIT   │ RIOT   │          7 │
+│ WAIT   │ MARA   │          7 │
+│ WAIT   │ SOFI   │          5 │
+│ WAIT   │ SMCI   │          4 │
+└────────┴────────┴────────────┘
+[01/27/26 14:24:00] INFO     Done. Signals generated: 7                                                                                                                    
+[01/27/26 14:39:26] INFO     signals-bot starting                                                                                                                          
+                    INFO     run_id=daily_close_scan-20260127T123926Z                                                                                                      
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                                               
+                    INFO     Universe size: 25 tickers                                                                                                                     
+[01/27/26 14:39:32] INFO     WAIT DKNG conf=9 score=0.088 close=$30.58 volRatio=1.32 ret5=-6.25% brkDist=17.31% atr=5.50% :: no breakout, weak momentum, low volume        
+[01/27/26 14:39:33] INFO     WAIT ENPH conf=25 score=0.248 close=$39.42 volRatio=0.93 ret5=12.69% brkDist=7.53% atr=5.29% :: no breakout, weak momentum, low volume        
+                    INFO     WAIT MARA conf=7 score=0.067 close=$9.98 volRatio=1.00 ret5=-12.15% brkDist=13.71% atr=7.37% :: no breakout, weak momentum, low volume        
+[01/27/26 14:39:40] INFO     WAIT RBLX conf=9 score=0.090 close=$74.01 volRatio=1.36 ret5=-15.20% brkDist=18.75% atr=6.48% :: no breakout, weak momentum, low volume       
+[01/27/26 14:39:41] INFO     WAIT RIOT conf=7 score=0.070 close=$16.23 volRatio=1.05 ret5=-15.64% brkDist=16.30% atr=7.67% :: no breakout, weak momentum, low volume       
+                    INFO     WAIT SMCI conf=4 score=0.041 close=$30.80 volRatio=0.62 ret5=-5.64% brkDist=8.43% atr=5.19% :: no breakout, weak momentum, low volume         
+[01/27/26 14:39:42] INFO     WAIT SOFI conf=5 score=0.053 close=$25.80 volRatio=0.79 ret5=-1.26% brkDist=13.60% atr=4.47% :: no breakout, weak momentum, low volume        
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         25 │
+│ WAIT   │ RBLX   │          9 │
+│ WAIT   │ DKNG   │          9 │
+│ WAIT   │ RIOT   │          7 │
+│ WAIT   │ MARA   │          7 │
+│ WAIT   │ SOFI   │          5 │
+│ WAIT   │ SMCI   │          4 │
+└────────┴────────┴────────────┘
+[01/27/26 14:39:44] INFO     Done. Signals generated: 7                                                                                                                    
+[01/27/26 15:10:02] INFO     signals-bot starting                               
+                    INFO     run_id=daily_close_scan-20260127T131002Z           
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading
+                             /trading-signals/config.yaml                       
+                    INFO     Universe size: 25 tickers                          
+[01/27/26 15:10:08] INFO     WAIT DKNG conf=9 score=0.088 close=$30.58          
+                             volRatio=1.32 ret5=-6.25% brkDist=17.31% atr=5.50% 
+                             :: no breakout, weak momentum, low volume          
+                    INFO     WAIT ENPH conf=25 score=0.248 close=$39.42         
+                             volRatio=0.93 ret5=12.69% brkDist=7.53% atr=5.29%  
+                             :: no breakout, weak momentum, low volume          
+[01/27/26 15:10:09] INFO     WAIT MARA conf=7 score=0.067 close=$9.98           
+                             volRatio=1.00 ret5=-12.15% brkDist=13.71% atr=7.37%
+                             :: no breakout, weak momentum, low volume          
+[01/27/26 15:10:15] INFO     WAIT RBLX conf=9 score=0.090 close=$74.01          
+                             volRatio=1.36 ret5=-15.20% brkDist=18.75% atr=6.48%
+                             :: no breakout, weak momentum, low volume          
+[01/27/26 15:10:16] INFO     WAIT RIOT conf=7 score=0.070 close=$16.23          
+                             volRatio=1.05 ret5=-15.64% brkDist=16.30% atr=7.67%
+                             :: no breakout, weak momentum, low volume          
+                    INFO     WAIT SMCI conf=4 score=0.041 close=$30.80          
+                             volRatio=0.62 ret5=-5.64% brkDist=8.43% atr=5.19%  
+                             :: no breakout, weak momentum, low volume          
+[01/27/26 15:10:17] INFO     WAIT SOFI conf=5 score=0.053 close=$25.80          
+                             volRatio=0.79 ret5=-1.26% brkDist=13.60% atr=4.47% 
+                             :: no breakout, weak momentum, low volume          
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         25 │
+│ WAIT   │ RBLX   │          9 │
+│ WAIT   │ DKNG   │          9 │
+│ WAIT   │ RIOT   │          7 │
+│ WAIT   │ MARA   │          7 │
+│ WAIT   │ SOFI   │          5 │
+│ WAIT   │ SMCI   │          4 │
+└────────┴────────┴────────────┘
+[01/27/26 15:10:19] INFO     Done. Signals generated: 7                         
+[01/27/26 20:17:46] INFO     signals-bot starting                                                                                                                          
+                    INFO     run_id=daily_close_scan-20260127T181746Z                                                                                                      
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                                               
+                    INFO     Universe size: 25 tickers                                                                                                                     
+[01/27/26 20:17:52] INFO     WAIT DKNG conf=2 score=0.023 close=$30.66 volRatio=0.34 ret5=-4.91% brkDist=17.08% atr=5.12% :: no breakout, weak momentum, low volume        
+                    INFO     WAIT ENPH conf=18 score=0.177 close=$40.24 volRatio=0.38 ret5=16.58% brkDist=5.59% atr=5.24% :: no breakout, weak momentum, low volume        
+[01/27/26 20:17:53] INFO     WAIT MARA conf=3 score=0.031 close=$10.15 volRatio=0.46 ret5=-2.07% brkDist=12.19% atr=7.09% :: no breakout, weak momentum, low volume        
+[01/27/26 20:17:59] INFO     WAIT RBLX conf=1 score=0.014 close=$72.98 volRatio=0.21 ret5=-7.43% brkDist=19.88% atr=6.27% :: no breakout, weak momentum, low volume        
+[01/27/26 20:18:00] INFO     WAIT RIOT conf=3 score=0.030 close=$17.15 volRatio=0.46 ret5=-5.25% brkDist=11.55% atr=7.41% :: no breakout, weak momentum, low volume        
+                    INFO     WAIT SMCI conf=2 score=0.022 close=$31.07 volRatio=0.33 ret5=-1.08% brkDist=7.63% atr=5.18% :: no breakout, weak momentum, low volume         
+[01/27/26 20:18:01] INFO     WAIT SOFI conf=2 score=0.024 close=$25.43 volRatio=0.35 ret5=-0.22% brkDist=14.82% atr=3.78% :: no breakout, weak momentum, low volume        
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         18 │
+│ WAIT   │ MARA   │          3 │
+│ WAIT   │ RIOT   │          3 │
+│ WAIT   │ SOFI   │          2 │
+│ WAIT   │ DKNG   │          2 │
+│ WAIT   │ SMCI   │          2 │
+│ WAIT   │ RBLX   │          1 │
+└────────┴────────┴────────────┘
+[01/27/26 20:18:02] INFO     Done. Signals generated: 7                                                                                                                    

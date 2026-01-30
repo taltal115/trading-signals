@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from signals_bot.config import AppConfig, load_config
-from signals_bot.logging import get_logger, log_run_header, log_signal
+from signals_bot.logging import get_logger, log_run_header, log_signal, print_action_table
 from signals_bot.notifiers.slack import SlackNotifier
 from signals_bot.providers.ibkr_scanner import IbkrScannerClient, IbkrScannerRequest
 from signals_bot.providers.stooq import StooqProvider
@@ -154,6 +154,7 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001 - Slack is best-effort; do not crash runs
             logger.error("Slack notification failed: %s", e)
 
+    print_action_table(signals_sorted)
     logger.info("Done. Signals generated: %d", len(signals))
     return 0
 

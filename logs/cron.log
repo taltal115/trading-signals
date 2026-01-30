@@ -1,0 +1,534 @@
+Preparing environment
+[01/23/26 15:10:02] INFO     signals-bot starting                               
+                    INFO     run_id=daily_close_scan-20260123T131002Z           
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading
+                             /trading-signals/config.yaml                       
+                    INFO     Universe size: 25 tickers                          
+[01/23/26 15:10:03] WARNING  Data provider failed for AAPL (yahoo): ['close']   
+[01/23/26 15:10:05] WARNING  Data provider failed for AMD (yahoo): ['close']    
+[01/23/26 15:10:06] WARNING  Data provider failed for AMZN (yahoo): ['close']   
+[01/23/26 15:10:07] WARNING  Data provider failed for AVGO (yahoo): ['close']   
+[01/23/26 15:10:08] WARNING  Data provider failed for COIN (yahoo): ['close']   
+[01/23/26 15:10:09] WARNING  Data provider failed for CRWD (yahoo): ['close']   
+[01/23/26 15:10:10] WARNING  Data provider failed for DDOG (yahoo): ['close']   
+[01/23/26 15:10:11] WARNING  Data provider failed for DKNG (yahoo): ['close']   
+                    INFO     WAIT DKNG conf=11 score=0.111 close=$31.62         
+                             volRatio=1.67 ret5=-7.87% brkDist=14.49% atr=5.32% 
+                             :: no breakout, weak momentum, low volume          
+[01/23/26 15:10:12] WARNING  Data provider failed for ENPH (yahoo): ['close']   
+                    INFO     WAIT ENPH conf=82 score=0.822 close=$40.48         
+                             volRatio=2.43 ret5=12.04% brkDist=-7.53% atr=5.04% 
+                             :: low volume                                      
+[01/23/26 15:10:13] WARNING  Data provider failed for MARA (yahoo): ['close']   
+                    INFO     WAIT MARA conf=8 score=0.075 close=$10.29          
+                             volRatio=1.13 ret5=-7.38% brkDist=11.02% atr=7.29% 
+                             :: no breakout, weak momentum, low volume          
+                    WARNING  Data provider failed for META (yahoo): ['close']   
+[01/23/26 15:10:14] WARNING  Data provider failed for MSFT (yahoo): ['close']   
+[01/23/26 15:10:16] WARNING  Data provider failed for MU (yahoo): ['close']     
+[01/23/26 15:10:17] WARNING  Data provider failed for NET (yahoo): ['close']    
+[01/23/26 15:10:18] WARNING  Data provider failed for NVDA (yahoo): ['close']   
+[01/23/26 15:10:19] WARNING  Data provider failed for PANW (yahoo): ['close']   
+[01/23/26 15:10:20] WARNING  Data provider failed for PLTR (yahoo): ['close']   
+[01/23/26 15:10:21] WARNING  Data provider failed for QCOM (yahoo): ['close']   
+[01/23/26 15:10:22] WARNING  Data provider failed for RBLX (yahoo): ['close']   
+[01/23/26 15:10:23] INFO     WAIT RBLX conf=9 score=0.088 close=$74.70          
+                             volRatio=1.32 ret5=-9.86% brkDist=17.99% atr=6.39% 
+                             :: no breakout, weak momentum, low volume          
+                    WARNING  Data provider failed for RIOT (yahoo): ['close']   
+                    INFO     WAIT RIOT conf=5 score=0.052 close=$17.08          
+                             volRatio=0.77 ret5=-1.33% brkDist=11.91% atr=7.10% 
+                             :: no breakout, weak momentum, low volume          
+[01/23/26 15:10:24] WARNING  Data provider failed for SMCI (yahoo): ['close']   
+                    INFO     WAIT SMCI conf=19 score=0.193 close=$32.45         
+                             volRatio=1.00 ret5=14.79% brkDist=1.61% atr=5.11%  
+                             :: no breakout, weak momentum, low volume          
+[01/23/26 15:10:25] WARNING  Data provider failed for SNOW (yahoo): ['close']   
+                    WARNING  Data provider failed for SOFI (yahoo): ['close']   
+[01/23/26 15:10:26] INFO     WAIT SOFI conf=5 score=0.053 close=$26.09          
+                             volRatio=0.80 ret5=-2.17% brkDist=12.63% atr=5.23% 
+                             :: no breakout, weak momentum, low volume          
+                    WARNING  Data provider failed for TSLA (yahoo): ['close']   
+[01/23/26 15:10:27] WARNING  Data provider failed for TSM (yahoo): ['close']    
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         82 │
+│ WAIT   │ SMCI   │         19 │
+│ WAIT   │ DKNG   │         11 │
+│ WAIT   │ RBLX   │          9 │
+│ WAIT   │ MARA   │          8 │
+│ WAIT   │ SOFI   │          5 │
+│ WAIT   │ RIOT   │          5 │
+└────────┴────────┴────────────┘
+[01/23/26 15:10:28] INFO     Done. Signals generated: 7                         
+Preparing environment
+[01/26/26 15:10:02] INFO     signals-bot starting                               
+                    INFO     run_id=daily_close_scan-20260126T131002Z           
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading
+                             /trading-signals/config.yaml                       
+                    INFO     Universe size: 25 tickers                          
+[01/26/26 15:10:08] INFO     WAIT DKNG conf=10 score=0.102 close=$29.97         
+                             volRatio=1.53 ret5=-15.48% brkDist=18.96% atr=5.67%
+                             :: no breakout, weak momentum, low volume          
+[01/26/26 15:10:09] INFO     WAIT ENPH conf=28 score=0.279 close=$39.46         
+                             volRatio=1.54 ret5=11.60% brkDist=4.11% atr=5.26%  
+                             :: no breakout, weak momentum, low volume          
+                    INFO     WAIT MARA conf=8 score=0.082 close=$10.50          
+                             volRatio=1.23 ret5=-1.50% brkDist=9.21% atr=7.14%  
+                             :: no breakout, weak momentum, low volume          
+[01/26/26 15:10:15] INFO     WAIT RBLX conf=6 score=0.057 close=$74.12          
+                             volRatio=0.86 ret5=-12.44% brkDist=18.63% atr=6.35%
+                             :: no breakout, weak momentum, low volume          
+[01/26/26 15:10:16] INFO     WAIT RIOT conf=18 score=0.184 close=$17.28         
+                             volRatio=1.26 ret5=4.28% brkDist=10.88% atr=7.08%  
+                             :: no breakout, weak momentum, low volume          
+                    INFO     WAIT SMCI conf=17 score=0.169 close=$31.70         
+                             volRatio=1.12 ret5=7.75% brkDist=5.33% atr=5.27% ::
+                             no breakout, weak momentum, low volume             
+[01/26/26 15:10:17] INFO     WAIT SOFI conf=5 score=0.051 close=$25.85          
+                             volRatio=0.77 ret5=-2.23% brkDist=13.43% atr=4.95% 
+                             :: no breakout, weak momentum, low volume          
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         28 │
+│ WAIT   │ RIOT   │         18 │
+│ WAIT   │ SMCI   │         17 │
+│ WAIT   │ DKNG   │         10 │
+│ WAIT   │ MARA   │          8 │
+│ WAIT   │ RBLX   │          6 │
+│ WAIT   │ SOFI   │          5 │
+└────────┴────────┴────────────┘
+[01/26/26 15:10:19] INFO     Done. Signals generated: 7                         
+Preparing environment
+[01/27/26 15:10:02] INFO     signals-bot starting                               
+                    INFO     run_id=daily_close_scan-20260127T131002Z           
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading
+                             /trading-signals/config.yaml                       
+                    INFO     Universe size: 25 tickers                          
+[01/27/26 15:10:08] INFO     WAIT DKNG conf=9 score=0.088 close=$30.58          
+                             volRatio=1.32 ret5=-6.25% brkDist=17.31% atr=5.50% 
+                             :: no breakout, weak momentum, low volume          
+                    INFO     WAIT ENPH conf=25 score=0.248 close=$39.42         
+                             volRatio=0.93 ret5=12.69% brkDist=7.53% atr=5.29%  
+                             :: no breakout, weak momentum, low volume          
+[01/27/26 15:10:09] INFO     WAIT MARA conf=7 score=0.067 close=$9.98           
+                             volRatio=1.00 ret5=-12.15% brkDist=13.71% atr=7.37%
+                             :: no breakout, weak momentum, low volume          
+[01/27/26 15:10:15] INFO     WAIT RBLX conf=9 score=0.090 close=$74.01          
+                             volRatio=1.36 ret5=-15.20% brkDist=18.75% atr=6.48%
+                             :: no breakout, weak momentum, low volume          
+[01/27/26 15:10:16] INFO     WAIT RIOT conf=7 score=0.070 close=$16.23          
+                             volRatio=1.05 ret5=-15.64% brkDist=16.30% atr=7.67%
+                             :: no breakout, weak momentum, low volume          
+                    INFO     WAIT SMCI conf=4 score=0.041 close=$30.80          
+                             volRatio=0.62 ret5=-5.64% brkDist=8.43% atr=5.19%  
+                             :: no breakout, weak momentum, low volume          
+[01/27/26 15:10:17] INFO     WAIT SOFI conf=5 score=0.053 close=$25.80          
+                             volRatio=0.79 ret5=-1.26% brkDist=13.60% atr=4.47% 
+                             :: no breakout, weak momentum, low volume          
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         25 │
+│ WAIT   │ RBLX   │          9 │
+│ WAIT   │ DKNG   │          9 │
+│ WAIT   │ RIOT   │          7 │
+│ WAIT   │ MARA   │          7 │
+│ WAIT   │ SOFI   │          5 │
+│ WAIT   │ SMCI   │          4 │
+└────────┴────────┴────────────┘
+[01/27/26 15:10:19] INFO     Done. Signals generated: 7                         
+Preparing environment
+[01/28/26 15:10:02] INFO     signals-bot starting                               
+                    INFO     run_id=daily_close_scan-20260128T131002Z           
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading
+                             /trading-signals/config.yaml                       
+                    INFO     Universe size: 25 tickers                          
+[01/28/26 15:10:09] INFO     WAIT DKNG conf=7 score=0.066 close=$30.11          
+                             volRatio=0.99 ret5=-6.64% brkDist=18.58% atr=5.30% 
+                             :: no breakout, weak momentum, low volume          
+[01/28/26 15:10:10] INFO     WAIT ENPH conf=20 score=0.200 close=$39.93         
+                             volRatio=0.93 ret5=15.67% brkDist=6.33% atr=5.28%  
+                             :: no breakout, weak momentum, low volume          
+                    INFO     WAIT MARA conf=6 score=0.065 close=$10.52          
+                             volRatio=0.97 ret5=1.45% brkDist=9.04% atr=6.97% ::
+                             no breakout, weak momentum, low volume             
+[01/28/26 15:10:16] INFO     WAIT RBLX conf=5 score=0.046 close=$72.14          
+                             volRatio=0.69 ret5=-8.50% brkDist=20.80% atr=6.35% 
+                             :: no breakout, weak momentum, low volume          
+[01/28/26 15:10:17] INFO     WAIT RIOT conf=6 score=0.064 close=$17.55          
+                             volRatio=0.97 ret5=-3.04% brkDist=9.49% atr=7.35%  
+                             :: no breakout, weak momentum, low volume          
+[01/28/26 15:10:18] INFO     WAIT SMCI conf=4 score=0.044 close=$31.20          
+                             volRatio=0.66 ret5=-0.67% brkDist=7.24% atr=5.16%  
+                             :: no breakout, weak momentum, low volume          
+[01/28/26 15:10:19] INFO     WAIT SOFI conf=6 score=0.055 close=$25.46          
+                             volRatio=0.83 ret5=-0.12% brkDist=14.74% atr=3.81% 
+                             :: no breakout, weak momentum, low volume          
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         20 │
+│ WAIT   │ DKNG   │          7 │
+│ WAIT   │ MARA   │          6 │
+│ WAIT   │ RIOT   │          6 │
+│ WAIT   │ SOFI   │          6 │
+│ WAIT   │ RBLX   │          5 │
+│ WAIT   │ SMCI   │          4 │
+└────────┴────────┴────────────┘
+[01/28/26 15:10:20] INFO     Done. Signals generated: 7                         
+Preparing environment
+[01/29/26 15:10:02] INFO     signals-bot starting                               
+                    INFO     run_id=daily_close_scan-20260129T131002Z           
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading
+                             /trading-signals/config.yaml                       
+                    INFO     Universe size: 114 tickers                         
+[01/29/26 15:10:03] WARNING  Data provider failed for AA (stooq): empty         
+                             dataframe from stooq                               
+[01/29/26 15:10:04] WARNING  Data provider failed for AA (yahoo): ['close']     
+                    WARNING  Data provider failed for AAL (stooq): empty        
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AAL (yahoo): ['close']    
+[01/29/26 15:10:05] WARNING  Data provider failed for AAMI (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AAMI (yahoo): ['close']   
+[01/29/26 15:10:06] WARNING  Data provider failed for AAOI (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AAOI (yahoo): ['close']   
+                    WARNING  Data provider failed for AAP (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:10:07] WARNING  Data provider failed for AAP (yahoo): ['close']    
+                    WARNING  Data provider failed for AAUC (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:08] WARNING  Data provider failed for AAUC (yahoo): ['close']   
+                    WARNING  Data provider failed for ABAT (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ABAT (yahoo): ['close']   
+[01/29/26 15:10:09] WARNING  Data provider failed for ABCL (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ABCL (yahoo): ['close']   
+[01/29/26 15:10:10] WARNING  Data provider failed for ABEO (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ABEO (yahoo): ['close']   
+                    WARNING  Data provider failed for ABSI (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:11] WARNING  Data provider failed for ABSI (yahoo): ['close']   
+                    WARNING  Data provider failed for ABUS (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ABUS (yahoo): ['close']   
+[01/29/26 15:10:12] WARNING  Data provider failed for ACAD (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ACAD (yahoo): ['close']   
+                    WARNING  Data provider failed for ACHC (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:13] WARNING  Data provider failed for ACHC (yahoo): ['close']   
+                    WARNING  Data provider failed for ACHR (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ACHR (yahoo): ['close']   
+[01/29/26 15:10:14] WARNING  Data provider failed for ACIW (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ACIW (yahoo): ['close']   
+[01/29/26 15:10:15] WARNING  Data provider failed for ACLX (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ACLX (yahoo): ['close']   
+                    WARNING  Data provider failed for ACMR (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:16] WARNING  Data provider failed for ACMR (yahoo): ['close']   
+                    WARNING  Data provider failed for ACRS (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ACRS (yahoo): ['close']   
+[01/29/26 15:10:17] WARNING  Data provider failed for ACVA (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ACVA (yahoo): ['close']   
+                    WARNING  Data provider failed for AD (stooq): empty         
+                             dataframe from stooq                               
+[01/29/26 15:10:18] WARNING  Data provider failed for AD (yahoo): ['close']     
+                    WARNING  Data provider failed for ADEA (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ADEA (yahoo): ['close']   
+[01/29/26 15:10:19] WARNING  Data provider failed for ADMA (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ADMA (yahoo): ['close']   
+                    WARNING  Data provider failed for ADNT (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:20] WARNING  Data provider failed for ADNT (yahoo): ['close']   
+                    WARNING  Data provider failed for ADPT (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:21] WARNING  Data provider failed for ADPT (yahoo): ['close']   
+                    WARNING  Data provider failed for ADTN (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:22] WARNING  Data provider failed for ADTN (yahoo): ['close']   
+                    WARNING  Data provider failed for ADUR (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ADUR (yahoo): ['close']   
+[01/29/26 15:10:23] WARNING  Data provider failed for AEHR (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AEHR (yahoo): ['close']   
+                    WARNING  Data provider failed for AEO (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:10:24] WARNING  Data provider failed for AEO (yahoo): ['close']    
+                    WARNING  Data provider failed for AES (stooq): empty        
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AES (yahoo): ['close']    
+[01/29/26 15:10:25] WARNING  Data provider failed for AESI (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AESI (yahoo): ['close']   
+                    WARNING  Data provider failed for AEVA (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:26] WARNING  Data provider failed for AEVA (yahoo): ['close']   
+                    WARNING  Data provider failed for AFRM (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AFRM (yahoo): ['close']   
+[01/29/26 15:10:27] WARNING  Data provider failed for AG (stooq): empty         
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AG (yahoo): ['close']     
+                    WARNING  Data provider failed for AGI (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:10:28] WARNING  Data provider failed for AGI (yahoo): ['close']    
+                    WARNING  Data provider failed for AGIO (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:29] WARNING  Data provider failed for AGIO (yahoo): ['close']   
+                    WARNING  Data provider failed for AGRO (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AGRO (yahoo): ['close']   
+[01/29/26 15:10:30] WARNING  Data provider failed for AHCO (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AHCO (yahoo): ['close']   
+                    WARNING  Data provider failed for AI (stooq): empty         
+                             dataframe from stooq                               
+[01/29/26 15:10:31] WARNING  Data provider failed for AI (yahoo): ['close']     
+                    WARNING  Data provider failed for AIP (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:10:32] WARNING  Data provider failed for AIP (yahoo): ['close']    
+                    WARNING  Data provider failed for AIRO (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AIRO (yahoo): ['close']   
+[01/29/26 15:10:33] WARNING  Data provider failed for AIRS (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AIRS (yahoo): ['close']   
+                    WARNING  Data provider failed for ALGM (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:34] WARNING  Data provider failed for ALGM (yahoo): ['close']   
+                    WARNING  Data provider failed for ALH (stooq): empty        
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ALH (yahoo): ['close']    
+[01/29/26 15:10:35] WARNING  Data provider failed for ALHC (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ALHC (yahoo): ['close']   
+                    WARNING  Data provider failed for ALK (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:10:36] WARNING  Data provider failed for ALK (yahoo): ['close']    
+                    WARNING  Data provider failed for ALKS (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:37] WARNING  Data provider failed for ALKS (yahoo): ['close']   
+                    WARNING  Data provider failed for ALKT (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ALKT (yahoo): ['close']   
+[01/29/26 15:10:38] WARNING  Data provider failed for ALLY (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ALLY (yahoo): ['close']   
+                    WARNING  Data provider failed for ALM (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:10:39] WARNING  Data provider failed for ALM (yahoo): ['close']    
+                    WARNING  Data provider failed for ALMS (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ALMS (yahoo): ['close']   
+[01/29/26 15:10:40] WARNING  Data provider failed for ALMU (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ALMU (yahoo): ['close']   
+                    WARNING  Data provider failed for ALNT (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:41] WARNING  Data provider failed for ALNT (yahoo): ['close']   
+                    WARNING  Data provider failed for ALT (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:10:42] WARNING  Data provider failed for ALT (yahoo): ['close']    
+                    WARNING  Data provider failed for ALTS (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ALTS (yahoo): ['close']   
+[01/29/26 15:10:43] WARNING  Data provider failed for AMAL (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMAL (yahoo): ['close']   
+[01/29/26 15:10:44] WARNING  Data provider failed for AMBA (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMBA (yahoo): ['close']   
+                    WARNING  Data provider failed for AMBQ (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:45] WARNING  Data provider failed for AMBQ (yahoo): ['close']   
+                    WARNING  Data provider failed for AMKR (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMKR (yahoo): ['close']   
+[01/29/26 15:10:46] WARNING  Data provider failed for AMLX (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMLX (yahoo): ['close']   
+                    WARNING  Data provider failed for AMN (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:10:47] WARNING  Data provider failed for AMN (yahoo): ['close']    
+                    WARNING  Data provider failed for AMPH (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMPH (yahoo): ['close']   
+[01/29/26 15:10:48] WARNING  Data provider failed for AMPL (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMPL (yahoo): ['close']   
+                    WARNING  Data provider failed for AMPX (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:49] WARNING  Data provider failed for AMPX (yahoo): ['close']   
+                    WARNING  Data provider failed for AMRC (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMRC (yahoo): ['close']   
+[01/29/26 15:10:50] WARNING  Data provider failed for AMSC (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMSC (yahoo): ['close']   
+[01/29/26 15:10:51] WARNING  Data provider failed for AMTB (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:52] WARNING  Data provider failed for AMTB (yahoo): ['close']   
+                    WARNING  Data provider failed for AMWD (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AMWD (yahoo): ['close']   
+[01/29/26 15:10:53] WARNING  Data provider failed for ANAB (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ANAB (yahoo): ['close']   
+                    WARNING  Data provider failed for ANDE (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:54] WARNING  Data provider failed for ANDE (yahoo): ['close']   
+                    WARNING  Data provider failed for ANGH (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ANGH (yahoo): ['close']   
+[01/29/26 15:10:55] WARNING  Data provider failed for ANGI (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ANGI (yahoo): ['close']   
+                    WARNING  Data provider failed for ANGO (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:56] WARNING  Data provider failed for ANGO (yahoo): ['close']   
+                    WARNING  Data provider failed for ANIP (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:10:59] WARNING  Data provider failed for ANIP (yahoo): ['close']   
+                    WARNING  Data provider failed for ANNX (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:00] WARNING  Data provider failed for ANNX (yahoo): ['close']   
+[01/29/26 15:11:01] WARNING  Data provider failed for AORT (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AORT (yahoo): ['close']   
+                    WARNING  Data provider failed for AOSL (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:02] WARNING  Data provider failed for AOSL (yahoo): ['close']   
+                    WARNING  Data provider failed for APA (stooq): empty        
+                             dataframe from stooq                               
+[01/29/26 15:11:03] WARNING  Data provider failed for APA (yahoo): ['close']    
+                    WARNING  Data provider failed for APEI (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:04] WARNING  Data provider failed for APEI (yahoo): ['close']   
+                    WARNING  Data provider failed for APGE (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for APGE (yahoo): ['close']   
+[01/29/26 15:11:05] WARNING  Data provider failed for APLD (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for APLD (yahoo): ['close']   
+[01/29/26 15:11:06] WARNING  Data provider failed for APLS (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for APLS (yahoo): ['close']   
+                    WARNING  Data provider failed for APOG (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:07] WARNING  Data provider failed for APOG (yahoo): ['close']   
+                    WARNING  Data provider failed for APPN (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:08] WARNING  Data provider failed for APPN (yahoo): ['close']   
+                    WARNING  Data provider failed for APPS (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for APPS (yahoo): ['close']   
+[01/29/26 15:11:09] WARNING  Data provider failed for APTV (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for APTV (yahoo): ['close']   
+                    WARNING  Data provider failed for AQST (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:10] WARNING  Data provider failed for AQST (yahoo): ['close']   
+                    WARNING  Data provider failed for AR (stooq): empty         
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AR (yahoo): ['close']     
+[01/29/26 15:11:11] WARNING  Data provider failed for ARAI (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ARAI (yahoo): ['close']   
+                    WARNING  Data provider failed for ARDX (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:12] WARNING  Data provider failed for ARDX (yahoo): ['close']   
+                    WARNING  Data provider failed for AREC (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for AREC (yahoo): ['close']   
+[01/29/26 15:11:13] WARNING  Data provider failed for ARHS (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ARHS (yahoo): ['close']   
+[01/29/26 15:11:14] WARNING  Data provider failed for ARLO (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ARLO (yahoo): ['close']   
+                    WARNING  Data provider failed for ARQQ (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:15] WARNING  Data provider failed for ARQQ (yahoo): ['close']   
+                    WARNING  Data provider failed for ARQT (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ARQT (yahoo): ['close']   
+[01/29/26 15:11:16] WARNING  Data provider failed for ARRY (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ARRY (yahoo): ['close']   
+                    WARNING  Data provider failed for ARVN (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:17] WARNING  Data provider failed for ARVN (yahoo): ['close']   
+                    WARNING  Data provider failed for ARWR (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ARWR (yahoo): ['close']   
+[01/29/26 15:11:18] WARNING  Data provider failed for ARX (stooq): empty        
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ARX (yahoo): ['close']    
+                    WARNING  Data provider failed for AS (stooq): empty         
+                             dataframe from stooq                               
+[01/29/26 15:11:19] WARNING  Data provider failed for AS (yahoo): ['close']     
+                    WARNING  Data provider failed for ASAN (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ASAN (yahoo): ['close']   
+[01/29/26 15:11:20] WARNING  Data provider failed for ASGN (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ASGN (yahoo): ['close']   
+                    WARNING  Data provider failed for ASIX (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:21] WARNING  Data provider failed for ASIX (yahoo): ['close']   
+                    WARNING  Data provider failed for ASO (stooq): empty        
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ASO (yahoo): ['close']    
+[01/29/26 15:11:22] WARNING  Data provider failed for ASPI (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ASPI (yahoo): ['close']   
+                    WARNING  Data provider failed for ASPN (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:23] WARNING  Data provider failed for ASPN (yahoo): ['close']   
+                    WARNING  Data provider failed for ASTE (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:24] WARNING  Data provider failed for ASTE (yahoo): ['close']   
+                    WARNING  Data provider failed for ASTH (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ASTH (yahoo): ['close']   
+[01/29/26 15:11:25] WARNING  Data provider failed for ASTL (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ASTL (yahoo): ['close']   
+                    WARNING  Data provider failed for ASYS (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:26] WARNING  Data provider failed for ASYS (yahoo): ['close']   
+                    WARNING  Data provider failed for ATAI (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ATAI (yahoo): ['close']   
+[01/29/26 15:11:27] WARNING  Data provider failed for ATEC (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ATEC (yahoo): ['close']   
+                    WARNING  Data provider failed for ATEX (stooq): empty       
+                             dataframe from stooq                               
+[01/29/26 15:11:28] WARNING  Data provider failed for ATEX (yahoo): ['close']   
+                    WARNING  Data provider failed for ATRC (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ATRC (yahoo): ['close']   
+[01/29/26 15:11:29] WARNING  Data provider failed for ATRO (stooq): empty       
+                             dataframe from stooq                               
+                    WARNING  Data provider failed for ATRO (yahoo): ['close']   
+                    INFO     Done. Signals generated: 0                         

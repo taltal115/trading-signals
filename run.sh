@@ -48,7 +48,23 @@ if [[ ! -f ".env" ]]; then
   echo "WARN: .env not found. Slack may fail unless you export SLACK_BOT_TOKEN (and SLACK_CHANNEL)." >&2
 fi
 
+# Always log to a local file (useful for cron too).
+LOG_DIR="${ROOT_DIR}/logs"
+mkdir -p "${LOG_DIR}"
+LOG_FILE="${LOG_DIR}/run-$(date -u +%Y%m%d).log"
+
 # Run from source tree (no packaging / no setuptools required).
 export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
-exec python -m signals_bot.main --config "config.yaml" "$@"
+if [[ "${1:-}" == "discovery" ]]; then
+  shift
+  if [[ "$#" -eq 0 ]]; then
+    python "scripts/update_universe_finnhub.py" --max-calls 400 --limit 200 2>&1 | tee -a "${LOG_FILE}"
+  else
+    python "scripts/update_universe_finnhub.py" "$@" 2>&1 | tee -a "${LOG_FILE}"
+  fi
+  exit ${PIPESTATUS[0]}
+fi
+
+python -m signals_bot.main --config "config.yaml" "$@" 2>&1 | tee -a "${LOG_FILE}"
+exit ${PIPESTATUS[0]}
 

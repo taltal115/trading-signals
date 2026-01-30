@@ -9,4 +9,5 @@ slack_sdk>=3.27.0
 beautifulsoup4>=4.12.3
 playwright>=1.43.0
 ib-insync>=0.9.86
+finnhub-python>=2.4.20
 

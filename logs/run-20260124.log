@@ -1,0 +1,73 @@
+[01/24/26 13:40:45] INFO     signals-bot starting                                                                                                                              
+                    INFO     run_id=daily_close_scan-20260124T114045Z                                                                                                          
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                                                   
+                    INFO     Universe size: 25 tickers                                                                                                                         
+                    WARNING  Data provider failed for AAPL (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:47] WARNING  Data provider failed for AMD (yahoo): ['close']                                                                                                   
+[01/24/26 13:40:48] WARNING  Data provider failed for AMZN (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:49] WARNING  Data provider failed for AVGO (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:50] WARNING  Data provider failed for COIN (yahoo): ['close']                                                                                                  
+                    WARNING  Data provider failed for CRWD (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:51] WARNING  Data provider failed for DDOG (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:52] WARNING  Data provider failed for DKNG (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:53] INFO     WAIT DKNG conf=10 score=0.102 close=$29.97 volRatio=1.53 ret5=-15.48% brkDist=18.96% atr=5.67% :: no breakout, weak momentum, low volume          
+                    WARNING  Data provider failed for ENPH (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:54] INFO     WAIT ENPH conf=28 score=0.279 close=$39.46 volRatio=1.54 ret5=11.60% brkDist=4.11% atr=5.26% :: no breakout, weak momentum, low volume            
+                    WARNING  Data provider failed for MARA (yahoo): ['close']                                                                                                  
+                    INFO     WAIT MARA conf=8 score=0.082 close=$10.50 volRatio=1.23 ret5=-1.50% brkDist=9.21% atr=7.14% :: no breakout, weak momentum, low volume             
+[01/24/26 13:40:55] WARNING  Data provider failed for META (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:56] WARNING  Data provider failed for MSFT (yahoo): ['close']                                                                                                  
+[01/24/26 13:40:57] WARNING  Data provider failed for MU (yahoo): ['close']                                                                                                    
+[01/24/26 13:40:58] WARNING  Data provider failed for NET (yahoo): ['close']                                                                                                   
+[01/24/26 13:40:59] WARNING  Data provider failed for NVDA (yahoo): ['close']                                                                                                  
+[01/24/26 13:41:00] WARNING  Data provider failed for PANW (yahoo): ['close']                                                                                                  
+[01/24/26 13:41:01] WARNING  Data provider failed for PLTR (yahoo): ['close']                                                                                                  
+[01/24/26 13:41:02] WARNING  Data provider failed for QCOM (yahoo): ['close']                                                                                                  
+[01/24/26 13:41:03] WARNING  Data provider failed for RBLX (yahoo): ['close']                                                                                                  
+                    INFO     WAIT RBLX conf=6 score=0.057 close=$74.12 volRatio=0.86 ret5=-12.44% brkDist=18.63% atr=6.35% :: no breakout, weak momentum, low volume           
+[01/24/26 13:41:04] WARNING  Data provider failed for RIOT (yahoo): ['close']                                                                                                  
+                    INFO     WAIT RIOT conf=18 score=0.184 close=$17.28 volRatio=1.26 ret5=4.28% brkDist=10.88% atr=7.08% :: no breakout, weak momentum, low volume            
+[01/24/26 13:41:05] WARNING  Data provider failed for SMCI (yahoo): ['close']                                                                                                  
+                    INFO     WAIT SMCI conf=17 score=0.169 close=$31.70 volRatio=1.12 ret5=7.75% brkDist=5.33% atr=5.27% :: no breakout, weak momentum, low volume             
+                    WARNING  Data provider failed for SNOW (yahoo): ['close']                                                                                                  
+[01/24/26 13:41:06] WARNING  Data provider failed for SOFI (yahoo): ['close']                                                                                                  
+[01/24/26 13:41:07] INFO     WAIT SOFI conf=5 score=0.051 close=$25.85 volRatio=0.77 ret5=-2.23% brkDist=13.43% atr=4.95% :: no breakout, weak momentum, low volume            
+                    WARNING  Data provider failed for TSLA (yahoo): ['close']                                                                                                  
+[01/24/26 13:41:08] WARNING  Data provider failed for TSM (yahoo): ['close']                                                                                                   
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         28 │
+│ WAIT   │ RIOT   │         18 │
+│ WAIT   │ SMCI   │         17 │
+│ WAIT   │ DKNG   │         10 │
+│ WAIT   │ MARA   │          8 │
+│ WAIT   │ RBLX   │          6 │
+│ WAIT   │ SOFI   │          5 │
+└────────┴────────┴────────────┘
+[01/24/26 13:41:09] INFO     Done. Signals generated: 7                                                                                                                        
+[01/24/26 13:54:07] INFO     signals-bot starting                                                                                                                          
+                    INFO     run_id=daily_close_scan-20260124T115407Z                                                                                                      
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                                               
+                    INFO     Universe size: 25 tickers                                                                                                                     
+[01/24/26 13:54:13] INFO     WAIT DKNG conf=10 score=0.102 close=$29.97 volRatio=1.53 ret5=-15.48% brkDist=18.96% atr=5.67% :: no breakout, weak momentum, low volume      
+[01/24/26 13:54:14] INFO     WAIT ENPH conf=28 score=0.279 close=$39.46 volRatio=1.54 ret5=11.60% brkDist=4.11% atr=5.26% :: no breakout, weak momentum, low volume        
+                    INFO     WAIT MARA conf=8 score=0.082 close=$10.50 volRatio=1.23 ret5=-1.50% brkDist=9.21% atr=7.14% :: no breakout, weak momentum, low volume         
+[01/24/26 13:54:21] INFO     WAIT RBLX conf=6 score=0.057 close=$74.12 volRatio=0.86 ret5=-12.44% brkDist=18.63% atr=6.35% :: no breakout, weak momentum, low volume       
+[01/24/26 13:54:22] INFO     WAIT RIOT conf=18 score=0.184 close=$17.28 volRatio=1.26 ret5=4.28% brkDist=10.88% atr=7.08% :: no breakout, weak momentum, low volume        
+                    INFO     WAIT SMCI conf=17 score=0.169 close=$31.70 volRatio=1.12 ret5=7.75% brkDist=5.33% atr=5.27% :: no breakout, weak momentum, low volume         
+[01/24/26 13:54:23] INFO     WAIT SOFI conf=5 score=0.051 close=$25.85 volRatio=0.77 ret5=-2.23% brkDist=13.43% atr=4.95% :: no breakout, weak momentum, low volume        
+         Signal Summary         
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━┩
+│ WAIT   │ ENPH   │         28 │
+│ WAIT   │ RIOT   │         18 │
+│ WAIT   │ SMCI   │         17 │
+│ WAIT   │ DKNG   │         10 │
+│ WAIT   │ MARA   │          8 │
+│ WAIT   │ RBLX   │          6 │
+│ WAIT   │ SOFI   │          5 │
+└────────┴────────┴────────────┘
+[01/24/26 13:54:25] INFO     Done. Signals generated: 7                                                                                                                    

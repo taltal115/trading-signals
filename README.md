@@ -34,6 +34,8 @@ cp env.example .env
 
 4) Put your Slack credentials in `.env` (see `env.example`).
 
+Optional: add `FINNHUB_API_KEY` to `.env` if you want Finnhub as the primary data provider or to use dynamic discovery.
+
 5) Provide a universe:
 - Easiest: edit `config.yaml` and set `universe.symbols` to a short list.
 - Better: provide `universe.symbols_csv` with a `symbol` column.
@@ -43,6 +45,21 @@ cp env.example .env
 ```bash
 ./run.sh
 ```
+
+### Dynamic discovery (separate job)
+
+Build a dynamic universe each run from Finnhub symbols + your existing momentum/breakout filters:
+
+```bash
+python3 scripts/update_universe_finnhub.py --max-calls 400 --limit 200
+```
+
+Notes:
+- Reads `FINNHUB_API_KEY` from `.env`.
+- Rotates coverage across days to stay within low API budgets.
+- Writes `data/universe.csv`, which is consumed by `config.yaml`.
+
+You can schedule it separately (e.g., pre-market), then run `./run.sh` after it finishes.
 
 ### Slack test (optional)
 

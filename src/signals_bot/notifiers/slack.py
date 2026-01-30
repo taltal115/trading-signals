@@ -79,6 +79,12 @@ class SlackNotifier:
                 lines.append(_fmt_line(s))
             lines.append("")
 
+        summary = _fmt_action_table(sigs)
+        if summary:
+            lines.append("*Action Summary*")
+            lines.append(summary)
+            lines.append("")
+
         text = "\n".join(lines).strip()
 
         try:
@@ -111,4 +117,25 @@ def _fmt_line(s: Signal) -> str:
         target = "-" if s.suggested_target is None else f"${s.suggested_target:.2f}"
         parts.append(f"entry=${entry:.2f} stop={stop} target={target}")
     return " | ".join(parts)
+
+
+def _fmt_action_table(signals: Iterable[Signal]) -> str:
+    rows = []
+    for s in signals:
+        if s.action not in {"BUY", "SELL", "WAIT"}:
+            continue
+        rows.append((s.action, s.ticker, int(s.confidence)))
+
+    if not rows:
+        return ""
+
+    action_w = max(len("ACTION"), max(len(r[0]) for r in rows))
+    ticker_w = max(len("TICKER"), max(len(str(r[1])) for r in rows))
+    conf_w = max(len("CONF"), max(len(str(r[2])) for r in rows))
+
+    header = f"{'ACTION':<{action_w}}  {'TICKER':<{ticker_w}}  {'CONF':>{conf_w}}"
+    sep = f"{'-' * action_w}  {'-' * ticker_w}  {'-' * conf_w}"
+    body = [f"{a:<{action_w}}  {t:<{ticker_w}}  {c:>{conf_w}}" for a, t, c in rows]
+    table = "\n".join([header, sep, *body])
+    return f"```{table}```"
 
