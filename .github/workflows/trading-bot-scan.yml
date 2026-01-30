@@ -1,0 +1,47 @@
+name: Hourly Trading Bot Scan
+
+on:
+  schedule:
+    # Run every hour, Monday through Friday, during market hours (approx 14:00 - 21:00 UTC)
+    - cron: "0 14-21 * * 1-5"
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Trading Bot
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: "#trading-signals"
+          SLACK_BOT_NAME: trading-signals
+        run: ./run.sh
+
+      - name: Commit and Push Database Changes
+        env:
+          GIT_AUTHOR_NAME: github-actions[bot]
+          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
+          GIT_COMMITTER_NAME: github-actions[bot]
+          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+        run: |
+          git add data/signals.db logs/
+          git commit -m "bot: update trade logs and database [skip ci]" || echo "No changes to commit"
+          git push
