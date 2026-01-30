@@ -32,8 +32,7 @@ jobs:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL: "#trading-signals"
-          SLACK_BOT_NAME: trading-signals
-        run: ./run.sh
+        run: PYTHONPATH=./src python -m signals_bot.main --config config.yaml
 
       - name: Commit and Push Database Changes
         env:
