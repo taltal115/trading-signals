@@ -34,13 +34,3 @@ jobs:
           SLACK_CHANNEL: "#trading-signals"
         run: PYTHONPATH=./src python -m signals_bot.main --config config.yaml
 
-      - name: Commit and Push Database Changes
-        env:
-          GIT_AUTHOR_NAME: github-actions[bot]
-          GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
-          GIT_COMMITTER_NAME: github-actions[bot]
-          GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
-        run: |
-          git add data/signals.db logs/
-          git commit -m "bot: update trade logs and database [skip ci]" || echo "No changes to commit"
-          git push

@@ -1,0 +1,224 @@
+[02/04/26 07:40:19] INFO     signals-bot starting                                                                                                  
+                    INFO     run_id=daily_close_scan-20260204T054019Z                                                                              
+                    INFO     config=/Users/talshitrit/Workspace/Personal/trading/trading-signals/config.yaml                                       
+                    INFO     Universe size: 114 tickers                                                                                            
+[02/04/26 07:40:21] INFO     WAIT AA conf=6 score=0.060 close=$61.35 volRatio=0.90 ret5=2.83% brkDist=8.36% atr=5.44% :: no breakout, weak         
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AAL conf=5 score=0.053 close=$14.01 volRatio=0.80 ret5=3.39% brkDist=15.09% atr=3.97% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:22] INFO     WAIT AAMI conf=11 score=0.109 close=$51.67 volRatio=1.64 ret5=-7.02% brkDist=8.48% atr=3.54% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AAOI conf=34 score=0.340 close=$46.12 volRatio=1.03 ret5=23.35% brkDist=6.09% atr=10.34% :: no breakout, low     
+                             volume                                                                                                                
+[02/04/26 07:40:23] INFO     WAIT AAP conf=26 score=0.258 close=$50.70 volRatio=1.03 ret5=2.76% brkDist=0.55% atr=4.83% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AAUC conf=2 score=0.018 close=$31.61 volRatio=0.27 ret5=-0.28% brkDist=1.46% atr=3.07% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:24] INFO     WAIT ABAT conf=5 score=0.053 close=$4.30 volRatio=0.79 ret5=-9.47% brkDist=19.32% atr=12.19% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ABCL conf=6 score=0.063 close=$3.52 volRatio=0.95 ret5=-11.78% brkDist=27.42% atr=7.98% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:25] INFO     WAIT ABEO conf=5 score=0.051 close=$5.27 volRatio=0.76 ret5=3.13% brkDist=7.30% atr=5.09% :: no breakout, weak        
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ABSI conf=14 score=0.144 close=$3.09 volRatio=0.87 ret5=3.69% brkDist=25.63% atr=5.91% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:26] INFO     WAIT ABUS conf=12 score=0.123 close=$4.11 volRatio=1.84 ret5=-1.20% brkDist=17.72% atr=7.99% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:27] INFO     WAIT ACAD conf=10 score=0.095 close=$24.76 volRatio=1.43 ret5=-5.50% brkDist=10.97% atr=4.10% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ACHC conf=5 score=0.050 close=$13.68 volRatio=0.75 ret5=1.48% brkDist=13.36% atr=7.65% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:28] INFO     WAIT ACHR conf=5 score=0.052 close=$7.20 volRatio=0.79 ret5=-11.00% brkDist=22.50% atr=7.17% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:29] INFO     WAIT ACIW conf=19 score=0.191 close=$39.52 volRatio=2.87 ret5=-11.59% brkDist=16.85% atr=3.85% :: no breakout, weak   
+                             momentum                                                                                                              
+                    INFO     WAIT ACLX conf=4 score=0.042 close=$69.46 volRatio=0.64 ret5=1.39% brkDist=9.20% atr=4.75% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:30] INFO     WAIT ACMR conf=52 score=0.517 close=$61.24 volRatio=1.29 ret5=13.51% brkDist=0.55% atr=6.02% :: no breakout, low      
+                             volume                                                                                                                
+                    INFO     WAIT ACRS conf=2 score=0.021 close=$3.47 volRatio=0.32 ret5=-10.34% brkDist=29.04% atr=14.34% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:31] INFO     WAIT ACVA conf=7 score=0.075 close=$7.47 volRatio=1.12 ret5=-10.54% brkDist=17.64% atr=4.77% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AD conf=4 score=0.044 close=$48.92 volRatio=0.66 ret5=4.24% brkDist=19.57% atr=5.78% :: no breakout, weak        
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:32] INFO     WAIT ADEA conf=9 score=0.085 close=$17.66 volRatio=1.28 ret5=-4.13% brkDist=13.13% atr=4.26% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ADMA conf=4 score=0.043 close=$17.52 volRatio=0.65 ret5=5.67% brkDist=7.55% atr=4.09% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:33] INFO     WAIT ADNT conf=5 score=0.046 close=$21.06 volRatio=0.69 ret5=-5.26% brkDist=11.36% atr=5.19% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:34] INFO     WAIT ADPT conf=7 score=0.071 close=$18.50 volRatio=1.06 ret5=-3.80% brkDist=4.74% atr=5.13% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ADTN conf=6 score=0.063 close=$9.50 volRatio=0.95 ret5=-0.84% brkDist=8.21% atr=4.45% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:35] INFO     WAIT ADUR conf=6 score=0.061 close=$12.09 volRatio=0.92 ret5=-15.81% brkDist=21.73% atr=11.18% :: no breakout, weak   
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AEHR conf=5 score=0.048 close=$27.19 volRatio=0.73 ret5=-2.02% brkDist=14.60% atr=10.01% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:36] INFO     WAIT AEO conf=5 score=0.052 close=$24.02 volRatio=0.77 ret5=2.47% brkDist=15.60% atr=3.95% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:37] INFO     WAIT AES conf=74 score=0.744 close=$16.09 volRatio=2.41 ret5=7.84% brkDist=-4.82% atr=3.74% :: weak momentum, low     
+                             volume                                                                                                                
+                    INFO     WAIT AESI conf=15 score=0.146 close=$12.03 volRatio=0.92 ret5=3.62% brkDist=3.14% atr=4.96% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:38] INFO     WAIT AEVA conf=2 score=0.022 close=$13.08 volRatio=0.33 ret5=-8.85% brkDist=42.18% atr=14.07% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AFRM conf=10 score=0.101 close=$61.66 volRatio=1.51 ret5=-10.36% brkDist=27.16% atr=6.06% :: no breakout, weak   
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:39] INFO     WAIT AG conf=7 score=0.068 close=$22.04 volRatio=1.02 ret5=-14.31% brkDist=20.99% atr=9.13% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:40] INFO     WAIT AGI conf=10 score=0.101 close=$38.29 volRatio=1.52 ret5=-12.26% brkDist=15.25% atr=6.74% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AGIO conf=6 score=0.057 close=$27.93 volRatio=0.86 ret5=-2.58% brkDist=6.68% atr=4.38% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:41] INFO     WAIT AGRO conf=5 score=0.050 close=$8.73 volRatio=0.74 ret5=-4.49% brkDist=5.47% atr=3.38% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AHCO conf=6 score=0.056 close=$9.96 volRatio=0.85 ret5=-0.99% brkDist=8.79% atr=3.82% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:42] INFO     WAIT AI conf=9 score=0.087 close=$10.75 volRatio=1.30 ret5=-14.68% brkDist=25.76% atr=6.74% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AIP conf=6 score=0.060 close=$14.52 volRatio=0.91 ret5=-9.31% brkDist=20.44% atr=7.00% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:43] INFO     WAIT AIRO conf=4 score=0.039 close=$10.19 volRatio=0.58 ret5=-12.91% brkDist=26.16% atr=9.20% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:44] INFO     SELL ALGM conf=70 score=0.000 close=$38.89 volRatio=1.34 ret5=19.08% brkDist=2.51% atr=5.24% :: time exit (age=5d)    
+                    INFO     WAIT ALH conf=49 score=0.490 close=$22.72 volRatio=0.48 ret5=3.93% brkDist=-0.18% atr=3.48% :: weak momentum, low     
+                             volume                                                                                                                
+[02/04/26 07:40:45] INFO     WAIT ALHC conf=4 score=0.044 close=$22.89 volRatio=0.51 ret5=9.21% brkDist=4.11% atr=4.96% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ALK conf=63 score=0.630 close=$55.14 volRatio=1.20 ret5=6.45% brkDist=-2.59% atr=4.55% :: weak momentum, low     
+                             volume                                                                                                                
+[02/04/26 07:40:46] INFO     WAIT ALKS conf=11 score=0.110 close=$34.47 volRatio=0.65 ret5=2.83% brkDist=2.34% atr=3.69% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ALKT conf=14 score=0.141 close=$17.52 volRatio=2.11 ret5=-16.94% brkDist=28.37% atr=7.44% :: no breakout, weak   
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:47] INFO     WAIT ALLY conf=6 score=0.059 close=$42.06 volRatio=0.89 ret5=-1.94% brkDist=11.02% atr=3.05% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ALM conf=85 score=0.851 close=$13.39 volRatio=1.51 ret5=20.63% brkDist=-3.16% atr=7.83% :: low volume            
+[02/04/26 07:40:48] INFO     WAIT ALMS conf=7 score=0.068 close=$27.04 volRatio=0.14 ret5=4.00% brkDist=4.42% atr=7.74% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ALMU conf=4 score=0.036 close=$15.91 volRatio=0.54 ret5=-5.72% brkDist=34.24% atr=10.67% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:49] INFO     WAIT ALNT conf=14 score=0.140 close=$64.01 volRatio=1.02 ret5=5.23% brkDist=2.14% atr=3.96% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ALT conf=5 score=0.054 close=$5.47 volRatio=0.81 ret5=-11.49% brkDist=15.06% atr=10.14% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:50] INFO     WAIT ALTS conf=5 score=0.046 close=$2.10 volRatio=0.69 ret5=-4.11% brkDist=23.36% atr=14.43% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AMAL conf=44 score=0.445 close=$40.36 volRatio=0.87 ret5=5.79% brkDist=0.30% atr=3.43% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:51] INFO     WAIT AMBA conf=6 score=0.057 close=$60.23 volRatio=0.86 ret5=-9.22% brkDist=25.96% atr=5.27% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AMBQ conf=7 score=0.074 close=$30.32 volRatio=1.11 ret5=-3.35% brkDist=18.95% atr=8.04% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:52] INFO     WAIT AMKR conf=7 score=0.075 close=$46.24 volRatio=1.12 ret5=-8.87% brkDist=16.19% atr=7.36% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AMLX conf=5 score=0.050 close=$14.49 volRatio=0.75 ret5=-6.33% brkDist=17.15% atr=8.28% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:53] INFO     WAIT AMN conf=6 score=0.063 close=$20.54 volRatio=0.95 ret5=-1.63% brkDist=9.71% atr=7.28% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:54] INFO     WAIT AMPH conf=24 score=0.240 close=$28.24 volRatio=1.54 ret5=7.58% brkDist=4.34% atr=3.59% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AMPL conf=12 score=0.117 close=$8.22 volRatio=1.76 ret5=-18.05% brkDist=31.16% atr=6.78% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:55] INFO     WAIT AMPX conf=86 score=0.863 close=$14.68 volRatio=1.69 ret5=26.77% brkDist=-4.86% atr=8.13% :: low volume           
+                    INFO     WAIT AMRC conf=5 score=0.048 close=$31.44 volRatio=0.72 ret5=-4.78% brkDist=7.56% atr=5.65% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:56] INFO     WAIT AMSC conf=8 score=0.083 close=$30.00 volRatio=1.25 ret5=-6.75% brkDist=13.04% atr=6.08% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AMTB conf=25 score=0.253 close=$22.28 volRatio=1.61 ret5=6.86% brkDist=1.89% atr=3.46% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:57] INFO     WAIT AMWD conf=17 score=0.165 close=$64.32 volRatio=1.01 ret5=9.72% brkDist=0.96% atr=3.68% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:40:58] INFO     WAIT ANAB conf=51 score=0.510 close=$51.21 volRatio=0.61 ret5=2.98% brkDist=-0.45% atr=5.59% :: weak momentum, low    
+                             volume                                                                                                                
+[02/04/26 07:40:59] INFO     WAIT ANGI conf=7 score=0.074 close=$12.04 volRatio=1.11 ret5=-9.88% brkDist=17.44% atr=4.49% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:00] INFO     WAIT ANGO conf=8 score=0.083 close=$10.64 volRatio=0.61 ret5=3.91% brkDist=20.42% atr=3.83% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:01] INFO     WAIT ANIP conf=4 score=0.039 close=$79.88 volRatio=0.58 ret5=-0.71% brkDist=8.26% atr=3.43% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ANNX conf=4 score=0.039 close=$6.48 volRatio=0.59 ret5=-1.37% brkDist=9.75% atr=6.73% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:02] INFO     WAIT AORT conf=10 score=0.097 close=$41.63 volRatio=1.46 ret5=0.36% brkDist=9.48% atr=3.45% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AOSL conf=14 score=0.140 close=$22.27 volRatio=2.07 ret5=0.09% brkDist=6.22% atr=4.85% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:03] INFO     WAIT APA conf=14 score=0.144 close=$26.46 volRatio=1.31 ret5=2.44% brkDist=3.75% atr=4.11% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:04] INFO     WAIT APEI conf=6 score=0.065 close=$41.59 volRatio=0.97 ret5=-1.52% brkDist=7.33% atr=4.27% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT APGE conf=5 score=0.055 close=$68.89 volRatio=0.82 ret5=-4.82% brkDist=18.53% atr=6.62% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:05] INFO     WAIT APLD conf=4 score=0.044 close=$36.70 volRatio=0.65 ret5=-11.25% brkDist=13.18% atr=10.43% :: no breakout, weak   
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT APLS conf=21 score=0.205 close=$23.32 volRatio=0.66 ret5=6.92% brkDist=15.07% atr=5.15% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:06] INFO     WAIT APOG conf=9 score=0.091 close=$38.80 volRatio=1.09 ret5=0.81% brkDist=4.32% atr=3.46% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:07] INFO     WAIT APPN conf=12 score=0.118 close=$25.85 volRatio=1.77 ret5=-13.52% brkDist=27.61% atr=5.80% :: no breakout, weak   
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT APPS conf=21 score=0.205 close=$4.94 volRatio=3.08 ret5=-9.36% brkDist=13.79% atr=7.79% :: no breakout, weak     
+                             momentum                                                                                                              
+[02/04/26 07:41:08] INFO     WAIT APTV conf=11 score=0.109 close=$78.20 volRatio=1.55 ret5=0.24% brkDist=12.07% atr=4.13% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AQST conf=33 score=0.329 close=$4.10 volRatio=0.78 ret5=18.16% brkDist=36.63% atr=7.84% :: no breakout, low      
+                             volume                                                                                                                
+[02/04/26 07:41:09] INFO     WAIT AR conf=6 score=0.059 close=$33.97 volRatio=0.88 ret5=-1.19% brkDist=6.93% atr=4.26% :: no breakout, weak        
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:10] INFO     WAIT ARDX conf=3 score=0.035 close=$7.74 volRatio=0.52 ret5=-1.90% brkDist=7.86% atr=5.59% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AREC conf=9 score=0.085 close=$3.43 volRatio=1.28 ret5=-12.50% brkDist=28.54% atr=15.49% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:11] INFO     WAIT ARHS conf=16 score=0.160 close=$10.91 volRatio=0.82 ret5=4.50% brkDist=5.50% atr=4.55% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ARLO conf=19 score=0.186 close=$12.72 volRatio=2.79 ret5=-3.64% brkDist=10.80% atr=4.56% :: no breakout, weak    
+                             momentum                                                                                                              
+[02/04/26 07:41:12] INFO     WAIT ARQQ conf=8 score=0.081 close=$19.79 volRatio=1.21 ret5=-15.10% brkDist=32.23% atr=9.10% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ARQT conf=5 score=0.045 close=$26.19 volRatio=0.68 ret5=-0.53% brkDist=14.83% atr=3.85% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:13] INFO     WAIT ARRY conf=5 score=0.047 close=$11.33 volRatio=0.71 ret5=-0.79% brkDist=5.58% atr=7.40% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ARVN conf=6 score=0.061 close=$13.65 volRatio=0.83 ret5=0.22% brkDist=2.29% atr=4.82% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:14] INFO     WAIT ARWR conf=22 score=0.218 close=$72.14 volRatio=0.82 ret5=7.82% brkDist=6.02% atr=4.94% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ARX conf=11 score=0.113 close=$11.76 volRatio=1.70 ret5=-15.21% brkDist=27.36% atr=6.82% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT AS conf=13 score=0.126 close=$35.95 volRatio=1.89 ret5=-5.59% brkDist=10.12% atr=3.99% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:15] INFO     WAIT ASAN conf=12 score=0.119 close=$9.25 volRatio=1.79 ret5=-17.04% brkDist=32.09% atr=6.26% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:16] INFO     WAIT ASGN conf=12 score=0.121 close=$50.77 volRatio=1.72 ret5=0.28% brkDist=4.91% atr=3.84% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:17] INFO     WAIT ASIX conf=17 score=0.172 close=$17.25 volRatio=1.03 ret5=4.48% brkDist=8.39% atr=4.24% :: no breakout, weak      
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ASO conf=23 score=0.225 close=$59.06 volRatio=1.64 ret5=9.03% brkDist=0.72% atr=3.94% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:18] INFO     WAIT ASPI conf=5 score=0.047 close=$6.31 volRatio=0.70 ret5=-19.00% brkDist=26.63% atr=12.76% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:19] INFO     WAIT ASTE conf=65 score=0.655 close=$52.96 volRatio=1.27 ret5=9.40% brkDist=-3.86% atr=3.07% :: weak momentum, low    
+                             volume                                                                                                                
+                    INFO     WAIT ASTH conf=6 score=0.063 close=$21.28 volRatio=0.95 ret5=-0.93% brkDist=27.45% atr=8.06% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:20] INFO     WAIT ASTL conf=7 score=0.065 close=$4.50 volRatio=0.98 ret5=-1.32% brkDist=6.64% atr=6.82% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ASYS conf=6 score=0.065 close=$17.60 volRatio=0.97 ret5=0.00% brkDist=5.33% atr=7.14% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:21] INFO     WAIT ATAI conf=6 score=0.064 close=$3.87 volRatio=0.96 ret5=-0.77% brkDist=7.19% atr=5.38% :: no breakout, weak       
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:22] INFO     WAIT ATEC conf=5 score=0.052 close=$14.67 volRatio=0.78 ret5=-3.87% brkDist=37.01% atr=5.61% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+                    INFO     WAIT ATEX conf=13 score=0.134 close=$26.55 volRatio=1.18 ret5=2.39% brkDist=12.29% atr=6.75% :: no breakout, weak     
+                             momentum, low volume                                                                                                  
+[02/04/26 07:41:23] INFO     WAIT ATRC conf=10 score=0.095 close=$38.07 volRatio=1.43 ret5=-0.89% brkDist=11.83% atr=4.74% :: no breakout, weak    
+                             momentum, low volume                                                                                                  
+                         Signal Summary                          
+┏━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━┳━━━━━┳━━━━┳━━━━━┓
+┃ Action ┃ Ticker ┃ Confidence ┃ HoldDays ┃ SL ┃ SL% ┃ TP ┃ TP% ┃
+┡━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━╇━━━━━╇━━━━╇━━━━━┩
+│ SELL   │ ALGM   │         70 │        5 │  - │   - │  - │   - │
+└────────┴────────┴────────────┴──────────┴────┴─────┴────┴─────┘
+[02/04/26 07:41:24] INFO     Done. Signals generated: 108                                                                                          
