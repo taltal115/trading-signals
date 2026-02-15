@@ -29,6 +29,7 @@ jobs:
 
       - name: Run Trading Bot
         env:
+          FLEX_API_KEY: ${{ secrets.FLEX_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL: "#trading-signals"
