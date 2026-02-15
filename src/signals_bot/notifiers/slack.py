@@ -50,15 +50,15 @@ class SlackNotifier:
         sigs = [s for s in signals if s.confidence >= min_confidence]
         sigs = sigs[:top_n]
         if not sigs:
-            text = f"*signals-bot* `{run_name}` as-of *{asof_date.isoformat()}*\\nNo signals."
+            text = f"*signals-bot* `{run_name}` — {asof_date.isoformat()}: no signals."
         else:
-            actionable = [s for s in sigs if s.action in {"BUY", "SELL"}]
+            actionable = [s for s in sigs if s.action == "BUY"]
             if not actionable:
-                text = f"*signals-bot* `{run_name}` as-of *{asof_date.isoformat()}*\\nNo BUY/SELL signals."
+                text = f"*signals-bot* `{run_name}` — {asof_date.isoformat()}: no BUY signals."
             else:
                 text = _fmt_action_table(actionable)
                 if not text:
-                    text = f"*signals-bot* `{run_name}` as-of *{asof_date.isoformat()}*\\nNo BUY/SELL signals."
+                    text = f"*signals-bot* `{run_name}` — {asof_date.isoformat()}: no BUY signals."
 
         try:
             self.client.chat_postMessage(channel=self.channel, text=text)

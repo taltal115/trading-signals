@@ -71,7 +71,7 @@ slack:
   enabled: true
   channel: "#trading-signals"
   post_top_n: 10
-  min_confidence: 60
+  min_confidence: 90
 
 logging:
   level: "INFO"
