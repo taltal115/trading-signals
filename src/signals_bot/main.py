@@ -12,6 +12,7 @@ from signals_bot.notifiers.slack import SlackNotifier
 from signals_bot.providers.ibkr_scanner import IbkrScannerClient, IbkrScannerRequest
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.providers.ibkr_flex import fetch_holdings_and_latest_buys
 from signals_bot.storage.sqlite import SqliteStore
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy
 
@@ -55,6 +56,23 @@ def main() -> int:
     }
 
     strategy = BreakoutMomentumStrategy(cfg.strategy)
+
+    held_symbols: set[str] | None = None
+    latest_buys: dict[str, dict[str, Any]] = {}
+    try:
+        held_symbols, latest_buys = fetch_holdings_and_latest_buys(timeout_sec=cfg.data.request_timeout_sec)
+        logger.info("IBKR Flex holdings loaded: %d symbols", len(held_symbols))
+        for sym in sorted(held_symbols):
+            info = latest_buys.get(sym, {})
+            price = info.get("price")
+            time = info.get("time")
+            price_s = f"${price:.2f}" if isinstance(price, (int, float)) else "-"
+            time_s = time or "-"
+            logger.info("IBKR holding: %s buy_price=%s buy_time=%s", sym, price_s, time_s)
+    except Exception as e:  # noqa: BLE001
+        held_symbols = None
+        latest_buys = {}
+        logger.warning("IBKR Flex fetch failed; proceeding without holdings gate. Error: %s", e)
 
     static_universe = cfg.load_universe()
     scanner_universe: list[str] = []
@@ -111,6 +129,8 @@ def main() -> int:
             continue
 
         last_open_buy = store.get_open_buy(ticker) if store else None
+        if held_symbols is not None and ticker not in held_symbols:
+            last_open_buy = None
         signal = strategy.generate_signal(
             ticker=ticker,
             hist=hist,

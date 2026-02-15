@@ -35,6 +35,7 @@ cp env.example .env
 4) Put your Slack credentials in `.env` (see `env.example`).
 
 Optional: add `FINNHUB_API_KEY` to `.env` if you want Finnhub as the primary data provider or to use dynamic discovery.
+Optional: add `FLEX_API_KEY` to `.env` to gate SELL signals by your IBKR OpenPositions (Flex API).
 
 5) Provide a universe:
 - Easiest: edit `config.yaml` and set `universe.symbols` to a short list.
