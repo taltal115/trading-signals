@@ -10,4 +10,5 @@ beautifulsoup4>=4.12.3
 playwright>=1.43.0
 ib-insync>=0.9.86
 finnhub-python>=2.4.20
+google-cloud-firestore>=2.16.0
 

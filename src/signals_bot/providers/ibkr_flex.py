@@ -35,14 +35,29 @@ def _get_reference_code(xml_text: str) -> str:
     return ref
 
 
-def _extract_open_positions_symbols(xml_text: str) -> set[str]:
+def _extract_open_positions(xml_text: str) -> dict[str, dict[str, Any]]:
     root = ET.fromstring(xml_text)
-    symbols: set[str] = set()
+    positions: dict[str, dict[str, Any]] = {}
     for open_pos in root.findall(".//OpenPositions/OpenPosition"):
         sym = open_pos.attrib.get("symbol")
-        if sym:
-            symbols.add(sym.strip().upper())
-    return symbols
+        if not sym:
+            continue
+        sym_u = sym.strip().upper()
+        price = _to_float(open_pos.attrib.get("openPrice")) or _to_float(open_pos.attrib.get("costBasisPrice"))
+        time = (
+            (open_pos.attrib.get("holdingPeriodDateTime") or "").strip()
+            or (open_pos.attrib.get("openDateTime") or "").strip()
+            or None
+        )
+        current = positions.get(sym_u)
+        if not current:
+            positions[sym_u] = {"price": price, "time": time}
+        else:
+            if current.get("price") is None and price is not None:
+                current["price"] = price
+            if (not current.get("time")) and time:
+                current["time"] = time
+    return positions
 
 
 def _parse_flex_datetime(value: str) -> datetime | None:
@@ -51,6 +66,15 @@ def _parse_flex_datetime(value: str) -> datetime | None:
         return None
     try:
         return datetime.strptime(value, "%Y-%m-%d;%H:%M:%S")
+    except ValueError:
+        return None
+
+
+def _to_float(value: str | None) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
     except ValueError:
         return None
 
@@ -65,8 +89,7 @@ def _extract_latest_buy_trades(xml_text: str) -> dict[str, dict[str, Any]]:
         sym = trade.attrib.get("symbol", "").strip().upper()
         if not sym:
             continue
-        price = trade.attrib.get("closePrice")
-        price_val = float(price) if price not in (None, "") else None
+        price_val = _to_float(trade.attrib.get("closePrice"))
 
         time_raw = trade.attrib.get("orderTime") or trade.attrib.get("openDateTime") or ""
         ts = _parse_flex_datetime(time_raw)
@@ -107,13 +130,32 @@ def _fetch_statement_xml(*, timeout_sec: int = 20) -> str:
 
 def fetch_open_positions_symbols(*, timeout_sec: int = 20) -> set[str]:
     statement_xml = _fetch_statement_xml(timeout_sec=timeout_sec)
-    return _extract_open_positions_symbols(statement_xml)
+    return set(_extract_open_positions(statement_xml).keys())
 
 
 def fetch_holdings_and_latest_buys(
     *, timeout_sec: int = 20
 ) -> tuple[set[str], dict[str, dict[str, Any]]]:
     statement_xml = _fetch_statement_xml(timeout_sec=timeout_sec)
-    holdings = _extract_open_positions_symbols(statement_xml)
+    positions = _extract_open_positions(statement_xml)
     buys = _extract_latest_buy_trades(statement_xml)
-    return holdings, buys
+    holdings = set(positions.keys())
+
+    merged: dict[str, dict[str, Any]] = {}
+    for sym in holdings:
+        info = positions.get(sym, {})
+        merged[sym] = {
+            "price": info.get("price"),
+            "time": info.get("time"),
+        }
+
+    for sym, info in buys.items():
+        if sym not in merged:
+            merged[sym] = {"price": info.get("price"), "time": info.get("time")}
+        else:
+            if merged[sym].get("price") is None and info.get("price") is not None:
+                merged[sym]["price"] = info.get("price")
+            if not merged[sym].get("time") and info.get("time"):
+                merged[sym]["time"] = info.get("time")
+
+    return holdings, merged

@@ -68,12 +68,34 @@ You can schedule it separately (e.g., pre-market), then run `./run.sh` after it 
 python scripts/slack_test.py --channel C0123456789 --text "signals-bot test"
 ```
 
+### IBKR Flex test (optional)
+
+Fetch Flex report and print XML->JSON (requires `FLEX_API_KEY` in `.env`):
+
+```bash
+python3 scripts/ibkr_flex_test.py
+```
+
+Clean output (only OpenPositions + Trades):
+
+```bash
+python3 scripts/ibkr_flex_test.py --clean
+```
+
 ### IBKR scanner test (optional)
 
 Print symbols returned by IBKR market scanners (requires TWS or IB Gateway running):
 
 ```bash
 python scripts/ibkr_scanner_test.py --config config.yaml
+```
+
+### Firestore (optional)
+
+Test Firestore connection:
+
+```bash
+python3 scripts/firebase_firestore_test.py --collection test --doc ping
 ```
 
 ### Finviz signals scrape (optional)

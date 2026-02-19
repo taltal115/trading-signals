@@ -13,6 +13,7 @@ from signals_bot.providers.ibkr_scanner import IbkrScannerClient, IbkrScannerReq
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.providers.ibkr_flex import fetch_holdings_and_latest_buys
+from signals_bot.storage.firestore import write_buy_signals
 from signals_bot.storage.sqlite import SqliteStore
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy
 
@@ -159,6 +160,17 @@ def main() -> int:
 
     if store:
         store.finish_run(run_id=run_id, status="ok", summary_json=asdict(cfg.to_summary()))
+
+    if not args.dry_run:
+        try:
+            write_buy_signals(
+                signals=signals_sorted,
+                run_id=run_id,
+                asof_date=cfg.asof_date().isoformat(),
+                collection="signals",
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Firestore write failed: %s", e)
 
     slack_enabled = cfg.slack.enabled and not args.no_slack and not args.dry_run
     if slack_enabled:
