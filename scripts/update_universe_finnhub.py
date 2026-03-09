@@ -89,24 +89,51 @@ def main() -> int:
     )
     p.add_argument("--config", default="config.yaml", help="Path to config.yaml.")
     p.add_argument("--state", default="data/universe_state.json", help="State file path.")
-    p.add_argument("--output", default="data/universe.csv", help="Output CSV path.")
+    p.add_argument("--output", default="data/universe_lists/universe.csv", help="Output CSV path.")
     p.add_argument("--max-calls", type=int, default=400, help="Max symbol checks per run.")
     p.add_argument("--limit", type=int, default=200, help="Max symbols to write.")
+    p.add_argument(
+        "--symbols-csv",
+        help="Optional CSV with a 'symbol' column to override Finnhub universe "
+        "(e.g. defense or oil watchlist).",
+    )
     args = p.parse_args()
 
     load_dotenv(override=False)
-    api_key = os.getenv("FINNHUB_API_KEY")
-    if not api_key:
-        raise SystemExit("ERROR: missing FINNHUB_API_KEY in environment/.env")
-
     config_path = Path(args.config).expanduser().resolve()
     cfg: AppConfig = load_config(config_path)
 
-    client = finnhub.Client(api_key=api_key)
-    raw_symbols = client.stock_symbols("US")
-    symbols = _filter_symbols(raw_symbols)
+    symbols: list[str]
+    if args.symbols_csv:
+        symbols_path = Path(args.symbols_csv).expanduser().resolve()
+        if not symbols_path.exists():
+            raise SystemExit(f"ERROR: symbols CSV not found: {symbols_path}")
+        try:
+            df = pd.read_csv(symbols_path)
+        except Exception as exc:
+            raise SystemExit(f"ERROR: failed to read symbols CSV {symbols_path}: {exc}") from exc
+        if "symbol" not in df.columns:
+            raise SystemExit(f"ERROR: symbols CSV {symbols_path} missing 'symbol' column")
+        raw_symbols = [
+            {
+                "symbol": str(sym),
+                "currency": "USD",
+                "type": "common stock",
+                "mic": "",
+            }
+            for sym in df["symbol"].astype(str).tolist()
+        ]
+        symbols = _filter_symbols(raw_symbols)
+    else:
+        api_key = os.getenv("FINNHUB_API_KEY")
+        if not api_key:
+            raise SystemExit("ERROR: missing FINNHUB_API_KEY in environment/.env")
+        client = finnhub.Client(api_key=api_key)
+        raw_symbols = client.stock_symbols("US")
+        symbols = _filter_symbols(raw_symbols)
+
     if not symbols:
-        raise SystemExit("ERROR: no symbols returned from Finnhub after filtering")
+        raise SystemExit("ERROR: no symbols available after filtering")
 
     state_path = Path(args.state).expanduser()
     state = _load_state(state_path)
@@ -167,11 +194,21 @@ def main() -> int:
         )
 
     ranked = sorted(candidates, key=lambda x: (-x["confidence"], -x["score"], x["symbol"]))
-    top = ranked[: max(1, args.limit)]
+    top = ranked[: max(1, args.limit)] if ranked else []
 
     out_path = Path(args.output).expanduser()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(top)[["symbol"]].to_csv(out_path, index=False)
+
+    if not top:
+        print(
+            f"No candidates found for this batch (start_index={start_index}); "
+            f"writing empty universe to {out_path}"
+        )
+        df = pd.DataFrame({"symbol": []})
+    else:
+        df = pd.DataFrame(top)[["symbol"]]
+
+    df.to_csv(out_path, index=False)
 
     _save_state(state_path, next_index)
     print(f"Wrote {len(top)} symbols to {out_path} (next_index={next_index})")

@@ -21,6 +21,7 @@ class RunConfig:
 class UniverseConfig:
     symbols: list[str] | None = None
     symbols_csv: str | None = None
+    symbols_dir: str | None = None
     ibkr_scanner: dict[str, Any] | None = None
 
 
@@ -142,6 +143,20 @@ class AppConfig:
                 raise ValueError(f"Universe CSV missing required column 'symbol': {csv_path}")
             static_symbols |= {str(s).strip().upper() for s in df["symbol"].dropna().tolist() if str(s).strip()}
 
+        if self.universe.symbols_dir:
+            dir_path = self.resolve_path(self.universe.symbols_dir)
+            if not dir_path.is_dir():
+                raise ValueError(f"Universe symbols_dir is not a directory: {dir_path}")
+            for csv_path in sorted(dir_path.glob("*.csv")):
+                df = pd.read_csv(csv_path)
+                if "symbol" not in df.columns:
+                    raise ValueError(f"Universe CSV missing required column 'symbol': {csv_path}")
+                static_symbols |= {
+                    str(s).strip().upper()
+                    for s in df["symbol"].dropna().tolist()
+                    if str(s).strip()
+                }
+
         if self.universe.symbols:
             static_symbols |= {s.strip().upper() for s in self.universe.symbols if s.strip()}
 
@@ -213,6 +228,7 @@ def load_config(config_path: Path) -> AppConfig:
         universe=UniverseConfig(
             symbols=universe_raw.get("symbols"),
             symbols_csv=universe_raw.get("symbols_csv"),
+            symbols_dir=universe_raw.get("symbols_dir"),
             ibkr_scanner=universe_raw.get("ibkr_scanner"),
         ),
         data=DataConfig(

@@ -55,10 +55,19 @@ Build a dynamic universe each run from Finnhub symbols + your existing momentum/
 python3 scripts/update_universe_finnhub.py --max-calls 400 --limit 200
 ```
 
+You can also drive the scan from a custom watchlist (for example, defense or oil names) by passing a CSV with a `symbol` column:
+
+```bash
+python3 scripts/update_universe_finnhub.py \
+  --symbols-csv data/universe_lists/defense_watchlist.csv \
+  --max-calls 400 \
+  --limit 200
+```
+
 Notes:
 - Reads `FINNHUB_API_KEY` from `.env`.
 - Rotates coverage across days to stay within low API budgets.
-- Writes `data/universe.csv`, which is consumed by `config.yaml`.
+- Writes `data/universe_lists/universe.csv` by default, which is consumed (along with any other CSVs in that directory) by `config.yaml`.
 
 You can schedule it separately (e.g., pre-market), then run `./run.sh` after it finishes.
 

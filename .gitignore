@@ -4,3 +4,6 @@ __pycache__/
 .env
 data/*.db
 
+# Logs
+logs/
+

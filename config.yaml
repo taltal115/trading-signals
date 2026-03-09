@@ -6,21 +6,23 @@ universe:
   # Option A: inline symbols (fastest to start)
   # Leave empty when using a dynamic universe CSV.
   symbols: []
-  # Option B: CSV with a `symbol` column (recommended once you grow)
-  symbols_csv: "./data/universe.csv"
+  # Option B: single CSV with a `symbol` column
+  symbols_csv: null
+  # Option B2: directory of CSVs; all `symbol` columns are merged
+  symbols_dir: "./data/universe_lists"
   # Option C: IBKR scanner (dynamic intraday universe)
   # When enabled, the bot will pull symbols from IBKR scanners each run and merge with symbols/symbols_csv.
   ibkr_scanner:
     enabled: false
     merge_with_static: true
-    max_symbols: 200
+    max_symbols: 1000
     # Common scan codes: TOP_PERC_GAIN, HOT_BY_VOLUME, MOST_ACTIVE
     scan_codes: ["TOP_PERC_GAIN", "HOT_BY_VOLUME"]
     instrument: "STK"
     location_code: "STK.US.MAJOR"
 
 data:
-  lookback_days: 90
+  lookback_days: 180
   provider_order: ["stooq", "yahoo"]
   request_timeout_sec: 20
   # If your network uses SSL interception (corporate proxy), set a CA bundle path.
@@ -40,7 +42,7 @@ ibkr:
 strategy:
   # Filters
   price_min: 2.0
-  price_max: 80.0
+  price_max: 1000.0
   avg_dollar_vol_min: 5_000_000
   atr_pct_min: 3.0
   atr_pct_max: 18.0
@@ -71,7 +73,7 @@ slack:
   enabled: true
   channel: "#trading-signals"
   post_top_n: 10
-  min_confidence: 90
+  min_confidence: 80
 
 logging:
   level: "INFO"

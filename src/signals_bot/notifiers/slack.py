@@ -49,16 +49,17 @@ class SlackNotifier:
     ) -> None:
         sigs = [s for s in signals if s.confidence >= min_confidence]
         sigs = sigs[:top_n]
+        # If there are no signals (or no actionable BUY signals), skip Slack entirely.
         if not sigs:
-            text = f"*signals-bot* `{run_name}` — {asof_date.isoformat()}: no signals."
-        else:
-            actionable = [s for s in sigs if s.action == "BUY"]
-            if not actionable:
-                text = f"*signals-bot* `{run_name}` — {asof_date.isoformat()}: no BUY signals."
-            else:
-                text = _fmt_action_table(actionable)
-                if not text:
-                    text = f"*signals-bot* `{run_name}` — {asof_date.isoformat()}: no BUY signals."
+            return
+
+        actionable = [s for s in sigs if s.action == "BUY"]
+        if not actionable:
+            return
+
+        text = _fmt_action_table(actionable)
+        if not text:
+            return
 
         try:
             self.client.chat_postMessage(channel=self.channel, text=text)
@@ -105,10 +106,12 @@ def _fmt_pct(x: float | None) -> str:
 
 
 def _fmt_action_table(signals: Iterable[Signal]) -> str:
-    rows = []
+    lines = []
+
     for s in signals:
         if s.action not in {"BUY", "SELL"}:
             continue
+
         close = s.close
         stop = s.suggested_stop
         target = s.suggested_target
@@ -121,47 +124,18 @@ def _fmt_action_table(signals: Iterable[Signal]) -> str:
         stop_pct = pct_from_close(stop, close)
         target_pct = pct_from_close(target, close)
 
-        rows.append(
-            (
-                s.action,
-                s.ticker,
-                int(s.confidence),
-                int(s.max_hold_days),
-                stop,
-                stop_pct,
-                target,
-                target_pct,
-            )
-        )
+        action_emoji = ":green_circle:" if s.action == "BUY" else ":red_circle:"
+        header = f"{action_emoji} *{s.action}* `{s.ticker}` conf={int(s.confidence)}"
+        hold_days = int(s.max_hold_days) if s.max_hold_days is not None else None
+        hold_line = f"• Hold: {hold_days}d" if hold_days is not None else "• Hold: -"
+        sl_line = f"• SL: {_fmt_money(stop)} ({_fmt_pct(stop_pct)})"
+        tp_line = f"• TP: {_fmt_money(target)} ({_fmt_pct(target_pct)})"
 
-    if not rows:
+        block = "\n".join([header, hold_line, sl_line, tp_line])
+        lines.append(block)
+
+    if not lines:
         return ""
 
-    action_w = max(len("ACTION"), max(len(r[0]) for r in rows))
-    ticker_w = max(len("TICKER"), max(len(str(r[1])) for r in rows))
-    conf_w = max(len("CONF"), max(len(str(r[2])) for r in rows))
-    hold_w = max(len("HOLD"), max(len(str(r[3])) for r in rows))
-    sl_w = max(len("SL"), max(len(_fmt_money(r[4])) for r in rows))
-    slp_w = max(len("SL%"), max(len(_fmt_pct(r[5])) for r in rows))
-    tp_w = max(len("TP"), max(len(_fmt_money(r[6])) for r in rows))
-    tpp_w = max(len("TP%"), max(len(_fmt_pct(r[7])) for r in rows))
-
-    header = (
-        f"{'ACTION':<{action_w}}  {'TICKER':<{ticker_w}}  {'CONF':>{conf_w}}  "
-        f"{'HOLD':>{hold_w}}  {'SL':>{sl_w}}  {'SL%':>{slp_w}}  {'TP':>{tp_w}}  {'TP%':>{tpp_w}}"
-    )
-    sep = (
-        f"{'-' * action_w}  {'-' * ticker_w}  {'-' * conf_w}  "
-        f"{'-' * hold_w}  {'-' * sl_w}  {'-' * slp_w}  {'-' * tp_w}  {'-' * tpp_w}"
-    )
-    body = [
-        (
-            f"{a:<{action_w}}  {t:<{ticker_w}}  {c:>{conf_w}}  {h:>{hold_w}}  "
-            f"{_fmt_money(sl):>{sl_w}}  {_fmt_pct(slp):>{slp_w}}  "
-            f"{_fmt_money(tp):>{tp_w}}  {_fmt_pct(tpp):>{tpp_w}}"
-        )
-        for a, t, c, h, sl, slp, tp, tpp in rows
-    ]
-    table = "\n".join([header, sep, *body])
-    return f"```{table}```"
+    return "\n".join(lines)
 
