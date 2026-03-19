@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Iterable
 
 from dotenv import load_dotenv
@@ -106,8 +106,7 @@ def _fmt_pct(x: float | None) -> str:
 
 
 def _fmt_action_table(signals: Iterable[Signal]) -> str:
-    lines = []
-
+    blocks = []
     for s in signals:
         if s.action not in {"BUY", "SELL"}:
             continue
@@ -125,17 +124,19 @@ def _fmt_action_table(signals: Iterable[Signal]) -> str:
         target_pct = pct_from_close(target, close)
 
         action_emoji = ":green_circle:" if s.action == "BUY" else ":red_circle:"
-        header = f"{action_emoji} *{s.action}* `{s.ticker}` conf={int(s.confidence)}"
+        signal_header = f"{action_emoji} *{s.action}* `{s.ticker}` conf={int(s.confidence)} • Price: ${s.close:,.2f}"
         hold_days = int(s.max_hold_days) if s.max_hold_days is not None else None
         hold_line = f"• Hold: {hold_days}d" if hold_days is not None else "• Hold: -"
         sl_line = f"• SL: {_fmt_money(stop)} ({_fmt_pct(stop_pct)})"
         tp_line = f"• TP: {_fmt_money(target)} ({_fmt_pct(target_pct)})"
 
-        block = "\n".join([header, hold_line, sl_line, tp_line])
-        lines.append(block)
+        block = "\n".join([signal_header, hold_line, sl_line, tp_line])
+        blocks.append(block)
 
-    if not lines:
+    if not blocks:
         return ""
 
-    return "\n".join(lines)
+    now = datetime.now(timezone.utc)
+    header = f"📅 {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
+    return "\n".join([header, ""] + blocks)
 
