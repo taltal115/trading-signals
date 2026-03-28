@@ -23,7 +23,17 @@ echo "Preparing environment"
 
 python - <<'PY'
 missing = []
-for mod in ["yaml", "dotenv", "rich", "pandas", "numpy", "yfinance", "requests", "slack_sdk"]:
+for mod in [
+        "yaml",
+        "dotenv",
+        "rich",
+        "pandas",
+        "numpy",
+        "yfinance",
+        "requests",
+        "slack_sdk",
+        "finnhub",
+    ]:
     try:
         __import__(mod)
     except Exception:

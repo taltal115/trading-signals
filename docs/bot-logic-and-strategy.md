@@ -12,7 +12,8 @@ This bot is a **signal generator** for **1–7 day swing ideas**. It does **not*
 - Env vars via `.env`: Slack credentials (never committed)
 
 2) **Load universe**
-- `universe.symbols` (inline list) or `universe.symbols_csv` with a `symbol` column
+- If `universe.firestore.enabled`: load `symbols` from Firestore collection `universe.firestore.collection` (document id = `asof_date` in `run.timezone`, with optional latest-snapshot fallback).
+- Else: `universe.symbols`, `universe.symbols_csv`, and/or `universe.symbols_dir` (CSVs with a `symbol` column)
 
 3) **Fetch daily OHLCV (robust to provider failures)**
 - Providers are tried in `data.provider_order` for each ticker.

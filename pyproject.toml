@@ -13,6 +13,7 @@ dependencies = [
   "yfinance>=0.2.40",
   "requests>=2.31.0",
   "slack_sdk>=3.27.0",
+  "finnhub-python>=2.4.20",
 ]
 
 [project.scripts]

@@ -12,6 +12,18 @@ from google.oauth2 import service_account
 from signals_bot.strategy.breakout import Signal
 
 
+def _normalize_universe_symbols(symbols: Iterable[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in symbols:
+        sym = str(raw).strip().upper()
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        out.append(sym)
+    return sorted(out)
+
+
 def _build_client() -> firestore.Client:
     load_dotenv(override=False)
 
@@ -36,6 +48,67 @@ def _pct_from_close(level: float | None, base: float | None) -> float | None:
     if level is None or base is None or base == 0:
         return None
     return ((level - base) / base) * 100.0
+
+
+def write_universe_snapshot(
+    *,
+    asof_date: str,
+    symbols: Iterable[str],
+    collection: str = "universe",
+    source: str = "finnhub_discovery",
+) -> None:
+    normalized = _normalize_universe_symbols(symbols)
+    ts = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "asof_date": asof_date,
+        "symbols": normalized,
+        "ts_utc": ts,
+        "source": source,
+    }
+    db = _build_client()
+    db.collection(collection).document(asof_date).set(doc)
+
+
+def read_universe_for_date(
+    *,
+    asof_date: str,
+    collection: str = "universe",
+    fallback_latest: bool = True,
+) -> list[str]:
+    db = _build_client()
+    ref = db.collection(collection).document(asof_date)
+    snap = ref.get()
+    if snap.exists:
+        data = snap.to_dict() or {}
+        raw = data.get("symbols") or []
+        if isinstance(raw, list) and raw:
+            got = _normalize_universe_symbols(str(s) for s in raw)
+            if got:
+                return got
+
+    if not fallback_latest:
+        raise ValueError(
+            f"Firestore universe document missing or empty for asof_date={asof_date!r} "
+            f"(collection={collection!r})."
+        )
+
+    latest = (
+        db.collection(collection)
+        .order_by("ts_utc", direction=firestore.Query.DESCENDING)
+        .limit(1)
+        .stream()
+    )
+    for doc_snap in latest:
+        data = doc_snap.to_dict() or {}
+        raw = data.get("symbols") or []
+        if isinstance(raw, list) and raw:
+            return _normalize_universe_symbols(str(s) for s in raw)
+        break
+
+    raise ValueError(
+        f"No universe snapshot found for asof_date={asof_date!r} and no prior documents in "
+        f"collection={collection!r}. Run discovery or seed Firestore."
+    )
 
 
 def write_buy_signals(

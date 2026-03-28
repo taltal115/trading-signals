@@ -36,10 +36,11 @@ cp env.example .env
 
 Optional: add `FINNHUB_API_KEY` to `.env` if you want Finnhub as the primary data provider or to use dynamic discovery.
 Optional: add `FLEX_API_KEY` to `.env` to gate SELL signals by your IBKR OpenPositions (Flex API).
+Optional: add **`GOOGLE_APPLICATION_CREDENTIALS`** (path to a service-account JSON) or **`FIREBASE_SERVICE_ACCOUNT_JSON`** (inline JSON) for Firestore — required for `universe.firestore.enabled`, discovery writes, and BUY signal archival.
 
 5) Provide a universe:
-- Easiest: edit `config.yaml` and set `universe.symbols` to a short list.
-- Better: provide `universe.symbols_csv` with a `symbol` column.
+- **Recommended**: set `universe.firestore.enabled: true`, run `./run.sh discovery` at least once so `universe/{asof_date}` exists in Firestore, then run `./run.sh`.
+- Without Firestore: edit `config.yaml` — `universe.symbols`, or `universe.symbols_csv`, or `universe.symbols_dir` (CSV files with a `symbol` column).
 
 6) Run:
 
@@ -49,27 +50,36 @@ Optional: add `FLEX_API_KEY` to `.env` to gate SELL signals by your IBKR OpenPos
 
 ### Dynamic discovery (separate job)
 
-Build a dynamic universe each run from Finnhub symbols + your existing momentum/breakout filters:
+Build a dynamic universe each run from Finnhub symbols + your existing momentum/breakout filters. Prefer **`./run.sh discovery`** so the project venv and dependencies (including Finnhub) are used automatically:
 
 ```bash
-python3 scripts/update_universe_finnhub.py --max-calls 400 --limit 200
+./run.sh discovery --max-calls 400 --limit 500
+# Per-symbol provider/signal trace:
+./run.sh discovery -v --max-calls 400 --limit 500
 ```
 
-You can also drive the scan from a custom watchlist (for example, defense or oil names) by passing a CSV with a `symbol` column:
+You can also drive discovery from a custom watchlist (for example, defense or oil names) by passing a CSV with a `symbol` column:
 
 ```bash
-python3 scripts/update_universe_finnhub.py \
+./run.sh discovery \
   --symbols-csv data/universe_lists/defense_watchlist.csv \
   --max-calls 400 \
-  --limit 200
+  --limit 500
 ```
 
 Notes:
 - Reads `FINNHUB_API_KEY` from `.env`.
+- Requires Firestore credentials (`GOOGLE_APPLICATION_CREDENTIALS` or `FIREBASE_SERVICE_ACCOUNT_JSON`); each run **`set`s** `universe/{asof_date}` with the ranked symbol list (NY date from `run.timezone`).
 - Rotates coverage across days to stay within low API budgets.
-- Writes `data/universe_lists/universe.csv` by default, which is consumed (along with any other CSVs in that directory) by `config.yaml`.
+- **CSV backup is optional**: pass `--output path/to/universe.csv` if you want a local file; the bot reads the universe from Firestore when `universe.firestore.enabled` is true.
 
-You can schedule it separately (e.g., pre-market), then run `./run.sh` after it finishes.
+You can schedule it separately (e.g., pre-market), then run `./run.sh` after it finishes. Advanced: you may still invoke `python scripts/update_universe_finnhub.py ...` directly after `source .venv/bin/activate`.
+
+### Firestore universe (optional but recommended)
+
+- **Discovery** upserts one document per day: fields `asof_date`, `symbols`, `ts_utc`, `source`.
+- **Main scan** loads symbols via `read_universe_for_date`: today’s doc, or the latest snapshot if `fallback_latest` is true and today’s doc is missing/empty.
+- **CI**: add repo secret `FIREBASE_SERVICE_ACCOUNT_JSON` (full service account JSON string) so scheduled GitHub Actions runs can read the universe (see workflow env).
 
 ### Slack test (optional)
 
@@ -99,9 +109,7 @@ Print symbols returned by IBKR market scanners (requires TWS or IB Gateway runni
 python scripts/ibkr_scanner_test.py --config config.yaml
 ```
 
-### Firestore (optional)
-
-Test Firestore connection:
+### Firestore connectivity test
 
 ```bash
 python3 scripts/firebase_firestore_test.py --collection test --doc ping

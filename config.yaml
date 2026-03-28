@@ -3,13 +3,18 @@ run:
   timezone: "America/New_York"
 
 universe:
-  # Option A: inline symbols (fastest to start)
-  # Leave empty when using a dynamic universe CSV.
+  # Firestore: daily snapshot written by ./run.sh discovery (collection universe/{YYYY-MM-DD}).
+  # When enabled, symbols / CSV / symbols_dir below are ignored for the scan.
+  firestore:
+    enabled: true
+    collection: "universe"
+    fallback_latest: true
+  # Option A: inline symbols (used only when firestore.enabled is false)
   symbols: []
   # Option B: single CSV with a `symbol` column
   symbols_csv: null
   # Option B2: directory of CSVs; all `symbol` columns are merged
-  symbols_dir: "./data/universe_lists"
+  symbols_dir: null
   # Option C: IBKR scanner (dynamic intraday universe)
   # When enabled, the bot will pull symbols from IBKR scanners each run and merge with symbols/symbols_csv.
   ibkr_scanner:

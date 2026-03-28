@@ -18,11 +18,19 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
+class FirestoreUniverseConfig:
+    enabled: bool = False
+    collection: str = "universe"
+    fallback_latest: bool = True
+
+
+@dataclass(frozen=True)
 class UniverseConfig:
     symbols: list[str] | None = None
     symbols_csv: str | None = None
     symbols_dir: str | None = None
     ibkr_scanner: dict[str, Any] | None = None
+    firestore: FirestoreUniverseConfig = field(default_factory=FirestoreUniverseConfig)
 
 
 @dataclass(frozen=True)
@@ -134,6 +142,18 @@ class AppConfig:
         return (self.config_path.parent / path).resolve()
 
     def load_universe(self) -> list[str]:
+        if self.universe.firestore.enabled:
+            if self.ibkr_scanner.enabled and not self.ibkr_scanner.merge_with_static:
+                return []
+
+            from signals_bot.storage.firestore import read_universe_for_date
+
+            return read_universe_for_date(
+                asof_date=self.asof_date().isoformat(),
+                collection=self.universe.firestore.collection,
+                fallback_latest=self.universe.firestore.fallback_latest,
+            )
+
         static_symbols: set[str] = set()
 
         if self.universe.symbols_csv:
@@ -189,6 +209,12 @@ def load_config(config_path: Path) -> AppConfig:
 
     run_raw = raw.get("run", {}) or {}
     universe_raw = raw.get("universe", {}) or {}
+    fs_raw = universe_raw.get("firestore") or {}
+    firestore_universe = FirestoreUniverseConfig(
+        enabled=bool(fs_raw.get("enabled", False)),
+        collection=str(fs_raw.get("collection", "universe")),
+        fallback_latest=bool(fs_raw.get("fallback_latest", True)),
+    )
     data_raw = raw.get("data", {}) or {}
     ibkr_raw = raw.get("ibkr", {}) or {}
     strategy_raw = raw.get("strategy", {}) or {}
@@ -230,6 +256,7 @@ def load_config(config_path: Path) -> AppConfig:
             symbols_csv=universe_raw.get("symbols_csv"),
             symbols_dir=universe_raw.get("symbols_dir"),
             ibkr_scanner=universe_raw.get("ibkr_scanner"),
+            firestore=firestore_universe,
         ),
         data=DataConfig(
             lookback_days=int(data_raw.get("lookback_days", 90)),

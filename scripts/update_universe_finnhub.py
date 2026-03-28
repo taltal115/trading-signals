@@ -15,8 +15,10 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from signals_bot.config import AppConfig, load_config
+from signals_bot.logging import get_logger
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.storage.firestore import write_universe_snapshot
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy
 
 
@@ -89,7 +91,16 @@ def main() -> int:
     )
     p.add_argument("--config", default="config.yaml", help="Path to config.yaml.")
     p.add_argument("--state", default="data/universe_state.json", help="State file path.")
-    p.add_argument("--output", default="data/universe_lists/universe.csv", help="Output CSV path.")
+    p.add_argument(
+        "--output",
+        default=None,
+        help="Optional path to write a backup CSV; omit to skip CSV (Firestore is always updated).",
+    )
+    p.add_argument(
+        "--firestore-collection",
+        default=None,
+        help="Override universe.firestore.collection from config (default: universe).",
+    )
     p.add_argument("--max-calls", type=int, default=400, help="Max symbol checks per run.")
     p.add_argument("--limit", type=int, default=200, help="Max symbols to write.")
     p.add_argument(
@@ -97,11 +108,20 @@ def main() -> int:
         help="Optional CSV with a 'symbol' column to override Finnhub universe "
         "(e.g. defense or oil watchlist).",
     )
+    p.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose logging: per-symbol provider/signal steps (DEBUG).",
+    )
     args = p.parse_args()
 
     load_dotenv(override=False)
     config_path = Path(args.config).expanduser().resolve()
     cfg: AppConfig = load_config(config_path)
+    level = "DEBUG" if args.verbose else cfg.logging.level
+    log = get_logger(level)
+    log.info("universe-discovery start config=%s verbose=%s", config_path, args.verbose)
 
     symbols: list[str]
     if args.symbols_csv:
@@ -124,13 +144,22 @@ def main() -> int:
             for sym in df["symbol"].astype(str).tolist()
         ]
         symbols = _filter_symbols(raw_symbols)
+        log.info(
+            "Universe source=symbols_csv path=%s rows=%d filtered_unique=%d",
+            symbols_path,
+            len(df),
+            len(symbols),
+        )
     else:
         api_key = os.getenv("FINNHUB_API_KEY")
         if not api_key:
             raise SystemExit("ERROR: missing FINNHUB_API_KEY in environment/.env")
+        log.info("Fetching Finnhub stock_symbols(US) …")
         client = finnhub.Client(api_key=api_key)
         raw_symbols = client.stock_symbols("US")
+        log.debug("Finnhub raw_symbols count=%d", len(raw_symbols) if raw_symbols else 0)
         symbols = _filter_symbols(raw_symbols)
+        log.info("Universe source=finnhub_us filtered_unique=%d", len(symbols))
 
     if not symbols:
         raise SystemExit("ERROR: no symbols available after filtering")
@@ -139,6 +168,17 @@ def main() -> int:
     state = _load_state(state_path)
     start_index = int(state.get("index", 0))
     batch, next_index = _select_batch(symbols, start=start_index, batch_size=args.max_calls)
+    log.info(
+        "Batch state_path=%s start_index=%d max_calls=%d batch_len=%d next_index=%d universe_total=%d",
+        state_path,
+        start_index,
+        args.max_calls,
+        len(batch),
+        next_index,
+        len(symbols),
+    )
+    if args.verbose and batch:
+        log.debug("Batch symbols: %s", ", ".join(batch[:50]) + (" …" if len(batch) > 50 else ""))
 
     providers = {
         "yahoo": YahooProvider(
@@ -155,13 +195,21 @@ def main() -> int:
     provider_order = [p for p in cfg.data.provider_order if p in providers]
     if not provider_order:
         provider_order = ["yahoo", "stooq"]
+    log.info(
+        "Strategy scan lookback_days=%d provider_order=%s asof_date=%s",
+        cfg.data.lookback_days,
+        provider_order,
+        cfg.asof_date().isoformat(),
+    )
 
     strategy = BreakoutMomentumStrategy(cfg.strategy)
     candidates: list[dict[str, Any]] = []
 
     for symbol in batch:
+        log.debug("evaluate %s", symbol)
         hist = None
         provider_used = None
+        last_err: str | None = None
         for prov_name in provider_order:
             prov = providers.get(prov_name)
             if not prov:
@@ -170,9 +218,16 @@ def main() -> int:
                 hist = prov.get_history(symbol, lookback_days=cfg.data.lookback_days)
                 provider_used = prov_name
                 break
-            except Exception:
+            except Exception as exc:  # noqa: BLE001
+                last_err = str(exc)
+                log.debug("%s provider=%s error=%s", symbol, prov_name, last_err)
                 continue
         if hist is None or hist.empty:
+            log.debug(
+                "%s skip no_history last_err=%s",
+                symbol,
+                last_err or "-",
+            )
             continue
 
         signal = strategy.generate_signal(
@@ -183,8 +238,17 @@ def main() -> int:
             open_buy=None,
         )
         if signal is None:
+            log.debug("%s skip strategy returned no signal (provider=%s)", symbol, provider_used)
             continue
 
+        log.debug(
+            "%s candidate action=%s conf=%d score=%.3f provider=%s",
+            symbol,
+            signal.action,
+            int(signal.confidence),
+            float(signal.score),
+            provider_used,
+        )
         candidates.append(
             {
                 "symbol": symbol,
@@ -194,24 +258,45 @@ def main() -> int:
         )
 
     ranked = sorted(candidates, key=lambda x: (-x["confidence"], -x["score"], x["symbol"]))
+    log.info("Candidates in batch: %d (limit=%d)", len(ranked), args.limit)
     top = ranked[: max(1, args.limit)] if ranked else []
 
-    out_path = Path(args.output).expanduser()
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    asof_date = cfg.asof_date().isoformat()
+    collection = args.firestore_collection or cfg.universe.firestore.collection
+    symbol_list = [str(row["symbol"]) for row in top]
+
+    try:
+        write_universe_snapshot(
+            asof_date=asof_date,
+            symbols=symbol_list,
+            collection=collection,
+            source="finnhub_discovery",
+        )
+    except RuntimeError as exc:
+        raise SystemExit(f"ERROR: Firestore universe write failed (check credentials): {exc}") from exc
 
     if not top:
-        print(
-            f"No candidates found for this batch (start_index={start_index}); "
-            f"writing empty universe to {out_path}"
+        log.warning(
+            "No candidates in this batch (start_index=%d); wrote empty Firestore %s/%s",
+            start_index,
+            collection,
+            asof_date,
         )
-        df = pd.DataFrame({"symbol": []})
     else:
-        df = pd.DataFrame(top)[["symbol"]]
+        log.info("Firestore write collection=%s asof_date=%s count=%d", collection, asof_date, len(top))
+        if args.verbose:
+            preview = [row["symbol"] for row in top[:40]]
+            log.debug("Top symbols: %s%s", preview, " …" if len(top) > 40 else "")
 
-    df.to_csv(out_path, index=False)
+    if args.output:
+        out_path = Path(args.output).expanduser()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        df = pd.DataFrame({"symbol": []}) if not top else pd.DataFrame(top)[["symbol"]]
+        df.to_csv(out_path, index=False)
+        log.info("CSV backup path=%s rows=%d", out_path, len(df))
 
     _save_state(state_path, next_index)
-    print(f"Wrote {len(top)} symbols to {out_path} (next_index={next_index})")
+    log.info("Saved state next_index=%d", next_index)
     return 0
 
 
