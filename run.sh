@@ -68,7 +68,7 @@ export PYTHONPATH="${ROOT_DIR}/src${PYTHONPATH:+:${PYTHONPATH}}"
 if [[ "${1:-}" == "discovery" ]]; then
   shift
   if [[ "$#" -eq 0 ]]; then
-    python "scripts/update_universe_finnhub.py" --max-calls 400 --limit 200 2>&1 | tee -a "${LOG_FILE}"
+    python "scripts/update_universe_finnhub.py" --max-calls 400 --limit 500 2>&1 | tee -a "${LOG_FILE}"
   else
     python "scripts/update_universe_finnhub.py" "$@" 2>&1 | tee -a "${LOG_FILE}"
   fi

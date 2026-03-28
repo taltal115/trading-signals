@@ -1,0 +1,60 @@
+# Daily Finnhub → strategy-filtered universe snapshot to Firestore (`universe/{asof_date}`).
+# Persists `data/universe_state.json` via workflow artifacts so batch rotation continues across runs.
+name: Daily universe discovery
+
+on:
+  schedule:
+    # Weekdays 21:30 UTC (~ after US cash equity close; adjust for DST / preference)
+    - cron: "30 21 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  discovery:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Restore Finnhub batch rotation state
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: universe-discovery-daily.yml
+          name: universe-discovery-state
+          path: .
+          search_artifacts: true
+          if_no_artifact_found: ignore
+
+      - name: Run universe discovery
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          mkdir -p data
+          PYTHONPATH=./src python scripts/update_universe_finnhub.py \
+            --config config.yaml \
+            --state data/universe_state.json \
+            --max-calls 400 \
+            --limit 500
+
+      - name: Save Finnhub batch rotation state
+        uses: actions/upload-artifact@v4
+        with:
+          name: universe-discovery-state
+          path: data/universe_state.json
+          retention-days: 120
+          if-no-files-found: warn

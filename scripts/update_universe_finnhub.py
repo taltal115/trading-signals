@@ -102,7 +102,7 @@ def main() -> int:
         help="Override universe.firestore.collection from config (default: universe).",
     )
     p.add_argument("--max-calls", type=int, default=400, help="Max symbol checks per run.")
-    p.add_argument("--limit", type=int, default=200, help="Max symbols to write.")
+    p.add_argument("--limit", type=int, default=500, help="Max symbols to write to Firestore.")
     p.add_argument(
         "--symbols-csv",
         help="Optional CSV with a 'symbol' column to override Finnhub universe "

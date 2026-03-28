@@ -75,6 +75,12 @@ Notes:
 
 You can schedule it separately (e.g., pre-market), then run `./run.sh` after it finishes. Advanced: you may still invoke `python scripts/update_universe_finnhub.py ...` directly after `source .venv/bin/activate`.
 
+### Scheduled discovery (GitHub Actions)
+
+Workflow [`.github/workflows/universe-discovery-daily.yml`](.github/workflows/universe-discovery-daily.yml) runs **weekdays** and writes the top **500** names to Firestore (`--limit 500`, `--max-calls 400`). It restores and saves **`universe-discovery-state`** artifacts so Finnhub **batch rotation** (`data/universe_state.json`) survives clean runners.
+
+**Secrets:** `FINNHUB_API_KEY` and `FIREBASE_SERVICE_ACCOUNT_JSON` (same as the main scan workflow). Use **Actions → Daily universe discovery → Run workflow** to run manually.
+
 ### Firestore universe (optional but recommended)
 
 - **Discovery** upserts one document per day: fields `asof_date`, `symbols`, `ts_utc`, `source`.

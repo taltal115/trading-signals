@@ -96,7 +96,7 @@ class SlackConfig:
     enabled: bool = True
     channel: str = "YOUR_CHANNEL_ID"
     post_top_n: int = 10
-    min_confidence: int = 60
+    min_confidence: int = 75
 
 
 @dataclass(frozen=True)
@@ -274,7 +274,7 @@ def load_config(config_path: Path) -> AppConfig:
             enabled=bool(slack_raw.get("enabled", True)),
             channel=str(slack_raw.get("channel", "YOUR_CHANNEL_ID")),
             post_top_n=int(slack_raw.get("post_top_n", 10)),
-            min_confidence=int(slack_raw.get("min_confidence", 60)),
+            min_confidence=int(slack_raw.get("min_confidence", 75)),
         ),
         logging=LoggingConfig(level=str(logging_raw.get("level", "INFO"))),
         ibkr=IbkrConfig(
