@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>signals dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1>signals <span>dashboard</span></h1>
+      <div id="auth-bar">
+        <span id="auth-user" class="user-email" hidden></span>
+        <p id="localhost-auth-note" class="localhost-auth-note" hidden>
+          Google sign-in is off on localhost — use the deployed site for My positions.
+        </p>
+        <div id="google-auth-block" class="google-auth-block" hidden>
+          <button type="button" id="google-sign-in-btn" class="btn-google">
+            <span class="btn-google-inner">Sign in with Google</span>
+          </button>
+          <p id="auth-error" class="auth-error" hidden></p>
+        </div>
+        <button type="button" class="secondary" id="sign-out-btn" hidden>Sign out</button>
+      </div>
+    </header>
+
+    <main>
+        <div id="config-warn" hidden></div>
+        <p id="session-banner" class="local-banner">
+          <strong>My positions</strong> requires <strong>Google</strong> sign-in (hosted site only; disabled on localhost). Enable the Google provider in Firebase Authentication. Deploy
+          <code>firestore.rules</code> after changes.
+        </p>
+
+        <nav class="tabs" role="tablist">
+          <button type="button" class="tab active" data-panel="universe">Universe</button>
+          <button type="button" class="tab" data-panel="signals">Signals</button>
+          <button type="button" class="tab" data-panel="positions">My positions</button>
+        </nav>
+
+        <section id="panel-universe" class="panel active" aria-label="Universe history">
+          <h2>Universe snapshots</h2>
+          <p class="empty-state" id="universe-hint">Loading…</p>
+          <div class="table-wrap" id="universe-table-wrap" hidden>
+            <table>
+              <thead>
+                <tr>
+                  <th>asof_date</th>
+                  <th>ts_utc</th>
+                  <th>source</th>
+                  <th># symbols</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="universe-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="panel-signals" class="panel" aria-label="Signal runs">
+          <h2>Bot signal runs (BUY payloads)</h2>
+          <p class="empty-state" id="signals-hint">Loading…</p>
+          <div class="table-wrap" id="signals-table-wrap" hidden>
+            <table class="signals-main-table">
+              <thead>
+                <tr>
+                  <th>ts_utc</th>
+                  <th>run_id</th>
+                  <th>asof_date</th>
+                  <th># BUY</th>
+                  <th>Log a buy</th>
+                </tr>
+              </thead>
+              <tbody id="signals-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="panel-positions" class="panel" aria-label="Positions">
+          <h2>Log a fill (manual)</h2>
+          <div class="form-card" id="position-form-card">
+            <form id="position-form">
+              <div class="form-grid">
+                <label>
+                  Ticker
+                  <input name="ticker" required maxlength="8" placeholder="AAPL" />
+                </label>
+                <label>
+                  Entry price
+                  <input name="entry_price" type="number" step="any" required min="0" />
+                </label>
+                <label>
+                  Quantity (optional)
+                  <input name="quantity" type="number" step="any" min="0" placeholder="100" />
+                </label>
+                <label>
+                  Stop price
+                  <input name="stop_price" type="number" step="any" min="0" placeholder="bracket stop" />
+                </label>
+                <label>
+                  Target price
+                  <input name="target_price" type="number" step="any" min="0" placeholder="take profit" />
+                </label>
+                <label>
+                  Linked signal doc ID (optional)
+                  <input name="signal_doc_id" placeholder="Firestore document id from Signals" />
+                </label>
+                <label>
+                  Hold days (from signal, optional)
+                  <input name="hold_days_from_signal" type="number" min="1" max="30" placeholder="5" />
+                </label>
+              </div>
+              <label style="margin-top: 0.85rem">
+                Notes
+                <textarea name="notes" placeholder="Bracket type, broker, etc."></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="submit">Save open position</button>
+              </div>
+              <p id="form-status"></p>
+            </form>
+          </div>
+
+          <h2>Your positions</h2>
+          <div class="table-wrap" id="positions-table-wrap" hidden>
+            <table class="positions-table">
+              <thead>
+                <tr>
+                  <th>ticker</th>
+                  <th>entry</th>
+                  <th>exit</th>
+                  <th>P/L %</th>
+                  <th>stop</th>
+                  <th>target</th>
+                  <th>status</th>
+                  <th>created</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="positions-body"></tbody>
+            </table>
+          </div>
+          <p class="empty-state" id="positions-hint">Loading positions…</p>
+        </section>
+    </main>
+
+    <dialog id="exit-dialog" class="exit-dialog">
+      <form id="exit-form">
+        <h3>Exit position</h3>
+        <p id="exit-dialog-summary" class="exit-dialog-summary"></p>
+        <label>
+          Actual sell price
+          <input id="exit-price-input" name="exit_price" type="number" step="any" required min="0.000001" />
+        </label>
+        <label>
+          Notes (optional)
+          <input id="exit-notes-input" name="exit_notes" type="text" placeholder="broker, time, etc." />
+        </label>
+        <div class="dialog-actions">
+          <button type="button" class="secondary" id="exit-cancel-btn">Cancel</button>
+          <button type="submit" class="primary">Save exit</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

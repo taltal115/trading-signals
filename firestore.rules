@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /universe/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /signals/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Manual positions: Google sign-in only, single allowlisted email (keep in sync with firebase-config allowedSignInEmails).
+    function myPositionsUserAllowed() {
+      return request.auth != null
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'taltal115@gmail.com'
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
+
+    match /my_positions/{posId} {
+      allow read: if myPositionsUserAllowed()
+        && request.auth.uid == resource.data.owner_uid;
+      allow create: if myPositionsUserAllowed()
+        && request.resource.data.owner_uid == request.auth.uid;
+      allow update: if myPositionsUserAllowed()
+        && resource.data.owner_uid == request.auth.uid
+        && request.resource.data.owner_uid == resource.data.owner_uid;
+      allow delete: if myPositionsUserAllowed()
+        && resource.data.owner_uid == request.auth.uid;
+    }
+  }
+}

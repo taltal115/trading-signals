@@ -4,6 +4,7 @@ This project scans US stocks on **daily candles** for **breakout-momentum** setu
 
 ### Docs
 - Bot logic + strategy: `docs/bot-logic-and-strategy.md`
+- Firebase Hosting + dashboard + position monitor: `docs/firebase-hosting-setup.md`
 
 ### What this is (and isn’t)
 - **Signal-only**: generates BUY / WAIT / SELL guidance with confidence.
@@ -86,6 +87,18 @@ Workflow [`.github/workflows/universe-discovery-daily.yml`](.github/workflows/un
 - **Discovery** upserts one document per day: fields `asof_date`, `symbols`, `ts_utc`, `source`.
 - **Main scan** loads symbols via `read_universe_for_date`: today’s doc, or the latest snapshot if `fallback_latest` is true and today’s doc is missing/empty.
 - **CI**: add repo secret `FIREBASE_SERVICE_ACCOUNT_JSON` (full service account JSON string) so scheduled GitHub Actions runs can read the universe (see workflow env).
+
+### Web dashboard (Firebase Hosting)
+
+Static UI in [`web/`](web/) (universe history, signal runs, manual position form). Configure [`web/firebase-config.js`](web/firebase-config.js), deploy rules/indexes/hosting per [`docs/firebase-hosting-setup.md`](docs/firebase-hosting-setup.md). Sign-in is **Email/Password** (enable in Firebase Console).
+
+### Position monitor (GitHub Actions)
+
+[`scripts/monitor_open_positions.py`](scripts/monitor_open_positions.py) reads **`my_positions`** with `status == open`, pulls a **daily** last price (same providers as the bot), logs **`[WAIT]` / `[SELL]`**-style lines, updates **`last_alert_*`** on each doc, and posts **Slack** only when the alert **kind** changes (deduped). Scheduled workflow: [`.github/workflows/position-monitor.yml`](.github/workflows/position-monitor.yml). Optional secret **`MONITOR_OWNER_UID`** limits Firestore rows to one account. Local run:
+
+```bash
+PYTHONPATH=./src python scripts/monitor_open_positions.py --config config.yaml
+```
 
 ### Slack test (optional)
 

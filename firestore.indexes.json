@@ -1,0 +1,40 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "universe",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "ts_utc", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "signals",
+      "queryScope": "COLLECTION",
+      "fields": [{ "fieldPath": "ts_utc", "order": "DESCENDING" }]
+    },
+    {
+      "collectionGroup": "my_positions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "created_at_utc", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "my_positions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "created_at_utc", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "my_positions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_at_utc", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
