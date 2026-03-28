@@ -4,43 +4,87 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>signals dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="styles.css" />
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   </head>
   <body>
-    <header>
-      <h1>signals <span>dashboard</span></h1>
-      <div id="auth-bar">
-        <span id="auth-user" class="user-email" hidden></span>
-        <p id="localhost-auth-note" class="localhost-auth-note" hidden>
-          Google sign-in is off on localhost — use the deployed site for My positions.
+    <div id="config-warn" class="config-warn-standalone" hidden></div>
+
+    <div id="login-screen" class="login-screen" aria-label="Sign in" hidden>
+      <div class="login-card">
+        <h1 class="login-title">signals <span>dashboard</span></h1>
+        <p class="login-message">
+          Sign in with Google to manage positions and sync with your allowlisted account.
         </p>
-        <div id="google-auth-block" class="google-auth-block" hidden>
-          <button type="button" id="google-sign-in-btn" class="btn-google">
-            <span class="btn-google-inner">Sign in with Google</span>
+        <div class="login-actions">
+          <button type="button" id="login-google-btn" class="btn-google login-google-btn">
+            Continue with Google
           </button>
-          <p id="auth-error" class="auth-error" hidden></p>
+          <div id="login-spinner" class="login-spinner" hidden>
+            <span class="spinner-ring" aria-hidden="true"></span>
+            <span>Signing in…</span>
+          </div>
         </div>
-        <button type="button" class="secondary" id="sign-out-btn" hidden>Sign out</button>
-      </div>
-    </header>
-
-    <main>
-        <div id="config-warn" hidden></div>
-        <p id="session-banner" class="local-banner">
-          <strong>My positions</strong> requires <strong>Google</strong> sign-in (hosted site only; disabled on localhost). Enable the Google provider in Firebase Authentication. Deploy
-          <code>firestore.rules</code> after changes.
+        <p class="login-back">
+          <a href="/dashboard" class="nav-anchor" data-route="dashboard">← Back to dashboard</a>
         </p>
+        <p id="login-localhost-note" class="localhost-auth-note login-localhost-note" hidden>
+          Google sign-in is not available on this host. Open the deployed Firebase Hosting URL to sign in.
+        </p>
+        <p id="login-auth-error" class="auth-error login-auth-error" hidden></p>
+      </div>
+    </div>
 
-        <nav class="tabs" role="tablist">
-          <button type="button" class="tab active" data-panel="universe">Universe</button>
-          <button type="button" class="tab" data-panel="signals">Signals</button>
-          <button type="button" class="tab" data-panel="positions">My positions</button>
+    <div id="app-shell" class="app-shell" hidden>
+      <header class="app-header">
+        <div class="header-brand">
+          <a href="/dashboard" class="brand-link" data-route="dashboard" title="Home">signals <span>dashboard</span></a>
+        </div>
+        <nav class="main-nav" id="main-nav" aria-label="Main navigation">
+          <a href="/dashboard" class="nav-link" data-route="dashboard">Dashboard</a>
+          <a href="/universe" class="nav-link" data-route="universe">Universe</a>
+          <a href="/signals" class="nav-link" data-route="signals">Signals</a>
+          <a href="/positions" class="nav-link" data-route="positions">My positions</a>
+          <a href="/about" class="nav-link" data-route="about">About</a>
+          <span class="main-nav-gap" aria-hidden="true"></span>
+          <a href="/login" class="nav-link nav-link-signin" id="nav-sign-in" hidden>Sign in</a>
         </nav>
+        <div id="auth-bar" class="auth-bar-logged-in">
+          <span id="header-user-email" class="header-user-email" hidden></span>
+          <a href="/logout" class="nav-link nav-link-logout" id="logout-link" hidden>Log out</a>
+        </div>
+      </header>
 
-        <section id="panel-universe" class="panel active" aria-label="Universe history">
+      <main>
+        <section id="panel-dashboard" class="panel" aria-label="Dashboard">
+          <h2>Dashboard</h2>
+          <p class="dashboard-lead">Latest snapshot from Firestore (universe &amp; signals are public reads; positions need sign-in).</p>
+          <div class="dashboard-grid">
+            <article class="dash-card">
+              <h3>Latest universe</h3>
+              <p id="dash-universe-empty" class="dash-muted">Loading…</p>
+              <div id="dash-universe-body" class="dash-body" hidden></div>
+              <a href="/universe" class="dash-more nav-anchor" data-route="universe">View universe →</a>
+            </article>
+            <article class="dash-card">
+              <h3>Latest signal run</h3>
+              <p id="dash-signals-empty" class="dash-muted">Loading…</p>
+              <div id="dash-signals-body" class="dash-body" hidden></div>
+              <a href="/signals" class="dash-more nav-anchor" data-route="signals">View signals →</a>
+            </article>
+            <article class="dash-card">
+              <h3>Positions</h3>
+              <p id="dash-positions-empty" class="dash-muted">Sign in to load my_positions.</p>
+              <div id="dash-positions-body" class="dash-body" hidden></div>
+              <a href="/positions" class="dash-more nav-anchor" data-route="positions">Open positions →</a>
+            </article>
+          </div>
+        </section>
+
+        <section id="panel-universe" class="panel" aria-label="Universe history">
           <h2>Universe snapshots</h2>
           <p class="empty-state" id="universe-hint">Loading…</p>
           <div class="table-wrap" id="universe-table-wrap" hidden>
@@ -79,6 +123,7 @@
         </section>
 
         <section id="panel-positions" class="panel" aria-label="Positions">
+          <p id="positions-gate" class="positions-gate" hidden>Sign in with Google to manage positions.</p>
           <h2>Log a fill (manual)</h2>
           <div class="form-card" id="position-form-card">
             <form id="position-form">
@@ -144,7 +189,65 @@
           </div>
           <p class="empty-state" id="positions-hint">Loading positions…</p>
         </section>
-    </main>
+
+        <section id="panel-about" class="panel about-panel" aria-label="About">
+          <h2>About</h2>
+          <p class="about-intro">This project is signal-only: no auto-trading. Summaries below mirror the main docs for the three operational areas.</p>
+          <ul class="about-toc">
+            <li><a href="/about/run" class="nav-anchor" data-route="about-run">Bot run (scan)</a> — hourly/daily momentum scan, Slack, Firestore signals.</li>
+            <li><a href="/about/universe" class="nav-anchor" data-route="about-universe">Universe discovery</a> — Finnhub → filters → Firestore <code>universe/{asof_date}</code>.</li>
+            <li><a href="/about/monitor" class="nav-anchor" data-route="about-monitor">Position monitor</a> — GitHub Action, open positions, bracket alerts.</li>
+          </ul>
+        </section>
+
+        <section id="panel-about-run" class="panel about-panel" aria-label="About bot run">
+          <h2>About · Bot run (scan)</h2>
+          <article class="about-doc">
+            <p>The trading bot scans US stocks on <strong>daily candles</strong> for breakout-momentum setups (1–7 day swing ideas), logs to SQLite, and can post to Slack. It does <strong>not</strong> place orders.</p>
+            <ul>
+              <li><strong>Signal-only</strong>: BUY / WAIT / SELL-style guidance with confidence.</li>
+              <li><strong>Manual execution</strong>: you decide whether to trade.</li>
+              <li>Outputs: colored terminal logs, <code>./data/signals.db</code>, optional Slack.</li>
+            </ul>
+            <p>With Firestore enabled, BUY payloads are archived to the <code>signals</code> collection (shown on the Signals page).</p>
+            <h3>Run locally</h3>
+            <pre><code>./run.sh</code></pre>
+            <p>Ensure <code>config.yaml</code>, universe source (Firestore discovery or static list), and optional <code>.env</code> for Slack / API keys. See repo <code>README.md</code> and <code>docs/bot-logic-and-strategy.md</code>.</p>
+          </article>
+          <p><a href="/about" class="nav-anchor" data-route="about">← About index</a></p>
+        </section>
+
+        <section id="panel-about-universe" class="panel about-panel" aria-label="About universe">
+          <h2>About · Universe discovery</h2>
+          <article class="about-doc">
+            <p>Discovery builds a dynamic universe from Finnhub symbols plus your strategy filters, then writes one document per day to Firestore: <code>universe/{asof_date}</code> with <code>symbols</code>, <code>ts_utc</code>, and <code>source</code>.</p>
+            <ul>
+              <li>Requires <code>FINNHUB_API_KEY</code> and Firestore credentials.</li>
+              <li>Scheduled via GitHub Actions: <code>.github/workflows/universe-discovery-daily.yml</code> (weekdays), with artifact rotation state.</li>
+              <li>The main scan loads that universe via <code>read_universe_for_date</code> (today or latest fallback).</li>
+            </ul>
+            <h3>Local discovery</h3>
+            <pre><code>./run.sh discovery --max-calls 400 --limit 500</code></pre>
+          </article>
+          <p><a href="/about" class="nav-anchor" data-route="about">← About index</a></p>
+        </section>
+
+        <section id="panel-about-monitor" class="panel about-panel" aria-label="About monitor">
+          <h2>About · Position monitor</h2>
+          <article class="about-doc">
+            <p><code>scripts/monitor_open_positions.py</code> reads <code>my_positions</code> with <code>status == open</code>, fetches a <strong>daily</strong> last price (Yahoo / Stooq), evaluates stops, targets, and hold windows, logs WAIT/SELL-style lines, updates <code>last_alert_*</code> on each document, and optionally posts to Slack when the alert <strong>kind</strong> changes (deduped).</p>
+            <ul>
+              <li>Workflow: <code>.github/workflows/position-monitor.yml</code></li>
+              <li>Secrets: Firestore JSON, optional Slack, optional <code>MONITOR_OWNER_UID</code>.</li>
+              <li>Indicative only — not real-time execution.</li>
+            </ul>
+            <h3>Local</h3>
+            <pre><code>PYTHONPATH=./src python scripts/monitor_open_positions.py --config config.yaml</code></pre>
+          </article>
+          <p><a href="/about" class="nav-anchor" data-route="about">← About index</a></p>
+        </section>
+      </main>
+    </div>
 
     <dialog id="exit-dialog" class="exit-dialog">
       <form id="exit-form">

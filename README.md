@@ -37,7 +37,7 @@ cp env.example .env
 
 Optional: add `FINNHUB_API_KEY` to `.env` if you want Finnhub as the primary data provider or to use dynamic discovery.
 Optional: add `FLEX_API_KEY` to `.env` to gate SELL signals by your IBKR OpenPositions (Flex API).
-Optional: add **`GOOGLE_APPLICATION_CREDENTIALS`** (path to a service-account JSON) or **`FIREBASE_SERVICE_ACCOUNT_JSON`** (inline JSON) for Firestore — required for `universe.firestore.enabled`, discovery writes, and BUY signal archival.
+Optional: **`GOOGLE_APPLICATION_CREDENTIALS`** — path to your service account JSON file locally; or in **GitHub Actions**, set the repository secret to the **full JSON text** of that file (value must start with `{`). Required for `universe.firestore.enabled`, discovery writes, and BUY signal archival.
 
 5) Provide a universe:
 - **Recommended**: set `universe.firestore.enabled: true`, run `./run.sh discovery` at least once so `universe/{asof_date}` exists in Firestore, then run `./run.sh`.
@@ -70,7 +70,7 @@ You can also drive discovery from a custom watchlist (for example, defense or oi
 
 Notes:
 - Reads `FINNHUB_API_KEY` from `.env`.
-- Requires Firestore credentials (`GOOGLE_APPLICATION_CREDENTIALS` or `FIREBASE_SERVICE_ACCOUNT_JSON`); each run **`set`s** `universe/{asof_date}` with the ranked symbol list (NY date from `run.timezone`).
+- Requires **`GOOGLE_APPLICATION_CREDENTIALS`** (file path locally, or full JSON string in CI); each run **`set`s** `universe/{asof_date}` with the ranked symbol list (NY date from `run.timezone`).
 - Rotates coverage across days to stay within low API budgets.
 - **CSV backup is optional**: pass `--output path/to/universe.csv` if you want a local file; the bot reads the universe from Firestore when `universe.firestore.enabled` is true.
 
@@ -80,13 +80,13 @@ You can schedule it separately (e.g., pre-market), then run `./run.sh` after it 
 
 Workflow [`.github/workflows/universe-discovery-daily.yml`](.github/workflows/universe-discovery-daily.yml) runs **weekdays** and writes the top **500** names to Firestore (`--limit 500`, `--max-calls 400`). It restores and saves **`universe-discovery-state`** artifacts so Finnhub **batch rotation** (`data/universe_state.json`) survives clean runners.
 
-**Secrets:** `FINNHUB_API_KEY` and `FIREBASE_SERVICE_ACCOUNT_JSON` (same as the main scan workflow). Use **Actions → Daily universe discovery → Run workflow** to run manually.
+**Secrets:** `FINNHUB_API_KEY` and **`GOOGLE_APPLICATION_CREDENTIALS`** (full service account JSON as the secret value). Use **Actions → Daily universe discovery → Run workflow** to run manually.
 
 ### Firestore universe (optional but recommended)
 
 - **Discovery** upserts one document per day: fields `asof_date`, `symbols`, `ts_utc`, `source`.
 - **Main scan** loads symbols via `read_universe_for_date`: today’s doc, or the latest snapshot if `fallback_latest` is true and today’s doc is missing/empty.
-- **CI**: add repo secret `FIREBASE_SERVICE_ACCOUNT_JSON` (full service account JSON string) so scheduled GitHub Actions runs can read the universe (see workflow env).
+- **CI**: add repo secret **`GOOGLE_APPLICATION_CREDENTIALS`** with the full service account JSON text (the workflows inject it into that env var).
 
 ### Web dashboard (Firebase Hosting)
 

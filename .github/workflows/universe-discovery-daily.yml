@@ -30,6 +30,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Check Firestore credentials secret
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
+            echo "::error::Set repository secret GOOGLE_APPLICATION_CREDENTIALS to the full service account JSON. See README.md."
+            exit 1
+          fi
+
       - name: Restore Finnhub batch rotation state
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -42,7 +51,7 @@ jobs:
       - name: Run universe discovery
         env:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
           mkdir -p data
           PYTHONPATH=./src python scripts/update_universe_finnhub.py \

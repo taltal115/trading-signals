@@ -1,0 +1,130 @@
+[debug] [2026-03-28T16:28:19.669Z] ----------------------------------------------------------------------
+[debug] [2026-03-28T16:28:19.670Z] Command:       /usr/local/bin/node /usr/local/bin/firebase deploy --only hosting
+[debug] [2026-03-28T16:28:19.671Z] CLI Version:   15.4.0
+[debug] [2026-03-28T16:28:19.671Z] Platform:      darwin
+[debug] [2026-03-28T16:28:19.671Z] Node Version:  v22.20.0
+[debug] [2026-03-28T16:28:19.671Z] Time:          Sat Mar 28 2026 19:28:19 GMT+0300 (Israel Daylight Time)
+[debug] [2026-03-28T16:28:19.671Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-03-28T16:28:20.344Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-03-28T16:28:20.344Z] > authorizing via signed-in user (taltal115@gmail.com)
+[debug] [2026-03-28T16:28:20.344Z] [iam] checking project trading-goals for permissions ["firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-03-28T16:28:20.345Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:20.345Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:20.345Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/trading-goals:testIamPermissions [none]
+[debug] [2026-03-28T16:28:20.345Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/trading-goals:testIamPermissions x-goog-quota-user=projects/trading-goals
+[debug] [2026-03-28T16:28:20.345Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/trading-goals:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-03-28T16:28:20.661Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/trading-goals:testIamPermissions 200
+[debug] [2026-03-28T16:28:20.661Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/trading-goals:testIamPermissions {"permissions":["firebase.projects.get","firebasehosting.sites.update"]}
+[debug] [2026-03-28T16:28:20.662Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:20.662Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:20.662Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/trading-goals [none]
+[debug] [2026-03-28T16:28:21.022Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/trading-goals 200
+[debug] [2026-03-28T16:28:21.022Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/trading-goals {"projectId":"trading-goals","projectNumber":"703616057199","displayName":"trading-goals","name":"projects/trading-goals","resources":{"hostingSite":"trading-goals"},"state":"ACTIVE","etag":"1_76ff7596-8f6d-4c67-b5a4-6e738f88798e"}
+[info] 
+[info] === Deploying to 'trading-goals'...
+[info] 
+[info] i  deploying hosting 
+[debug] [2026-03-28T16:28:21.025Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:21.025Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:21.025Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/versions [none]
+[debug] [2026-03-28T16:28:21.025Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/versions {"status":"CREATED","labels":{"deployment-tool":"cli-firebase"}}
+[debug] [2026-03-28T16:28:23.302Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/versions 200
+[debug] [2026-03-28T16:28:23.302Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/versions {"name":"projects/703616057199/sites/trading-goals/versions/a62701d6695935f4","status":"CREATED","config":{},"labels":{"deployment-tool":"cli-firebase"}}
+[info] i  hosting[trading-goals]: beginning deploy... 
+[info] i  hosting[trading-goals]: found 6 files in web 
+[debug] [2026-03-28T16:28:23.318Z] [hosting] uploading with 200 concurrency
+[debug] [2026-03-28T16:28:23.326Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:23.326Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:23.326Z] [hosting] hash cache [d2Vi] stored for 6 files
+[debug] [2026-03-28T16:28:23.326Z] [hosting][hash queue][FINAL] {"max":5,"min":1,"avg":2.6666666666666665,"active":0,"complete":6,"success":6,"errored":0,"retried":0,"total":6,"elapsed":6}
+[debug] [2026-03-28T16:28:23.327Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/703616057199/sites/trading-goals/versions/a62701d6695935f4:populateFiles [none]
+[debug] [2026-03-28T16:28:23.327Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/703616057199/sites/trading-goals/versions/a62701d6695935f4:populateFiles {"files":{"/firebase-config.js":"b90ea2509e214120867815a03e80ec069680b3577659fe7cd867d5359da6171d","/firebase-config.example.js":"11329a6d988a446418a100e86bd20f9a42907e3ea05b3658b1f35cd30cfcf3e3","/favicon.svg":"5970cc53ecdd5f7743cd232df438f2488621af8a86cb786eeeea74ad69448c4f","/index.html":"4ce72806e09462049731b6fecd17b0bbe21c95f1ad3ec55f787ead184fb22e6e","/styles.css":"b8e59ddd6b635627be764104f534a1dcb6648ee88ffe25c48f7ce639379119a9","/app.js":"3281649d86a1d625e5b543176b92556720fe05bb8106918bdb77b24ef6117935"}}
+[debug] [2026-03-28T16:28:24.155Z] <<< [apiv2][status] POST https://firebasehosting.googleapis.com/v1beta1/projects/703616057199/sites/trading-goals/versions/a62701d6695935f4:populateFiles 200
+[debug] [2026-03-28T16:28:24.155Z] <<< [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/703616057199/sites/trading-goals/versions/a62701d6695935f4:populateFiles {"uploadRequiredHashes":["4ce72806e09462049731b6fecd17b0bbe21c95f1ad3ec55f787ead184fb22e6e","b8e59ddd6b635627be764104f534a1dcb6648ee88ffe25c48f7ce639379119a9","3281649d86a1d625e5b543176b92556720fe05bb8106918bdb77b24ef6117935"],"uploadUrl":"https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files"}
+[debug] [2026-03-28T16:28:24.156Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:24.156Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:24.156Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:24.156Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:24.156Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:24.156Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:24.156Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/4ce72806e09462049731b6fecd17b0bbe21c95f1ad3ec55f787ead184fb22e6e [none]
+[debug] [2026-03-28T16:28:24.156Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/4ce72806e09462049731b6fecd17b0bbe21c95f1ad3ec55f787ead184fb22e6e [stream]
+[debug] [2026-03-28T16:28:24.157Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/b8e59ddd6b635627be764104f534a1dcb6648ee88ffe25c48f7ce639379119a9 [none]
+[debug] [2026-03-28T16:28:24.157Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/b8e59ddd6b635627be764104f534a1dcb6648ee88ffe25c48f7ce639379119a9 [stream]
+[debug] [2026-03-28T16:28:24.157Z] >>> [apiv2][query] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/3281649d86a1d625e5b543176b92556720fe05bb8106918bdb77b24ef6117935 [none]
+[debug] [2026-03-28T16:28:24.157Z] >>> [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/3281649d86a1d625e5b543176b92556720fe05bb8106918bdb77b24ef6117935 [stream]
+[debug] [2026-03-28T16:28:24.158Z] [hosting][populate queue][FINAL] {"max":831,"min":831,"avg":831,"active":0,"complete":1,"success":1,"errored":0,"retried":0,"total":1,"elapsed":833}
+[debug] [2026-03-28T16:28:24.158Z] [hosting] uploads queued: 3
+[debug] [2026-03-28T16:28:25.099Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/4ce72806e09462049731b6fecd17b0bbe21c95f1ad3ec55f787ead184fb22e6e 200
+[debug] [2026-03-28T16:28:25.099Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/4ce72806e09462049731b6fecd17b0bbe21c95f1ad3ec55f787ead184fb22e6e [stream]
+[debug] [2026-03-28T16:28:25.138Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/b8e59ddd6b635627be764104f534a1dcb6648ee88ffe25c48f7ce639379119a9 200
+[debug] [2026-03-28T16:28:25.138Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/b8e59ddd6b635627be764104f534a1dcb6648ee88ffe25c48f7ce639379119a9 [stream]
+[debug] [2026-03-28T16:28:25.188Z] <<< [apiv2][status] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/3281649d86a1d625e5b543176b92556720fe05bb8106918bdb77b24ef6117935 200
+[debug] [2026-03-28T16:28:25.188Z] <<< [apiv2][body] POST https://upload-firebasehosting.googleapis.com/upload/sites/trading-goals/versions/a62701d6695935f4/files/3281649d86a1d625e5b543176b92556720fe05bb8106918bdb77b24ef6117935 [stream]
+[debug] [2026-03-28T16:28:25.188Z] [hosting][upload queue][FINAL] {"max":1032,"min":943,"avg":985.6666666666666,"active":0,"complete":3,"success":3,"errored":0,"retried":0,"total":3,"elapsed":1032}
+[info] ✔  hosting[trading-goals]: file upload complete 
+[debug] [2026-03-28T16:28:25.188Z] [hosting] deploy completed after 1883ms
+[debug] [2026-03-28T16:28:25.188Z] [
+  {
+    "config": {
+      "public": "web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "rewrites": [
+        {
+          "source": "**",
+          "destination": "/index.html"
+        }
+      ],
+      "headers": [
+        {
+          "source": "**/*.js",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=0, must-revalidate"
+            }
+          ]
+        },
+        {
+          "source": "**/*.css",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=3600"
+            }
+          ]
+        },
+        {
+          "source": "**/*.html",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "public, max-age=120"
+            }
+          ]
+        }
+      ],
+      "site": "trading-goals"
+    },
+    "version": "projects/703616057199/sites/trading-goals/versions/a62701d6695935f4"
+  }
+]
+[info] i  hosting[trading-goals]: finalizing version... 
+[debug] [2026-03-28T16:28:25.189Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:25.189Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:25.189Z] >>> [apiv2][query] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/versions/a62701d6695935f4 updateMask=status%2Cconfig
+[debug] [2026-03-28T16:28:25.189Z] >>> [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/versions/a62701d6695935f4 {"status":"FINALIZED","config":{"rewrites":[{"glob":"**","path":"/index.html"}],"headers":[{"glob":"**/*.js","headers":{"Cache-Control":"public, max-age=0, must-revalidate"}},{"glob":"**/*.css","headers":{"Cache-Control":"public, max-age=3600"}},{"glob":"**/*.html","headers":{"Cache-Control":"public, max-age=120"}}]}}
+[debug] [2026-03-28T16:28:26.432Z] <<< [apiv2][status] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/versions/a62701d6695935f4 200
+[debug] [2026-03-28T16:28:26.432Z] <<< [apiv2][body] PATCH https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/versions/a62701d6695935f4 {"name":"projects/703616057199/sites/trading-goals/versions/a62701d6695935f4","status":"FINALIZED","config":{"headers":[{"headers":{"Cache-Control":"public, max-age=0, must-revalidate"},"glob":"**/*.js"},{"headers":{"Cache-Control":"public, max-age=3600"},"glob":"**/*.css"},{"headers":{"Cache-Control":"public, max-age=120"},"glob":"**/*.html"}],"rewrites":[{"glob":"**","path":"/index.html"}]},"labels":{"deployment-tool":"cli-firebase"},"createTime":"2026-03-28T16:28:21.987909Z","createUser":{"email":"taltal115@gmail.com"},"finalizeTime":"2026-03-28T16:28:26.308640Z","finalizeUser":{"email":"taltal115@gmail.com"}}
+[debug] [2026-03-28T16:28:26.432Z] [hosting] finalized version for trading-goals:[object Object]
+[info] ✔  hosting[trading-goals]: version finalized 
+[info] i  hosting[trading-goals]: releasing new version... 
+[debug] [2026-03-28T16:28:26.432Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:26.432Z] Checked if tokens are valid: true, expires at: 1774717530354
+[debug] [2026-03-28T16:28:26.433Z] >>> [apiv2][query] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/channels/live/releases versionName=projects%2F703616057199%2Fsites%2Ftrading-goals%2Fversions%2Fa62701d6695935f4
+[debug] [2026-03-28T16:28:26.433Z] >>> [apiv2][body] POST https://firebasehosting.googleapis.com/v1beta1/projects/-/sites/trading-goals/channels/live/releases {}

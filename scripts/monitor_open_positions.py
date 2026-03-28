@@ -10,7 +10,6 @@ from typing import Any
 
 from dotenv import load_dotenv
 from google.cloud import firestore
-from google.oauth2 import service_account
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -20,7 +19,7 @@ sys.path.insert(0, str(ROOT_DIR / "src"))
 from signals_bot.config import AppConfig, load_config
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
-
+from signals_bot.storage.firestore import get_firestore_client
 
 NEAR_THRESHOLD_PCT = 0.75
 
@@ -33,21 +32,7 @@ class Alert:
 
 
 def _build_firestore_client() -> firestore.Client:
-    load_dotenv(override=False)
-    json_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    json_inline = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
-    if json_path:
-        creds = service_account.Credentials.from_service_account_file(json_path)
-        return firestore.Client(credentials=creds, project=creds.project_id)
-    if json_inline:
-        import json
-
-        data = json.loads(json_inline)
-        creds = service_account.Credentials.from_service_account_info(data)
-        return firestore.Client(credentials=creds, project=creds.project_id)
-    raise RuntimeError(
-        "Missing Firestore credentials. Set GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT_JSON."
-    )
+    return get_firestore_client()
 
 
 def _last_close(

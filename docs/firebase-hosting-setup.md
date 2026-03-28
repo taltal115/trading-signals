@@ -6,7 +6,7 @@ Signal-only: the **web UI** and **position monitor** do not execute trades.
 
 1. Enable **Firestore** (Native mode) if not already.
 2. Enable **Authentication** → **Sign-in method** → **Google** (and add a support email if prompted).
-3. **Authorized domains** must include your Hosting domain (e.g. `*.web.app`, `*.firebaseapp.com`) and any custom domain you use. **`localhost` is not required** for the Google button: the dashboard **does not start Google OAuth on localhost** (see `web/app.js`). You normally sign in on the **deployed** URL; the browser may persist that session if you later open `http://localhost`, but OAuth redirect is only used off-localhost.
+3. **Authorized domains** must include your Hosting domain (e.g. `*.web.app`, `*.firebaseapp.com`) and any custom domain you use. On **`localhost` / `127.0.0.1`**, **Google Auth is disabled**: the app opens the dashboard **without** a login screen, **read-only** for Universe & Signals (`web/app.js`). **`my_positions`** still requires the deployed URL and Google sign-in.
 4. **`my_positions`** in [`firestore.rules`](../firestore.rules) is restricted to **Google** sign-in and a single allowlisted email (`taltal115@gmail.com`). If you change the email, update both `firestore.rules` and `allowedSignInEmails` in [`web/firebase-config.js`](../web/firebase-config.js).
 
 ## 2. Web app config
@@ -37,6 +37,8 @@ If the UI shows **Missing or insufficient permissions** for Universe or Signals,
 
 Index builds can take a few minutes. The dashboard queries use `orderBy("ts_utc")`; if the console shows a link to create an index, open it.
 
+**URL routes:** The dashboard uses **`/universe`**, **`/signals`**, and **`/positions`** (History API). [`firebase.json`](../firebase.json) rewrites unknown paths to `index.html` so refreshes and deep links work on Hosting. Plain `python3 -m http.server` does **not** serve those paths on reload; use **`firebase serve`** from the repo for local deep-link testing, or open the app at `/` and navigate only via in-app tabs.
+
 ## 4. Collections
 
 | Collection         | Writer              | Purpose                                      |
@@ -51,7 +53,7 @@ Workflow: [`.github/workflows/position-monitor.yml`](../.github/workflows/positi
 
 **Secrets:**
 
-- `FIREBASE_SERVICE_ACCOUNT_JSON` — service account JSON string (same as other workflows).
+- `GOOGLE_APPLICATION_CREDENTIALS` — same as other workflows: full service account JSON text in the GitHub secret (see README).
 - `SLACK_BOT_TOKEN` / `SLACK_CHANNEL` — optional; omit to log only in Actions.
 - `MONITOR_OWNER_UID` — optional; restrict to one Firebase Auth `uid` (empty = all open positions).
 

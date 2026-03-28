@@ -32,14 +32,15 @@
   const auth = firebase.auth();
   const db = firebase.firestore();
 
-  /** Firebase compat `firebase.auth()` does not implement authStateReady; never call it (some browsers/SDK combos throw). */
-  function authReady() {
-    return new Promise(function (resolve) {
-      const unsub = auth.onAuthStateChanged(function () {
-        unsub();
-        resolve();
+  if (typeof auth.authStateReady !== "function") {
+    auth.authStateReady = function polyfillAuthStateReady() {
+      return new Promise(function (resolve) {
+        const unsub = auth.onAuthStateChanged(function () {
+          unsub();
+          resolve();
+        });
       });
-    });
+    };
   }
 
   const isLocalHost =
@@ -47,9 +48,186 @@
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname === "[::1]";
 
-  const googleSignInBtn = document.getElementById("google-sign-in-btn");
-  const signOutBtn = document.getElementById("sign-out-btn");
-  const authUser = document.getElementById("auth-user");
+  const loginScreen = document.getElementById("login-screen");
+  const appShell = document.getElementById("app-shell");
+  const loginGoogleBtn = document.getElementById("login-google-btn");
+  const loginSpinner = document.getElementById("login-spinner");
+  const loginLocalhostNote = document.getElementById("login-localhost-note");
+  const headerUserEmail = document.getElementById("header-user-email");
+  const logoutLink = document.getElementById("logout-link");
+  const navSignIn = document.getElementById("nav-sign-in");
+
+  const ROUTE_PATHS = {
+    dashboard: "/dashboard",
+    universe: "/universe",
+    signals: "/signals",
+    positions: "/positions",
+    about: "/about",
+    "about-run": "/about/run",
+    "about-universe": "/about/universe",
+    "about-monitor": "/about/monitor",
+    login: "/login",
+  };
+
+  const ROUTE_TO_PANEL = {
+    dashboard: "panel-dashboard",
+    universe: "panel-universe",
+    signals: "panel-signals",
+    positions: "panel-positions",
+    about: "panel-about",
+    "about-run": "panel-about-run",
+    "about-universe": "panel-about-universe",
+    "about-monitor": "panel-about-monitor",
+  };
+
+  let routeSyncSuppress = false;
+
+  function routeKeyToPath(routeKey) {
+    return ROUTE_PATHS[routeKey] || ROUTE_PATHS.dashboard;
+  }
+
+  function pathnameSegments() {
+    let path = window.location.pathname.replace(/\/+$/, "") || "/";
+    let segs = path === "/" ? [] : path.split("/").filter(Boolean);
+    if (segs[0] === "index.html") segs = segs.slice(1);
+    return segs;
+  }
+
+  function segmentsToRoute(segs) {
+    if (!segs.length) return "dashboard";
+    const a = segs[0];
+    if (a === "dashboard") return "dashboard";
+    if (a === "universe") return "universe";
+    if (a === "signals") return "signals";
+    if (a === "positions") return "positions";
+    if (a === "login") return "login";
+    if (a === "about") {
+      const b = segs[1];
+      if (b === "run") return "about-run";
+      if (b === "universe") return "about-universe";
+      if (b === "monitor") return "about-monitor";
+      return "about";
+    }
+    return "dashboard";
+  }
+
+  function navigateToRoute(routeKey, opts) {
+    const replace = opts && opts.replace;
+    const path = routeKeyToPath(routeKey);
+    const tail = window.location.search + window.location.hash;
+    if (replace) {
+      window.history.replaceState({ route: routeKey }, "", path + tail);
+    } else {
+      window.history.pushState({ route: routeKey }, "", path + tail);
+    }
+    applyRouteFromLocation();
+  }
+
+  function updateNavActive(routeKey) {
+    document.querySelectorAll(".nav-link[data-route]").forEach((a) => {
+      const r = a.getAttribute("data-route");
+      const aboutFamily = r === "about" && String(routeKey).indexOf("about") === 0;
+      a.classList.toggle("active", r === routeKey || aboutFamily);
+    });
+  }
+
+  function activateRoute(routeKey) {
+    const panelId = ROUTE_TO_PANEL[routeKey];
+    if (!panelId) return;
+    document.querySelectorAll(".panel").forEach((p) => {
+      p.classList.toggle("active", p.id === panelId);
+    });
+    updateNavActive(routeKey);
+  }
+
+  function showLoginRoute() {
+    if (loginScreen) loginScreen.hidden = false;
+    if (appShell) appShell.hidden = true;
+  }
+
+  function hideLoginRoute() {
+    if (loginScreen) loginScreen.hidden = true;
+    if (appShell) appShell.hidden = false;
+  }
+
+  function applyRouteFromLocation() {
+    let segs = pathnameSegments();
+
+    if (segs[0] === "logout") {
+      if (!isLocalHost) {
+        void auth.signOut();
+      }
+      routeSyncSuppress = true;
+      window.history.replaceState(
+        {},
+        "",
+        "/login" + window.location.search + window.location.hash
+      );
+      routeSyncSuppress = false;
+      showLoginRoute();
+      setLoginLoading(false);
+      if (sessionStorage.getItem("auth_redirect_pending")) {
+        sessionStorage.removeItem("auth_redirect_pending");
+      }
+      return;
+    }
+
+    if (!segs.length) {
+      if (!routeSyncSuppress) {
+        routeSyncSuppress = true;
+        window.history.replaceState(
+          {},
+          "",
+          "/dashboard" + window.location.search + window.location.hash
+        );
+        routeSyncSuppress = false;
+      }
+      segs = ["dashboard"];
+    }
+
+    const routeKey = segmentsToRoute(segs);
+
+    if (routeKey === "login") {
+      if (!isLocalHost && auth.currentUser && isUserAllowed(auth.currentUser)) {
+        if (!routeSyncSuppress) {
+          routeSyncSuppress = true;
+          window.history.replaceState(
+            {},
+            "",
+            "/dashboard" + window.location.search + window.location.hash
+          );
+          routeSyncSuppress = false;
+        }
+        hideLoginRoute();
+        activateRoute("dashboard");
+        return;
+      }
+      showLoginRoute();
+      if (
+        sessionStorage.getItem("auth_redirect_pending") &&
+        loginSpinner &&
+        loginSpinner.hidden
+      ) {
+        setLoginLoading(true);
+      }
+      return;
+    }
+
+    hideLoginRoute();
+    activateRoute(routeKey);
+  }
+
+  function setLoginLoading(on) {
+    if (loginSpinner) loginSpinner.hidden = !on;
+    if (loginGoogleBtn) loginGoogleBtn.disabled = !!on;
+  }
+
+  if (!isLocalHost) {
+    const segsInit = pathnameSegments();
+    if (segsInit[0] === "login" && sessionStorage.getItem("auth_redirect_pending")) {
+      setLoginLoading(true);
+    }
+  }
 
   function allowedEmailsList() {
     const raw = cfg && Array.isArray(cfg.allowedSignInEmails) ? cfg.allowedSignInEmails : [];
@@ -65,7 +243,7 @@
   }
 
   function setAuthError(msg) {
-    const el = document.getElementById("auth-error");
+    const el = document.getElementById("login-auth-error");
     if (!el) return;
     if (!msg) {
       el.hidden = true;
@@ -77,14 +255,24 @@
   }
 
   async function applyIncomingUser(user) {
+    if (isLocalHost) {
+      if (user) {
+        await auth.signOut();
+      }
+      return;
+    }
     if (user && !isUserAllowed(user)) {
       await auth.signOut();
-      setAuthError("This Google account is not authorized for this application.");
       setSignedIn(null);
+      setAuthError("This Google account is not authorized for this application.");
+      setLoginLoading(false);
+      sessionStorage.removeItem("auth_redirect_pending");
       return;
     }
     if (user) {
       setAuthError("");
+      setLoginLoading(false);
+      sessionStorage.removeItem("auth_redirect_pending");
     }
     setSignedIn(user);
   }
@@ -109,30 +297,145 @@
     signalsUnsub = null;
   }
 
+  function clearDashboardUniverse(msg) {
+    const empty = document.getElementById("dash-universe-empty");
+    const body = document.getElementById("dash-universe-body");
+    if (!empty || !body) return;
+    empty.hidden = false;
+    empty.textContent = msg;
+    body.hidden = true;
+  }
+
+  function updateDashboardUniverseCard(d, id) {
+    const empty = document.getElementById("dash-universe-empty");
+    const body = document.getElementById("dash-universe-body");
+    if (!empty || !body) return;
+    const symbols = Array.isArray(d.symbols) ? d.symbols : [];
+    const syms = symbols.length;
+    empty.hidden = true;
+    body.hidden = false;
+    body.innerHTML =
+      "<p><strong>" +
+      esc(d.asof_date || id) +
+      "</strong> · " +
+      syms +
+      " symbols</p>" +
+      '<p class="dash-meta">' +
+      esc(d.ts_utc || "") +
+      " · " +
+      esc(d.source || "") +
+      "</p>";
+  }
+
+  function clearDashboardSignals(msg) {
+    const empty = document.getElementById("dash-signals-empty");
+    const body = document.getElementById("dash-signals-body");
+    if (!empty || !body) return;
+    empty.hidden = false;
+    empty.textContent = msg;
+    body.hidden = true;
+  }
+
+  function updateDashboardSignalsCard(d, docId, buyCount) {
+    const empty = document.getElementById("dash-signals-empty");
+    const body = document.getElementById("dash-signals-body");
+    if (!empty || !body) return;
+    empty.hidden = true;
+    body.hidden = false;
+    body.innerHTML =
+      "<p><strong>" +
+      esc(d.run_id || docId.slice(0, 8)) +
+      "</strong> · " +
+      buyCount +
+      " BUY</p>" +
+      '<p class="dash-meta">' +
+      esc(d.ts_utc || "") +
+      " · asof " +
+      esc(d.asof_date || "") +
+      "</p>";
+  }
+
+  function renderDashboardPositionsGuest() {
+    const empty = document.getElementById("dash-positions-empty");
+    const body = document.getElementById("dash-positions-body");
+    if (!empty || !body) return;
+    body.hidden = true;
+    empty.hidden = false;
+    if (isLocalHost) {
+      empty.textContent = "Positions disabled on localhost.";
+    } else {
+      empty.textContent = "Sign in to load my_positions.";
+    }
+  }
+
+  function updateDashboardPositionsSummary(openC, closedC, emptySnap) {
+    const elEmpty = document.getElementById("dash-positions-empty");
+    const elBody = document.getElementById("dash-positions-body");
+    if (!elEmpty || !elBody) return;
+    if (emptySnap) {
+      elEmpty.hidden = false;
+      elEmpty.textContent = "No positions yet. Log a fill from Signals.";
+      elBody.hidden = true;
+      return;
+    }
+    elEmpty.hidden = true;
+    elBody.hidden = false;
+    elBody.innerHTML =
+      "<p><strong>" +
+      openC +
+      "</strong> open · " +
+      '<span class="dash-meta">' +
+      closedC +
+      " closed (recent)</span></p>";
+  }
+
+  function setPositionsGuestMode(guest) {
+    const gate = document.getElementById("positions-gate");
+    const form = document.getElementById("position-form");
+    if (gate) {
+      gate.hidden = !guest;
+      if (guest && isLocalHost) {
+        gate.textContent =
+          "Positions are disabled on localhost. Use the deployed app with Google sign-in.";
+      } else if (guest) {
+        gate.textContent = "Sign in with Google to manage positions.";
+      }
+    }
+    if (form) {
+      form.querySelectorAll("input, textarea, button").forEach((el) => {
+        el.disabled = guest;
+      });
+    }
+  }
+
+  function resetPositionsTableGuest() {
+    document.getElementById("positions-body").innerHTML = "";
+    document.getElementById("positions-table-wrap").hidden = true;
+    const pHint = document.getElementById("positions-hint");
+    pHint.hidden = false;
+    if (isLocalHost) {
+      pHint.textContent =
+        "Positions are disabled on localhost. Use the deployed app and Google sign-in for my_positions.";
+    } else {
+      pHint.textContent = "Sign in with Google to see positions.";
+    }
+  }
+
   async function ensureSignedIn() {
-    await authReady();
+    if (isLocalHost) {
+      throw new Error(
+        "Positions are disabled on localhost (Google sign-in is off). Use the deployed dashboard to log a fill."
+      );
+    }
+    await auth.authStateReady();
     const u = auth.currentUser;
     if (!u) {
-      if (isLocalHost) {
-        throw new Error(
-          "Not signed in. Google OAuth is not started from localhost — open the hosted dashboard to sign in (a persisted session may still work in this browser)."
-        );
-      }
       throw new Error("Sign in with Google first.");
     }
     if (!isUserAllowed(u)) {
       throw new Error("This Google account is not authorized for this application.");
     }
     return u;
-  }
-
-  function activatePanel(panelName) {
-    document.querySelectorAll("nav.tabs .tab").forEach((b) => {
-      b.classList.toggle("active", b.getAttribute("data-panel") === panelName);
-    });
-    document.querySelectorAll(".panel").forEach((p) => {
-      p.classList.toggle("active", p.id === "panel-" + panelName);
-    });
   }
 
   function prefillAndOpenPositions(signalDocId, s) {
@@ -156,7 +459,7 @@
     form.querySelector('[name="notes"]').value = "";
     document.getElementById("form-status").textContent =
       "Prefilled from bot signal — edit fill price / bracket if your execution differed.";
-    activatePanel("positions");
+    navigateToRoute("positions");
     const card = document.getElementById("position-form-card");
     if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -211,7 +514,12 @@
             uHint.hidden = false;
             uHint.textContent = "No universe documents yet. Run discovery or check the correct Firebase project.";
             uWrap.hidden = true;
+            clearDashboardUniverse("No universe yet.");
             return;
+          }
+          const firstU = snap.docs[0];
+          if (firstU) {
+            updateDashboardUniverseCard(firstU.data(), firstU.id);
           }
           uHint.hidden = true;
           uWrap.hidden = false;
@@ -289,6 +597,7 @@
               ? " Deploy firestore.rules from this repo: firebase deploy --only firestore:rules. Check web/firebase-config.js projectId matches your Firebase project."
               : " If the console mentions an index, run: firebase deploy --only firestore:indexes";
           uHint.textContent = "Universe error: " + err.message + " —" + extra;
+          clearDashboardUniverse("Universe load error.");
           console.error(err);
         }
       );
@@ -310,7 +619,14 @@
             sigHint.hidden = false;
             sigWrap.hidden = true;
             sigHint.textContent = "No signal runs yet.";
+            clearDashboardSignals("No signals yet.");
             return;
+          }
+          const firstS = snap.docs[0];
+          if (firstS) {
+            const d0 = firstS.data();
+            const arr0 = Array.isArray(d0.signals) ? d0.signals : [];
+            updateDashboardSignalsCard(d0, firstS.id, arr0.length);
           }
           sigHint.hidden = true;
           sigWrap.hidden = false;
@@ -369,6 +685,7 @@
           sigHint.hidden = false;
           sigWrap.hidden = true;
           sigHint.textContent = "Signals error: " + err.message;
+          clearDashboardSignals("Signals load error.");
           console.error(err);
         }
       );
@@ -391,12 +708,21 @@
       .onSnapshot(
         (snap) => {
           pBody.innerHTML = "";
+          let openC = 0;
+          let closedC = 0;
           if (snap.empty) {
             pHint.hidden = false;
             pHint.textContent = "No positions yet. Add one with the form above.";
             pWrap.hidden = true;
+            updateDashboardPositionsSummary(0, 0, true);
             return;
           }
+          snap.forEach((docRef) => {
+            const d = docRef.data();
+            if (d.status === "open") openC += 1;
+            else closedC += 1;
+          });
+          updateDashboardPositionsSummary(openC, closedC, false);
           pHint.hidden = true;
           pWrap.hidden = false;
           snap.forEach((docRef) => {
@@ -458,6 +784,7 @@
         (err) => {
           pHint.hidden = false;
           pHint.textContent = "Positions error: " + err.message;
+          renderDashboardPositionsGuest();
           console.error(err);
         }
       );
@@ -477,35 +804,44 @@
   }
 
   function setSignedIn(user) {
-    const googleBlock = document.getElementById("google-auth-block");
-    const localhostNote = document.getElementById("localhost-auth-note");
-
     if (user) {
-      authUser.hidden = false;
-      authUser.textContent = user.email || user.uid;
-      if (googleBlock) googleBlock.hidden = true;
-      if (localhostNote) localhostNote.hidden = true;
-      signOutBtn.hidden = false;
-      subscribePositions(user.uid);
-    } else {
-      authUser.hidden = true;
-      signOutBtn.hidden = true;
-      tearDownPositionsSub();
-      document.getElementById("positions-body").innerHTML = "";
-      document.getElementById("positions-table-wrap").hidden = true;
-      const pHint = document.getElementById("positions-hint");
-      pHint.hidden = false;
-      if (isLocalHost) {
-        if (googleBlock) googleBlock.hidden = true;
-        if (localhostNote) localhostNote.hidden = false;
-        pHint.textContent =
-          "Google sign-in is disabled on localhost. Open the deployed site to sign in and manage positions (or use this tab if the browser already has a session from the hosted URL).";
-      } else {
-        if (localhostNote) localhostNote.hidden = true;
-        if (googleBlock) googleBlock.hidden = false;
-        pHint.textContent = "Sign in with Google to list and save positions.";
+      if (headerUserEmail) {
+        headerUserEmail.hidden = false;
+        headerUserEmail.textContent = user.email || user.uid;
+        headerUserEmail.title = user.email || user.uid || "";
       }
+      if (navSignIn) navSignIn.hidden = true;
+      if (logoutLink) logoutLink.hidden = false;
+      if (loginLocalhostNote) loginLocalhostNote.hidden = true;
+      if (loginGoogleBtn) loginGoogleBtn.hidden = false;
+
+      subscribeUniverseAndSignals();
+      subscribePositions(user.uid);
+      setPositionsGuestMode(false);
+      applyRouteFromLocation();
+      return;
     }
+
+    setLoginLoading(false);
+    if (sessionStorage.getItem("auth_redirect_pending")) {
+      sessionStorage.removeItem("auth_redirect_pending");
+    }
+    setAuthError("");
+    if (headerUserEmail) {
+      headerUserEmail.hidden = true;
+      headerUserEmail.textContent = "";
+      headerUserEmail.title = "";
+    }
+    if (logoutLink) logoutLink.hidden = true;
+    if (navSignIn && !isLocalHost) navSignIn.hidden = false;
+    if (navSignIn && isLocalHost) navSignIn.hidden = true;
+
+    subscribeUniverseAndSignals();
+    tearDownPositionsSub();
+    setPositionsGuestMode(true);
+    resetPositionsTableGuest();
+    renderDashboardPositionsGuest();
+    applyRouteFromLocation();
   }
 
   function esc(s) {
@@ -527,54 +863,127 @@
     return Number.isFinite(n) ? n.toFixed(4).replace(/\.?0+$/, "") : "—";
   }
 
-  googleSignInBtn.addEventListener("click", async () => {
-    if (isLocalHost) {
-      return;
-    }
-    setAuthError("");
-    const provider = new firebase.auth.GoogleAuthProvider();
-    try {
-      await auth.signInWithRedirect(provider);
-    } catch (err) {
-      console.warn(err);
-      setAuthError(err.message || "Google sign-in failed.");
-    }
+  if (loginGoogleBtn) {
+    loginGoogleBtn.addEventListener("click", async () => {
+      if (isLocalHost) return;
+      setAuthError("");
+      sessionStorage.setItem("auth_redirect_pending", "1");
+      setLoginLoading(true);
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        await auth.signInWithRedirect(provider);
+      } catch (err) {
+        console.warn(err);
+        setAuthError(err.message || "Google sign-in failed.");
+        setLoginLoading(false);
+        sessionStorage.removeItem("auth_redirect_pending");
+      }
+    });
+  }
+
+  if (logoutLink) {
+    logoutLink.addEventListener("click", (e) => {
+      e.preventDefault();
+      navigateToRoute("login", { replace: true });
+      void auth.signOut();
+    });
+  }
+
+  document.body.addEventListener("click", function (e) {
+    const a = e.target.closest("a[data-route]");
+    if (!a) return;
+    const r = a.getAttribute("data-route");
+    if (!r) return;
+    e.preventDefault();
+    navigateToRoute(r);
   });
 
-  signOutBtn.addEventListener("click", () => auth.signOut());
+  function setupLocalhostNoGoogle() {
+    setAuthError("");
+    hideLoginRoute();
+    if (headerUserEmail) {
+      headerUserEmail.hidden = false;
+      headerUserEmail.textContent = "Localhost · read-only";
+      headerUserEmail.title =
+        "Google auth is disabled here. Universe & Signals use public Firestore reads; positions need the deployed site.";
+    }
+    if (logoutLink) logoutLink.hidden = true;
+    if (navSignIn) navSignIn.hidden = true;
+    if (loginGoogleBtn) loginGoogleBtn.hidden = true;
+    if (loginLocalhostNote) loginLocalhostNote.hidden = true;
+    subscribeUniverseAndSignals();
+    tearDownPositionsSub();
+    document.getElementById("positions-body").innerHTML = "";
+    document.getElementById("positions-table-wrap").hidden = true;
+    const pHint = document.getElementById("positions-hint");
+    pHint.hidden = false;
+    pHint.textContent =
+      "Positions are disabled on localhost. Use the deployed app and Google sign-in for my_positions.";
+    setPositionsGuestMode(true);
+    renderDashboardPositionsGuest();
+    applyRouteFromLocation();
+  }
 
   async function bootstrapAuth() {
-    let redirectUser = null;
+    let pendingNullClear = null;
+
+    function onAuthFromFirebase(next) {
+      if (next) {
+        if (pendingNullClear !== null) {
+          clearTimeout(pendingNullClear);
+          pendingNullClear = null;
+        }
+        void applyIncomingUser(next);
+        return;
+      }
+      if (pendingNullClear !== null) {
+        clearTimeout(pendingNullClear);
+      }
+      pendingNullClear = setTimeout(() => {
+        pendingNullClear = null;
+        if (!auth.currentUser) {
+          setLoginLoading(false);
+          if (sessionStorage.getItem("auth_redirect_pending")) {
+            sessionStorage.removeItem("auth_redirect_pending");
+          }
+          void applyIncomingUser(null);
+        }
+      }, 250);
+    }
+
+    auth.onAuthStateChanged(onAuthFromFirebase);
+
     try {
       const cred = await auth.getRedirectResult();
-      redirectUser = cred && cred.user ? cred.user : null;
+      if (cred && cred.user) {
+        void applyIncomingUser(cred.user);
+      }
     } catch (e) {
+      setLoginLoading(false);
+      sessionStorage.removeItem("auth_redirect_pending");
       const code = e && e.code ? String(e.code) : "";
       if (code && code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
         console.warn(e);
         setAuthError(e.message || "Sign-in redirect failed.");
       }
     }
-
-    await authReady();
-    const initial = redirectUser || auth.currentUser;
-    await applyIncomingUser(initial);
-
-    auth.onAuthStateChanged((next) => {
-      void applyIncomingUser(next);
-    });
   }
 
-  void bootstrapAuth();
-
-  subscribeUniverseAndSignals();
-
-  document.querySelectorAll("nav.tabs .tab").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const name = btn.getAttribute("data-panel");
-      if (name) activatePanel(name);
+  if (isLocalHost) {
+    void auth.signOut().finally(function () {
+      setupLocalhostNoGoogle();
     });
+  } else {
+    void bootstrapAuth();
+  }
+
+  window.addEventListener("popstate", function () {
+    applyRouteFromLocation();
   });
+
+  if (!isLocalHost) {
+    applyRouteFromLocation();
+  }
 
   const posForm = document.getElementById("position-form");
   const formStatus = document.getElementById("form-status");

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Iterable
 
 from dotenv import load_dotenv
@@ -24,24 +25,41 @@ def _normalize_universe_symbols(symbols: Iterable[str]) -> list[str]:
     return sorted(out)
 
 
-def _build_client() -> firestore.Client:
+def get_firestore_client() -> firestore.Client:
+    """Build a Firestore client using ``GOOGLE_APPLICATION_CREDENTIALS``.
+
+    - **Local:** set to the filesystem path of your service account JSON key.
+    - **GitHub Actions:** set the repository secret to the **full JSON text** of that key
+      (the value must start with ``{``; it is parsed inline, not as a path).
+    """
     load_dotenv(override=False)
 
-    json_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    json_inline = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
+    gac_raw = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    gac = (gac_raw or "").strip()
+    if not gac:
+        raise RuntimeError(
+            "Missing Firestore credentials. Set GOOGLE_APPLICATION_CREDENTIALS "
+            "(path to a service account JSON file locally, or the full JSON string in CI)."
+        )
 
-    if json_path:
-        creds = service_account.Credentials.from_service_account_file(json_path)
-        return firestore.Client(credentials=creds, project=creds.project_id)
-
-    if json_inline:
-        data = json.loads(json_inline)
+    if gac.startswith("{"):
+        data = json.loads(gac)
         creds = service_account.Credentials.from_service_account_info(data)
         return firestore.Client(credentials=creds, project=creds.project_id)
 
+    path = Path(gac).expanduser()
+    if path.is_file():
+        creds = service_account.Credentials.from_service_account_file(str(path))
+        return firestore.Client(credentials=creds, project=creds.project_id)
+
     raise RuntimeError(
-        "Missing Firestore credentials. Set GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT_JSON."
+        "GOOGLE_APPLICATION_CREDENTIALS is not an existing file path and does not start with '{' "
+        "(inline JSON). Fix the path or paste the full service account JSON."
     )
+
+
+def _build_client() -> firestore.Client:
+    return get_firestore_client()
 
 
 def _pct_from_close(level: float | None, base: float | None) -> float | None:
