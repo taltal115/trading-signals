@@ -1091,17 +1091,44 @@
               d.status === "closed" && d.exit_price != null ? num(d.exit_price) : "—";
 
             var spotHtml = "—";
-            if (d.last_spot != null && Number.isFinite(Number(d.last_spot))) {
+            var entryF = (d.entry_price != null) ? Number(d.entry_price) : null;
+            var spotF = (d.last_spot != null) ? Number(d.last_spot) : null;
+            if (spotF != null && Number.isFinite(spotF)) {
+              var spotCls = "spot-val";
+              var arrow = "";
+              if (entryF != null && Number.isFinite(entryF) && entryF > 0) {
+                if (spotF > entryF) { spotCls = "spot-val spot-up"; arrow = " &#9650;"; }
+                else if (spotF < entryF) { spotCls = "spot-val spot-down"; arrow = " &#9660;"; }
+              }
               var staleLine = "";
               if (d.last_alert_ts_utc) {
                 var tsStr = String(d.last_alert_ts_utc);
                 staleLine = '<div class="spot-stale">' + esc(tsStr.slice(0, 16).replace("T", " ")) + "</div>";
               }
+              var refreshBtn = "";
+              if (d.status === "open") {
+                refreshBtn =
+                  ' <button type="button" class="btn-spot-refresh" data-doc-id="' +
+                  escAttr(docRef.id) + '" data-ticker="' +
+                  escAttr(d.ticker) + '" title="Re-fetch spot price">&#x21bb;</button>';
+              }
               spotHtml =
                 '<div class="spot-wrap">' +
-                '<span class="spot-val">' + Number(d.last_spot).toFixed(2) + "</span>" +
-                staleLine +
-                "</div>";
+                '<span class="' + spotCls + '">' + spotF.toFixed(2) + arrow + "</span>" +
+                refreshBtn + staleLine + "</div>";
+            } else if (d.status === "open") {
+              spotHtml =
+                '— <button type="button" class="btn-spot-refresh" data-doc-id="' +
+                escAttr(docRef.id) + '" data-ticker="' +
+                escAttr(d.ticker) + '" title="Fetch spot price">&#x21bb;</button>';
+            }
+
+            var actionHtml = "—";
+            if (d.last_alert_kind) {
+              var isSell = ["STOP_HIT", "TARGET_HIT", "TIME_WARN"].indexOf(d.last_alert_kind) !== -1;
+              var actionTag = isSell ? "SELL" : "WAIT";
+              var actionCls = isSell ? "tag-sell" : "tag-wait";
+              actionHtml = '<span class="' + actionCls + '">' + actionTag + "</span>";
             }
 
             var actionsHtml = "";
@@ -1131,6 +1158,7 @@
               "<td>" + num(d.stop_price) + "</td>" +
               "<td>" + num(d.target_price) + "</td>" +
               '<td class="spot-cell">' + spotHtml + "</td>" +
+              "<td>" + actionHtml + "</td>" +
               "<td>" + esc(d.status) + "</td>" +
               '<td class="code">' + esc(d.created_at_utc || "") + "</td>" +
               "<td>" + actionsHtml + "</td>";
@@ -1139,7 +1167,7 @@
             expandTr.className = "pos-monitor-expand";
             expandTr.hidden = true;
             expandTr.innerHTML =
-              '<td colspan="10" class="pos-monitor-expand-cell">' +
+              '<td colspan="11" class="pos-monitor-expand-cell">' +
               '<div class="pos-monitor-expand-inner">Loading checks…</div></td>';
 
             pBody.appendChild(tr);
@@ -1176,6 +1204,43 @@
             });
           });
 
+          pBody.querySelectorAll(".btn-spot-refresh").forEach(function (btn) {
+            btn.addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              var docId = btn.getAttribute("data-doc-id");
+              if (!docId) return;
+              btn.disabled = true;
+              btn.textContent = "…";
+              db.collection(COL_MY_POSITIONS).doc(docId).get()
+                .then(function (snap) {
+                  if (!snap.exists) return;
+                  var fresh = snap.data();
+                  var cell = btn.closest(".spot-cell");
+                  if (cell && fresh.last_spot != null) {
+                    var spot = Number(fresh.last_spot);
+                    var entry = fresh.entry_price != null ? Number(fresh.entry_price) : null;
+                    var cls = "spot-val";
+                    var arrow = "";
+                    if (entry != null && Number.isFinite(entry) && entry > 0) {
+                      if (spot > entry) { cls = "spot-val spot-up"; arrow = " &#9650;"; }
+                      else if (spot < entry) { cls = "spot-val spot-down"; arrow = " &#9660;"; }
+                    }
+                    var valEl = cell.querySelector(".spot-val");
+                    if (valEl) { valEl.className = cls; valEl.innerHTML = spot.toFixed(2) + arrow; }
+                    var staleEl = cell.querySelector(".spot-stale");
+                    if (staleEl) {
+                      var ts2 = fresh.last_alert_ts_utc ? String(fresh.last_alert_ts_utc).slice(0, 16).replace("T", " ") : "just now";
+                      staleEl.textContent = ts2;
+                    }
+                  }
+                })
+                .finally(function () {
+                  btn.disabled = false;
+                  btn.innerHTML = "&#x21bb;";
+                });
+            });
+          });
+
         },
         (err) => {
           pHint.hidden = false;
@@ -1188,9 +1253,15 @@
 
   function loadPositionChecks(posId, ticker, containerEl) {
     if (!posId || !containerEl) return;
+    var uid = auth.currentUser ? auth.currentUser.uid : null;
+    if (!uid) {
+      containerEl.innerHTML = '<span class="dash-muted">Sign in to view checks.</span>';
+      return;
+    }
     db.collection(COL_MY_POSITIONS)
       .doc(posId)
       .collection("checks")
+      .where("owner_uid", "==", uid)
       .orderBy("ts_utc", "desc")
       .limit(20)
       .get()

@@ -1277,11 +1277,42 @@ button.btn-exit:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.spot-val.spot-up {
+  color: var(--buy);
+}
+
+.spot-val.spot-down {
+  color: var(--sell);
+}
+
 .spot-stale {
   width: 100%;
   font-size: 0.65rem;
   color: var(--muted);
   line-height: 1.2;
+}
+
+.btn-spot-refresh {
+  font-size: 0.82rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.btn-spot-refresh:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-spot-refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 button.btn-monitor-toggle {

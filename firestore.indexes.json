@@ -15,6 +15,14 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "owner_uid", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "checks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "owner_uid", "order": "ASCENDING" },
+        { "fieldPath": "ts_utc", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
