@@ -56,14 +56,93 @@
   const loginSpinner = document.getElementById("login-spinner");
   const loginLocalhostNote = document.getElementById("login-localhost-note");
   const headerUserEmail = document.getElementById("header-user-email");
-  const logoutLink = document.getElementById("logout-link");
+  const logoutBtn = document.getElementById("logout-btn");
   const navSignIn = document.getElementById("nav-sign-in");
+  const appLayout = document.getElementById("app-layout");
+  const sidebarCollapseToggle = document.getElementById("sidebar-collapse-toggle");
+  const mobileNavOpen = document.getElementById("mobile-nav-open");
+  const sidebarBackdrop = document.getElementById("sidebar-backdrop");
+  const SIDEBAR_COLLAPSED_KEY = "signals-sidebar-collapsed";
+  const MOBILE_NAV_MQ = window.matchMedia("(max-width: 900px)");
+
+  function isMobileSidebar() {
+    return MOBILE_NAV_MQ.matches;
+  }
+
+  function setMobileSidebarOpen(open) {
+    if (!appLayout || !sidebarBackdrop || !mobileNavOpen) return;
+    appLayout.classList.toggle("sidebar-mobile-open", open);
+    sidebarBackdrop.hidden = !open;
+    mobileNavOpen.setAttribute("aria-expanded", open ? "true" : "false");
+    document.body.classList.toggle("nav-drawer-open", open);
+  }
+
+  function applyStoredSidebarCollapsed() {
+    if (!appLayout || !sidebarCollapseToggle || isMobileSidebar()) return;
+    try {
+      if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1") {
+        appLayout.classList.add("sidebar-collapsed");
+        sidebarCollapseToggle.setAttribute("aria-expanded", "false");
+        sidebarCollapseToggle.title = "Expand menu";
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  if (sidebarCollapseToggle && appLayout) {
+    sidebarCollapseToggle.addEventListener("click", () => {
+      if (isMobileSidebar()) return;
+      appLayout.classList.toggle("sidebar-collapsed");
+      const collapsed = appLayout.classList.contains("sidebar-collapsed");
+      sidebarCollapseToggle.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      sidebarCollapseToggle.title = collapsed ? "Expand menu" : "Collapse menu";
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? "1" : "0");
+      } catch (e) {
+        /* ignore */
+      }
+    });
+  }
+
+  if (mobileNavOpen && appLayout) {
+    mobileNavOpen.addEventListener("click", () => {
+      const open = !appLayout.classList.contains("sidebar-mobile-open");
+      setMobileSidebarOpen(open);
+    });
+  }
+
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener("click", () => setMobileSidebarOpen(false));
+  }
+
+  function onMobileNavMqChange(fn) {
+    if (typeof MOBILE_NAV_MQ.addEventListener === "function") {
+      MOBILE_NAV_MQ.addEventListener("change", fn);
+    } else if (typeof MOBILE_NAV_MQ.addListener === "function") {
+      MOBILE_NAV_MQ.addListener(fn);
+    }
+  }
+  onMobileNavMqChange(() => {
+    if (!isMobileSidebar()) {
+      setMobileSidebarOpen(false);
+      applyStoredSidebarCollapsed();
+    }
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (appLayout && appLayout.classList.contains("sidebar-mobile-open")) {
+      setMobileSidebarOpen(false);
+    }
+  });
 
   const ROUTE_PATHS = {
     dashboard: "/dashboard",
     universe: "/universe",
     signals: "/signals",
     positions: "/positions",
+    monitor: "/monitor",
     about: "/about",
     "about-run": "/about/run",
     "about-universe": "/about/universe",
@@ -76,6 +155,7 @@
     universe: "panel-universe",
     signals: "panel-signals",
     positions: "panel-positions",
+    monitor: "panel-monitor",
     about: "panel-about",
     "about-run": "panel-about-run",
     "about-universe": "panel-about-universe",
@@ -102,6 +182,7 @@
     if (a === "universe") return "universe";
     if (a === "signals") return "signals";
     if (a === "positions") return "positions";
+    if (a === "monitor") return "monitor";
     if (a === "login") return "login";
     if (a === "about") {
       const b = segs[1];
@@ -348,6 +429,7 @@
   let universeUnsub = null;
   let signalsUnsub = null;
   let positionsUnsub = null;
+  let monitorUnsub = null;
 
   let signalsInlineFormTrRef = null;
   let signalsInlineOpenKey = "";
@@ -359,6 +441,11 @@
   function tearDownPositionsSub() {
     if (typeof positionsUnsub === "function") positionsUnsub();
     positionsUnsub = null;
+  }
+
+  function tearDownMonitorSub() {
+    if (typeof monitorUnsub === "function") monitorUnsub();
+    monitorUnsub = null;
   }
 
   function tearDownPublicSubs() {
@@ -482,6 +569,24 @@
     });
   }
 
+  function setMonitorGuestMode(guest) {
+    var gate = document.getElementById("monitor-gate");
+    var hint = document.getElementById("monitor-hint");
+    var wrap = document.getElementById("monitor-table-wrap");
+    if (gate) {
+      gate.hidden = !guest;
+      if (guest && isLocalHost) {
+        gate.textContent = "Monitor is disabled on localhost.";
+      } else if (guest) {
+        gate.textContent = "Sign in with Google to view monitor data.";
+      }
+    }
+    if (guest) {
+      if (hint) { hint.hidden = true; }
+      if (wrap) { wrap.hidden = true; }
+    }
+  }
+
   function resetPositionsTableGuest() {
     document.getElementById("positions-body").innerHTML = "";
     document.getElementById("positions-table-wrap").hidden = true;
@@ -547,6 +652,9 @@
     const holdRaw = fd.get("hold_days_from_signal");
     const hold_days_from_signal =
       holdRaw === "" || holdRaw == null ? null : parseInt(holdRaw, 10);
+    const sigCloseRaw = fd.get("signal_close_price");
+    const signal_close_price =
+      sigCloseRaw === "" || sigCloseRaw == null ? null : parseFloat(sigCloseRaw);
     const notes = String(fd.get("notes") || "").trim() || null;
 
     const payload = {
@@ -561,6 +669,10 @@
       hold_days_from_signal:
         hold_days_from_signal != null && Number.isFinite(hold_days_from_signal)
           ? hold_days_from_signal
+          : null,
+      signal_close_price:
+        signal_close_price != null && Number.isFinite(signal_close_price)
+          ? signal_close_price
           : null,
       notes,
       status: "open",
@@ -595,6 +707,7 @@
     const hd = s.hold_days;
     const hdEl = form.querySelector('[name="hold_days_from_signal"]');
     if (hdEl) hdEl.value = hd != null && hd !== "" ? String(hd) : "";
+    setNum("signal_close_price", s.close);
     form.querySelector('[name="notes"]').value = "";
   }
 
@@ -647,6 +760,7 @@
       '<label>Target price <input name="target_price" type="number" step="any" min="0" placeholder="take profit" /></label>' +
       '<label>Linked signal doc ID (optional) <input name="signal_doc_id" placeholder="Firestore document id" /></label>' +
       '<label>Hold days (optional) <input name="hold_days_from_signal" type="number" min="1" max="30" placeholder="5" /></label>' +
+      '<label>Signal close price <input name="signal_close_price" type="number" step="any" min="0" placeholder="market close at signal" /></label>' +
       "</div>" +
       '<label class="signals-inline-notes-label">Notes <textarea name="notes" placeholder="Bracket type, broker, etc."></textarea></label>' +
       '<div class="form-actions"><button type="submit">Save open position</button></div>' +
@@ -975,53 +1089,117 @@
             tr.className = rowPnlClass(d);
             const exitCell =
               d.status === "closed" && d.exit_price != null ? num(d.exit_price) : "—";
-            const actionsCell =
-              d.status === "open"
-                ? "<button type=\"button\" class=\"btn-exit\" data-exit=\"" +
-                  escAttr(docRef.id) +
-                  "\" data-ticker=\"" +
-                  escAttr(d.ticker) +
-                  "\" data-entry=\"" +
-                  escAttr(String(d.entry_price ?? "")) +
-                  "\">Exit…</button>"
-                : "";
+
+            var spotHtml = "—";
+            if (d.last_spot != null && Number.isFinite(Number(d.last_spot))) {
+              var staleTxt = "";
+              if (d.last_alert_ts_utc) {
+                var ts = String(d.last_alert_ts_utc);
+                staleTxt = '<span class="spot-stale">' + esc(ts.slice(0, 16).replace("T", " ")) + "</span>";
+              }
+              spotHtml =
+                '<span class="spot-val">' + Number(d.last_spot).toFixed(2) + "</span>" +
+                staleTxt;
+            }
+            if (d.status === "open") {
+              spotHtml +=
+                ' <button type="button" class="btn-spot-refresh" data-ticker="' +
+                escAttr(d.ticker) + '" title="Refresh live price">&#x21bb;</button>';
+            }
+
+            var actionsHtml = "";
+            if (d.status === "open") {
+              actionsHtml =
+                '<button type="button" class="btn-exit" data-exit="' +
+                escAttr(docRef.id) +
+                '" data-ticker="' +
+                escAttr(d.ticker) +
+                '" data-entry="' +
+                escAttr(String(d.entry_price ?? "")) +
+                '">Exit…</button>' +
+                ' <button type="button" class="btn-monitor-toggle" data-pos-id="' +
+                escAttr(docRef.id) +
+                '" data-ticker="' +
+                escAttr(d.ticker) +
+                '">Monitor</button>';
+            }
+
             tr.innerHTML =
-              "<td class=\"code\"><strong>" +
+              '<td class="code"><strong>' +
               esc(d.ticker) +
               "</strong></td>" +
-              "<td>" +
-              num(d.entry_price) +
-              "</td>" +
-              "<td>" +
-              exitCell +
-              "</td>" +
-              "<td>" +
-              fmtPnlHtml(d) +
-              "</td>" +
-              "<td>" +
-              num(d.stop_price) +
-              "</td>" +
-              "<td>" +
-              num(d.target_price) +
-              "</td>" +
-              "<td>" +
-              esc(d.status) +
-              "</td>" +
-              "<td class=\"code\">" +
-              esc(d.created_at_utc || "") +
-              "</td>" +
-              "<td>" +
-              actionsCell +
-              "</td>";
+              "<td>" + num(d.entry_price) + "</td>" +
+              "<td>" + exitCell + "</td>" +
+              "<td>" + fmtPnlHtml(d) + "</td>" +
+              "<td>" + num(d.stop_price) + "</td>" +
+              "<td>" + num(d.target_price) + "</td>" +
+              '<td class="spot-cell">' + spotHtml + "</td>" +
+              "<td>" + esc(d.status) + "</td>" +
+              '<td class="code">' + esc(d.created_at_utc || "") + "</td>" +
+              "<td>" + actionsHtml + "</td>";
+
+            var expandTr = document.createElement("tr");
+            expandTr.className = "pos-monitor-expand";
+            expandTr.hidden = true;
+            expandTr.innerHTML =
+              '<td colspan="10" class="pos-monitor-expand-cell">' +
+              '<div class="pos-monitor-expand-inner">Loading checks…</div></td>';
+
             pBody.appendChild(tr);
+            pBody.appendChild(expandTr);
           });
-          pBody.querySelectorAll(".btn-exit").forEach((btn) => {
-            btn.addEventListener("click", () => {
+
+          pBody.querySelectorAll(".btn-exit").forEach(function (btn) {
+            btn.addEventListener("click", function () {
               openExitDialog(
                 btn.getAttribute("data-exit"),
                 btn.getAttribute("data-ticker") || "",
                 parseFloat(btn.getAttribute("data-entry") || "0")
               );
+            });
+          });
+
+          pBody.querySelectorAll(".btn-monitor-toggle").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              var posId = btn.getAttribute("data-pos-id");
+              var ticker = btn.getAttribute("data-ticker") || "";
+              var row = btn.closest("tr");
+              var expandRow = row ? row.nextElementSibling : null;
+              if (!expandRow || !expandRow.classList.contains("pos-monitor-expand")) return;
+              var opening = expandRow.hidden;
+              pBody.querySelectorAll("tr.pos-monitor-expand").forEach(function (r) {
+                r.hidden = true;
+              });
+              if (opening) {
+                expandRow.hidden = false;
+                var inner = expandRow.querySelector(".pos-monitor-expand-inner");
+                if (inner) inner.innerHTML = '<span class="dash-muted">Loading checks…</span>';
+                loadPositionChecks(posId, ticker, inner);
+              }
+            });
+          });
+
+          pBody.querySelectorAll(".btn-spot-refresh").forEach(function (btn) {
+            btn.addEventListener("click", function (ev) {
+              ev.stopPropagation();
+              var ticker = btn.getAttribute("data-ticker");
+              if (!ticker) return;
+              btn.disabled = true;
+              btn.textContent = "…";
+              fetchLivePrice(ticker).then(function (price) {
+                var cell = btn.closest(".spot-cell");
+                if (cell && price != null) {
+                  var valEl = cell.querySelector(".spot-val");
+                  if (valEl) valEl.textContent = price.toFixed(2);
+                  var staleEl = cell.querySelector(".spot-stale");
+                  if (staleEl) staleEl.textContent = "just now";
+                }
+                btn.disabled = false;
+                btn.innerHTML = "&#x21bb;";
+              }).catch(function () {
+                btn.disabled = false;
+                btn.innerHTML = "&#x21bb;";
+              });
             });
           });
         },
@@ -1030,6 +1208,149 @@
           pHint.textContent = "Positions error: " + formatFirestoreErr(err);
           renderDashboardPositionsGuest();
           console.error(err);
+        }
+      );
+  }
+
+  function loadPositionChecks(posId, ticker, containerEl) {
+    if (!posId || !containerEl) return;
+    db.collection(COL_MY_POSITIONS)
+      .doc(posId)
+      .collection("checks")
+      .orderBy("ts_utc", "desc")
+      .limit(20)
+      .get()
+      .then(function (snap) {
+        if (snap.empty) {
+          containerEl.innerHTML = '<span class="dash-muted">No monitor checks yet for ' + esc(ticker) + '.</span>';
+          return;
+        }
+        var rows = "";
+        snap.forEach(function (doc) {
+          var c = doc.data();
+          var tagCls = c.tag === "SELL" ? "tag-sell" : "tag-wait";
+          rows +=
+            "<tr>" +
+            '<td class="code">' + esc(String(c.ts_utc || "").slice(0, 19).replace("T", " ")) + "</td>" +
+            '<td><span class="' + tagCls + '">' + esc(c.tag || c.alert_kind || "") + "</span></td>" +
+            "<td>" + (c.confidence != null ? c.confidence : "—") + "</td>" +
+            "<td>" + (c.last_spot != null ? Number(c.last_spot).toFixed(2) : "—") + "</td>" +
+            "<td>" + esc(c.alert_summary || "") + "</td>" +
+            "</tr>";
+        });
+        containerEl.innerHTML =
+          '<table class="monitor-mini-table">' +
+          "<thead><tr><th>timestamp</th><th>action</th><th>conf</th><th>spot</th><th>reason</th></tr></thead>" +
+          "<tbody>" + rows + "</tbody></table>";
+      })
+      .catch(function (err) {
+        containerEl.innerHTML = '<span class="dash-muted">Error loading checks: ' + esc(err.message || String(err)) + "</span>";
+      });
+  }
+
+  function fetchLivePrice(ticker) {
+    var stooqUrl =
+      "https://stooq.com/q/l/?s=" +
+      encodeURIComponent(ticker.toLowerCase()) +
+      ".us&f=sd2t2ohlcv&h&e=csv";
+    return fetch(stooqUrl)
+      .then(function (r) {
+        if (!r.ok) throw new Error("stooq " + r.status);
+        return r.text();
+      })
+      .then(function (txt) {
+        var lines = txt.trim().split("\n");
+        if (lines.length < 2) return null;
+        var cols = lines[0].split(",");
+        var vals = lines[1].split(",");
+        var closeIdx = cols.indexOf("Close");
+        if (closeIdx === -1) return null;
+        var p = parseFloat(vals[closeIdx]);
+        return Number.isFinite(p) && p > 0 ? p : null;
+      })
+      .catch(function () {
+        return null;
+      });
+  }
+
+  function renderDashboardMonitorGuest() {
+    var empty = document.getElementById("dash-monitor-empty");
+    var body = document.getElementById("dash-monitor-body");
+    if (!empty || !body) return;
+    body.hidden = true;
+    empty.hidden = false;
+    empty.textContent = isLocalHost
+      ? "Monitor disabled on localhost."
+      : "Sign in to load monitor checks.";
+  }
+
+  function subscribeMonitor(uid) {
+    tearDownMonitorSub();
+    var mBody = document.getElementById("monitor-body");
+    var mWrap = document.getElementById("monitor-table-wrap");
+    var mHint = document.getElementById("monitor-hint");
+    var mGate = document.getElementById("monitor-gate");
+    if (mGate) mGate.hidden = true;
+    if (mHint) { mHint.hidden = false; mHint.textContent = "Loading monitor…"; }
+
+    monitorUnsub = db
+      .collectionGroup("checks")
+      .where("owner_uid", "==", uid)
+      .orderBy("ts_utc", "desc")
+      .limit(100)
+      .onSnapshot(
+        function (snap) {
+          mBody.innerHTML = "";
+          if (snap.empty) {
+            mHint.hidden = false;
+            mHint.textContent = "No monitor checks yet. The monitor job writes data here.";
+            mWrap.hidden = true;
+            var dashEmpty = document.getElementById("dash-monitor-empty");
+            var dashBody = document.getElementById("dash-monitor-body");
+            if (dashEmpty && dashBody) {
+              dashEmpty.hidden = false;
+              dashEmpty.textContent = "No monitor checks yet.";
+              dashBody.hidden = true;
+            }
+            return;
+          }
+          mHint.hidden = true;
+          mWrap.hidden = false;
+
+          var sellCount = 0;
+          var waitCount = 0;
+
+          snap.forEach(function (doc) {
+            var c = doc.data();
+            if (c.tag === "SELL") sellCount++;
+            else waitCount++;
+            var tagCls = c.tag === "SELL" ? "tag-sell" : "tag-wait";
+            var tr = document.createElement("tr");
+            tr.innerHTML =
+              '<td class="code"><strong>' + esc(c.ticker || "") + "</strong></td>" +
+              '<td><span class="' + tagCls + '">' + esc(c.tag || c.alert_kind || "") + "</span></td>" +
+              "<td>" + (c.confidence != null ? c.confidence : "—") + "</td>" +
+              "<td>" + (c.last_spot != null ? Number(c.last_spot).toFixed(2) : "—") + "</td>" +
+              "<td>" + esc(c.alert_summary || "") + "</td>" +
+              '<td class="code">' + esc(String(c.ts_utc || "").slice(0, 19).replace("T", " ")) + "</td>";
+            mBody.appendChild(tr);
+          });
+
+          var dashEmpty2 = document.getElementById("dash-monitor-empty");
+          var dashBody2 = document.getElementById("dash-monitor-body");
+          if (dashEmpty2 && dashBody2) {
+            dashEmpty2.hidden = true;
+            dashBody2.hidden = false;
+            dashBody2.innerHTML =
+              "<p><strong>" + sellCount + "</strong> SELL · <strong>" + waitCount + "</strong> WAIT alerts</p>" +
+              '<p class="dash-meta">Latest ' + snap.size + " checks</p>";
+          }
+        },
+        function (err) {
+          mHint.hidden = false;
+          mHint.textContent = "Monitor error: " + formatFirestoreErr(err);
+          console.error(err);
+          renderDashboardMonitorGuest();
         }
       );
   }
@@ -1056,7 +1377,7 @@
         headerUserEmail.title = label || "";
       }
       if (navSignIn) navSignIn.hidden = true;
-      if (logoutLink) logoutLink.hidden = false;
+      if (logoutBtn) logoutBtn.hidden = false;
       if (loginLocalhostNote) loginLocalhostNote.hidden = true;
       if (loginGoogleBtn) loginGoogleBtn.hidden = false;
 
@@ -1065,8 +1386,10 @@
 
       subscribeUniverseAndSignals();
       subscribePositions(user.uid);
+      subscribeMonitor(user.uid);
       setPositionsGuestMode(false);
       applyRouteFromLocation();
+      applyStoredSidebarCollapsed();
       return;
     }
 
@@ -1080,7 +1403,7 @@
       headerUserEmail.textContent = "";
       headerUserEmail.title = "";
     }
-    if (logoutLink) logoutLink.hidden = true;
+    if (logoutBtn) logoutBtn.hidden = true;
     if (navSignIn && !isLocalHost) navSignIn.hidden = false;
     if (navSignIn && isLocalHost) navSignIn.hidden = true;
 
@@ -1090,9 +1413,12 @@
 
     subscribeUniverseAndSignals();
     tearDownPositionsSub();
+    tearDownMonitorSub();
     setPositionsGuestMode(true);
     resetPositionsTableGuest();
     renderDashboardPositionsGuest();
+    renderDashboardMonitorGuest();
+    setMonitorGuestMode(true);
     applyRouteFromLocation();
   }
 
@@ -1151,9 +1477,8 @@
     });
   }
 
-  if (logoutLink) {
-    logoutLink.addEventListener("click", (e) => {
-      e.preventDefault();
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
       void auth.signOut().then(() => {
         navigateToRoute("login", { replace: true });
       });
@@ -1170,6 +1495,9 @@
       navigateToRoute("dashboard", { replace: true });
       return;
     }
+    if (a.closest("#app-sidebar") && isMobileSidebar()) {
+      setMobileSidebarOpen(false);
+    }
     navigateToRoute(r);
   });
 
@@ -1183,12 +1511,13 @@
       headerUserEmail.title =
         "Google auth is disabled here. Universe & Signals use public Firestore reads; positions need the deployed site.";
     }
-    if (logoutLink) logoutLink.hidden = true;
+    if (logoutBtn) logoutBtn.hidden = true;
     if (navSignIn) navSignIn.hidden = true;
     if (loginGoogleBtn) loginGoogleBtn.hidden = true;
     if (loginLocalhostNote) loginLocalhostNote.hidden = true;
     subscribeUniverseAndSignals();
     tearDownPositionsSub();
+    tearDownMonitorSub();
     document.getElementById("positions-body").innerHTML = "";
     document.getElementById("positions-table-wrap").hidden = true;
     const pHint = document.getElementById("positions-hint");
@@ -1196,8 +1525,11 @@
     pHint.textContent =
       "Positions are disabled on localhost. Use the deployed app and Google sign-in for my_positions.";
     setPositionsGuestMode(true);
+    setMonitorGuestMode(true);
     renderDashboardPositionsGuest();
+    renderDashboardMonitorGuest();
     applyRouteFromLocation();
+    applyStoredSidebarCollapsed();
   }
 
   async function bootstrapAuth() {
@@ -1253,6 +1585,7 @@
         hideAppBootScreen();
       }
       applyRouteFromLocation();
+      applyStoredSidebarCollapsed();
     })();
   }
 

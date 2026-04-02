@@ -239,6 +239,18 @@ def main() -> int:
                 },
                 merge=True,
             )
+            ref.collection("checks").add(
+                {
+                    "ts_utc": ts,
+                    "alert_kind": alert.kind,
+                    "alert_summary": alert.message,
+                    "confidence": alert.confidence,
+                    "last_spot": last,
+                    "tag": tag,
+                    "ticker": ticker,
+                    "owner_uid": owner_uid or None,
+                }
+            )
 
     if lines_for_slack and not args.no_slack and not args.dry_run:
         header = "*Position monitor* (signal-only, not execution)"

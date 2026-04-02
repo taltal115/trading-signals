@@ -25,6 +25,12 @@ service cloud.firestore {
         && request.resource.data.owner_uid == resource.data.owner_uid;
       allow delete: if request.auth != null
         && resource.data.owner_uid == request.auth.uid;
+
+      match /checks/{checkId} {
+        allow read: if request.auth != null
+          && resource.data.owner_uid == request.auth.uid;
+        allow write: if false;
+      }
     }
   }
 }

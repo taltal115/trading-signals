@@ -53,26 +53,132 @@
     </div>
 
     <div id="app-shell" class="app-shell" hidden>
-      <header class="app-header">
-        <div class="header-brand">
-          <a href="/dashboard" class="brand-link" data-route="dashboard" title="Home">signals <span>dashboard</span></a>
-        </div>
-        <nav class="main-nav" id="main-nav" aria-label="Main navigation">
-          <a href="/dashboard" class="nav-link" data-route="dashboard">Dashboard</a>
-          <a href="/positions" class="nav-link" data-route="positions">My positions</a>
-          <a href="/signals" class="nav-link" data-route="signals">Signals</a>
-          <a href="/universe" class="nav-link" data-route="universe">Universe</a>
-          <a href="/about" class="nav-link" data-route="about">About</a>
-          <span class="main-nav-gap" aria-hidden="true"></span>
-          <a href="/login" class="nav-link nav-link-signin" id="nav-sign-in" hidden>Sign in</a>
-        </nav>
-        <div id="auth-bar" class="auth-bar-logged-in">
-          <span id="header-user-email" class="header-user-email" hidden></span>
-          <a href="/logout" class="nav-link nav-link-logout" id="logout-link" hidden>Log out</a>
-        </div>
-      </header>
+      <div class="app-layout" id="app-layout">
+        <div id="sidebar-backdrop" class="sidebar-backdrop" hidden aria-hidden="true"></div>
+        <aside
+          id="app-sidebar"
+          class="app-sidebar"
+          aria-label="Main navigation"
+        >
+          <div class="sidebar-top">
+            <a
+              href="/dashboard"
+              class="brand-link sidebar-brand"
+              data-route="dashboard"
+              title="Home"
+            >
+              signals <span>dashboard</span>
+            </a>
+            <button
+              type="button"
+              id="sidebar-collapse-toggle"
+              class="sidebar-collapse-toggle"
+              aria-expanded="true"
+              aria-controls="app-sidebar"
+              title="Collapse menu"
+            >
+              <span class="sidebar-collapse-icon" aria-hidden="true"></span>
+              <span class="visually-hidden">Collapse sidebar</span>
+            </button>
+          </div>
 
-      <main>
+          <nav class="sidebar-nav" id="sidebar-nav">
+            <a
+              href="/dashboard"
+              class="sidebar-nav-link nav-link"
+              data-route="dashboard"
+              data-abbr="Da"
+              title="Dashboard"
+            >
+              <span class="sidebar-nav-text">Dashboard</span>
+            </a>
+            <a
+              href="/positions"
+              class="sidebar-nav-link nav-link"
+              data-route="positions"
+              data-abbr="Po"
+              title="My positions"
+            >
+              <span class="sidebar-nav-text">My positions</span>
+            </a>
+            <a
+              href="/signals"
+              class="sidebar-nav-link nav-link"
+              data-route="signals"
+              data-abbr="Si"
+              title="Signals"
+            >
+              <span class="sidebar-nav-text">Signals</span>
+            </a>
+            <a
+              href="/universe"
+              class="sidebar-nav-link nav-link"
+              data-route="universe"
+              data-abbr="Un"
+              title="Universe"
+            >
+              <span class="sidebar-nav-text">Universe</span>
+            </a>
+            <a
+              href="/monitor"
+              class="sidebar-nav-link nav-link"
+              data-route="monitor"
+              data-abbr="Mo"
+              title="Monitor"
+            >
+              <span class="sidebar-nav-text">Monitor</span>
+            </a>
+            <a
+              href="/about"
+              class="sidebar-nav-link nav-link"
+              data-route="about"
+              data-abbr="Ab"
+              title="About"
+            >
+              <span class="sidebar-nav-text">About</span>
+            </a>
+          </nav>
+
+          <div class="sidebar-footer">
+            <span id="header-user-email" class="sidebar-user-email" hidden></span>
+            <a
+              href="/login"
+              class="sidebar-auth-btn sidebar-auth-signin nav-link"
+              data-route="login"
+              id="nav-sign-in"
+              hidden
+            >
+              Sign in with Google
+            </a>
+            <button type="button" class="sidebar-auth-btn sidebar-auth-signout" id="logout-btn" hidden>
+              Sign out
+            </button>
+          </div>
+        </aside>
+
+        <div class="app-main-wrap">
+          <header class="app-topbar">
+            <button
+              type="button"
+              id="mobile-nav-open"
+              class="mobile-nav-open"
+              aria-expanded="false"
+              aria-controls="app-sidebar"
+            >
+              <span class="mobile-nav-bars" aria-hidden="true"></span>
+              <span class="visually-hidden">Open menu</span>
+            </button>
+            <a
+              href="/dashboard"
+              class="brand-link brand-link-topbar"
+              data-route="dashboard"
+              title="Home"
+            >
+              signals <span>dashboard</span>
+            </a>
+          </header>
+
+          <main class="app-main">
         <section id="panel-dashboard" class="panel" aria-label="Dashboard">
           <h2>Dashboard</h2>
           <p class="dashboard-lead">Latest snapshot from Firestore (universe &amp; signals are public reads; positions need sign-in).</p>
@@ -94,6 +200,12 @@
               <p id="dash-positions-empty" class="dash-muted">Sign in to load my_positions.</p>
               <div id="dash-positions-body" class="dash-body" hidden></div>
               <a href="/positions" class="dash-more nav-anchor" data-route="positions">Open positions →</a>
+            </article>
+            <article class="dash-card">
+              <h3>Monitor</h3>
+              <p id="dash-monitor-empty" class="dash-muted">Sign in to load monitor checks.</p>
+              <div id="dash-monitor-body" class="dash-body" hidden></div>
+              <a href="/monitor" class="dash-more nav-anchor" data-route="monitor">View monitor →</a>
             </article>
           </div>
         </section>
@@ -169,6 +281,10 @@
                   Hold days (from signal, optional)
                   <input name="hold_days_from_signal" type="number" min="1" max="30" placeholder="5" />
                 </label>
+                <label>
+                  Signal close price (optional)
+                  <input name="signal_close_price" type="number" step="any" min="0" placeholder="market close at signal" />
+                </label>
               </div>
               <label style="margin-top: 0.85rem">
                 Notes
@@ -193,6 +309,7 @@
                   <th>P/L %</th>
                   <th>stop</th>
                   <th>target</th>
+                  <th>spot</th>
                   <th>status</th>
                   <th>created</th>
                   <th></th>
@@ -202,6 +319,27 @@
             </table>
           </div>
           <p class="empty-state" id="positions-hint">Loading positions…</p>
+        </section>
+
+        <section id="panel-monitor" class="panel" aria-label="Monitor checks">
+          <h2>Monitor checks</h2>
+          <p id="monitor-gate" class="positions-gate" hidden>Sign in with Google to view monitor data.</p>
+          <p class="empty-state" id="monitor-hint">Loading monitor…</p>
+          <div class="table-wrap" id="monitor-table-wrap" hidden>
+            <table class="monitor-table">
+              <thead>
+                <tr>
+                  <th>ticker</th>
+                  <th>action</th>
+                  <th>confidence</th>
+                  <th>spot</th>
+                  <th>reason</th>
+                  <th>timestamp</th>
+                </tr>
+              </thead>
+              <tbody id="monitor-body"></tbody>
+            </table>
+          </div>
         </section>
 
         <section id="panel-about" class="panel about-panel" aria-label="About">
@@ -260,7 +398,9 @@
           </article>
           <p><a href="/about" class="nav-anchor" data-route="about">← About index</a></p>
         </section>
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
 
     <dialog id="exit-dialog" class="exit-dialog">
