@@ -1097,22 +1097,11 @@
                 var tsStr = String(d.last_alert_ts_utc);
                 staleLine = '<div class="spot-stale">' + esc(tsStr.slice(0, 16).replace("T", " ")) + "</div>";
               }
-              var refreshBtn = "";
-              if (d.status === "open") {
-                refreshBtn =
-                  ' <button type="button" class="btn-spot-refresh" data-ticker="' +
-                  escAttr(d.ticker) + '" title="Refresh live price">&#x21bb;</button>';
-              }
               spotHtml =
                 '<div class="spot-wrap">' +
                 '<span class="spot-val">' + Number(d.last_spot).toFixed(2) + "</span>" +
-                refreshBtn +
                 staleLine +
                 "</div>";
-            } else if (d.status === "open") {
-              spotHtml =
-                '— <button type="button" class="btn-spot-refresh" data-ticker="' +
-                escAttr(d.ticker) + '" title="Refresh live price">&#x21bb;</button>';
             }
 
             var actionsHtml = "";
@@ -1187,32 +1176,6 @@
             });
           });
 
-          pBody.querySelectorAll(".btn-spot-refresh").forEach(function (btn) {
-            btn.addEventListener("click", function (ev) {
-              ev.stopPropagation();
-              var ticker = btn.getAttribute("data-ticker");
-              if (!ticker) return;
-              btn.disabled = true;
-              btn.textContent = "…";
-              fetchLivePrice(ticker).then(function (price) {
-                var cell = btn.closest(".spot-cell");
-                if (cell && price != null) {
-                  var valEl = cell.querySelector(".spot-val");
-                  if (valEl) valEl.textContent = price.toFixed(2);
-                  var staleEl = cell.querySelector(".spot-stale");
-                  if (staleEl) staleEl.textContent = "just now";
-                } else if (cell && price == null) {
-                  var staleEl2 = cell.querySelector(".spot-stale");
-                  if (staleEl2) staleEl2.textContent = "refresh unavailable";
-                }
-                btn.disabled = false;
-                btn.innerHTML = "&#x21bb;";
-              }).catch(function () {
-                btn.disabled = false;
-                btn.innerHTML = "&#x21bb;";
-              });
-            });
-          });
         },
         (err) => {
           pHint.hidden = false;
@@ -1256,32 +1219,6 @@
       })
       .catch(function (err) {
         containerEl.innerHTML = '<span class="dash-muted">Error loading checks: ' + esc(err.message || String(err)) + "</span>";
-      });
-  }
-
-  function fetchLivePrice(ticker) {
-    var stooqUrl =
-      "https://stooq.com/q/l/?s=" +
-      encodeURIComponent(ticker.toLowerCase()) +
-      ".us&f=sd2t2ohlcv&h&e=csv";
-    var proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(stooqUrl);
-    return fetch(proxyUrl)
-      .then(function (r) {
-        if (!r.ok) throw new Error("proxy " + r.status);
-        return r.text();
-      })
-      .then(function (txt) {
-        var lines = txt.trim().split("\n");
-        if (lines.length < 2) return null;
-        var cols = lines[0].split(",");
-        var vals = lines[1].split(",");
-        var closeIdx = cols.indexOf("Close");
-        if (closeIdx === -1) return null;
-        var p = parseFloat(vals[closeIdx]);
-        return Number.isFinite(p) && p > 0 ? p : null;
-      })
-      .catch(function () {
-        return null;
       });
   }
 

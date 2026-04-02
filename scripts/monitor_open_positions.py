@@ -239,19 +239,23 @@ def main() -> int:
                 },
                 merge=True,
             )
+            print(f"  updated my_positions/{snap.id} fields")
             pos_owner = data.get("owner_uid") or owner_uid or None
-            ref.collection("checks").add(
-                {
-                    "ts_utc": ts,
-                    "alert_kind": alert.kind,
-                    "alert_summary": alert.message,
-                    "confidence": alert.confidence,
-                    "last_spot": last,
-                    "tag": tag,
-                    "ticker": ticker,
-                    "owner_uid": pos_owner,
-                }
-            )
+            check_data = {
+                "ts_utc": ts,
+                "alert_kind": alert.kind,
+                "alert_summary": alert.message,
+                "confidence": alert.confidence,
+                "last_spot": last,
+                "tag": tag,
+                "ticker": ticker,
+                "owner_uid": pos_owner,
+            }
+            try:
+                _, check_ref = ref.collection("checks").add(check_data)
+                print(f"  wrote check → my_positions/{snap.id}/checks/{check_ref.id}  owner_uid={pos_owner}")
+            except Exception as exc:
+                print(f"  ERROR writing check for {snap.id}: {exc}")
 
     if lines_for_slack and not args.no_slack and not args.dry_run:
         header = "*Position monitor* (signal-only, not execution)"
