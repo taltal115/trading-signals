@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>signals dashboard</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="styles.css" />
@@ -11,6 +11,20 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
   </head>
   <body>
+    <script>
+      (function () {
+        var h = location.hostname;
+        if (h === "localhost" || h === "127.0.0.1" || h === "[::1]") {
+          document.documentElement.classList.add("is-localhost-auth-off");
+        }
+      })();
+    </script>
+    <div id="app-boot-screen" class="app-boot-screen" aria-live="polite">
+      <div class="app-boot-inner">
+        <span class="spinner-ring app-boot-spinner" aria-hidden="true"></span>
+        <p>Loading…</p>
+      </div>
+    </div>
     <div id="config-warn" class="config-warn-standalone" hidden></div>
 
     <div id="login-screen" class="login-screen" aria-label="Sign in" hidden>
@@ -45,9 +59,9 @@
         </div>
         <nav class="main-nav" id="main-nav" aria-label="Main navigation">
           <a href="/dashboard" class="nav-link" data-route="dashboard">Dashboard</a>
-          <a href="/universe" class="nav-link" data-route="universe">Universe</a>
-          <a href="/signals" class="nav-link" data-route="signals">Signals</a>
           <a href="/positions" class="nav-link" data-route="positions">My positions</a>
+          <a href="/signals" class="nav-link" data-route="signals">Signals</a>
+          <a href="/universe" class="nav-link" data-route="universe">Universe</a>
           <a href="/about" class="nav-link" data-route="about">About</a>
           <span class="main-nav-gap" aria-hidden="true"></span>
           <a href="/login" class="nav-link nav-link-signin" id="nav-sign-in" hidden>Sign in</a>
@@ -110,8 +124,6 @@
             <table class="signals-main-table">
               <thead>
                 <tr>
-                  <th>ts_utc</th>
-                  <th>run_id</th>
                   <th>asof_date</th>
                   <th># BUY</th>
                   <th>Log a buy</th>
@@ -124,8 +136,9 @@
 
         <section id="panel-positions" class="panel" aria-label="Positions">
           <p id="positions-gate" class="positions-gate" hidden>Sign in with Google to manage positions.</p>
-          <h2>Log a fill (manual)</h2>
-          <div class="form-card" id="position-form-card">
+          <details id="position-form-details" class="position-form-details">
+            <summary class="position-form-summary">Log a fill (manual)</summary>
+            <div class="form-card" id="position-form-card">
             <form id="position-form">
               <div class="form-grid">
                 <label>
@@ -166,7 +179,8 @@
               </div>
               <p id="form-status"></p>
             </form>
-          </div>
+            </div>
+          </details>
 
           <h2>Your positions</h2>
           <div class="table-wrap" id="positions-table-wrap" hidden>

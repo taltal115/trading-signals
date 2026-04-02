@@ -12,23 +12,18 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // Manual positions: Google sign-in only, single allowlisted email (keep in sync with firebase-config allowedSignInEmails).
-    function myPositionsUserAllowed() {
-      return request.auth != null
-        && request.auth.token.email is string
-        && request.auth.token.email.lower() == 'taltal115@gmail.com'
-        && request.auth.token.firebase.sign_in_provider == 'google.com';
-    }
-
+    // my_positions: any signed-in user may only access rows they own (owner_uid == auth.uid).
+    // Who may sign in (Google allowlist) is enforced in the web app + Firebase Auth settings, not duplicated here —
+    // the JWT "email" claim is unreliable in rules right after redirect.
     match /my_positions/{posId} {
-      allow read: if myPositionsUserAllowed()
+      allow read: if request.auth != null
         && request.auth.uid == resource.data.owner_uid;
-      allow create: if myPositionsUserAllowed()
+      allow create: if request.auth != null
         && request.resource.data.owner_uid == request.auth.uid;
-      allow update: if myPositionsUserAllowed()
+      allow update: if request.auth != null
         && resource.data.owner_uid == request.auth.uid
         && request.resource.data.owner_uid == resource.data.owner_uid;
-      allow delete: if myPositionsUserAllowed()
+      allow delete: if request.auth != null
         && resource.data.owner_uid == request.auth.uid;
     }
   }

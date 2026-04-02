@@ -87,6 +87,31 @@ def write_universe_snapshot(
     db.collection(collection).document(asof_date).set(doc)
 
 
+def read_recent_universe_symbols(
+    *,
+    collection: str = "universe",
+    limit: int = 7,
+) -> list[str]:
+    """Read symbols from the most recent *limit* universe snapshots and merge them."""
+    db = _build_client()
+    docs = (
+        db.collection(collection)
+        .order_by("ts_utc", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream()
+    )
+    merged: set[str] = set()
+    for snap in docs:
+        data = snap.to_dict() or {}
+        raw = data.get("symbols") or []
+        if isinstance(raw, list):
+            for s in raw:
+                sym = str(s).strip().upper()
+                if sym:
+                    merged.add(sym)
+    return sorted(merged)
+
+
 def read_universe_for_date(
     *,
     asof_date: str,

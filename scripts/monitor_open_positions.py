@@ -64,7 +64,12 @@ def _eval_position(
 ) -> Alert:
     ticker = str(data.get("ticker", ""))
     if last_close is None:
-        return Alert("POSITION_WAIT", 40, f"{ticker}: no price data; WAIT")
+        return Alert(
+            "POSITION_WAIT",
+            40,
+            f"{ticker} | reason: no daily close from configured providers yet — "
+            "cannot evaluate stop, target, or hold window until a price is available",
+        )
 
     entry = data.get("entry_price")
     stop = data.get("stop_price")
@@ -86,14 +91,16 @@ def _eval_position(
         return Alert(
             "TIME_WARN",
             72,
-            f"{ticker} SELL conf=72 :: hold window reached (age={age_days}d >= {hold_days}d) close={last_close:.2f}",
+            f"{ticker} | reason: max hold from signal reached (time-based exit cue) — "
+            f"review plan vs age={age_days}d hold_days={hold_days} | close={last_close:.2f}",
         )
 
     if isinstance(stop, (int, float)) and last_close <= float(stop):
         return Alert(
             "STOP_HIT",
             88,
-            f"{ticker} SELL conf=88 :: at/below stop close={last_close:.2f} stop={float(stop):.2f}",
+            f"{ticker} | reason: last close at or below stop — defensive / risk stop level touched | "
+            f"close={last_close:.2f} stop={float(stop):.2f}",
         )
 
     if entry_f and isinstance(stop, (int, float)) and float(stop) < entry_f:
@@ -102,14 +109,16 @@ def _eval_position(
             return Alert(
                 "STOP_NEAR",
                 70,
-                f"{ticker} WAIT conf=70 :: within {NEAR_THRESHOLD_PCT:.1f}% of stop (spot={last_close:.2f})",
+                f"{ticker} | reason: within {NEAR_THRESHOLD_PCT:.1f}% of entry→stop cushion (above stop but tight) — "
+                f"elevated stop risk | spot={last_close:.2f}",
             )
 
     if isinstance(target, (int, float)) and last_close >= float(target):
         return Alert(
             "TARGET_HIT",
             80,
-            f"{ticker} SELL conf=80 :: at/above target close={last_close:.2f} target={float(target):.2f}",
+            f"{ticker} | reason: last close at or above take-profit target | "
+            f"close={last_close:.2f} target={float(target):.2f}",
         )
 
     if entry_f and isinstance(target, (int, float)) and float(target) > entry_f:
@@ -119,13 +128,15 @@ def _eval_position(
             return Alert(
                 "TARGET_NEAR",
                 65,
-                f"{ticker} WAIT conf=65 :: within {NEAR_THRESHOLD_PCT:.1f}% of target (spot={last_close:.2f})",
+                f"{ticker} | reason: within {NEAR_THRESHOLD_PCT:.1f}% of target (profit zone) — "
+                f"consider partial exit or tightening risk | spot={last_close:.2f}",
             )
 
     return Alert(
         "POSITION_WAIT",
         55,
-        f"{ticker} WAIT conf=55 :: spot={last_close:.2f} (no bracket breach)",
+        f"{ticker} | reason: inside planned bracket — no stop breach, target hit, hold overrun, or near-threshold flag | "
+        f"spot={last_close:.2f}",
     )
 
 

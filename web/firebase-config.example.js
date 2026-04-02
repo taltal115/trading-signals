@@ -10,6 +10,8 @@ const firebaseConfig = {
   appId: "1:000000000000:web:xxxxxxxxxxxxxxxx",
 
   allowedSignInEmails: ["taltal115@gmail.com"],
+  // Optional client allowlist by uid (Firestore rules only require owner_uid == auth.uid).
+  allowedAuthUids: [],
 };
 
 window.firebaseConfig = firebaseConfig;

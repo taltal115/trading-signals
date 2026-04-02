@@ -18,7 +18,7 @@ from signals_bot.config import AppConfig, load_config
 from signals_bot.logging import get_logger
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
-from signals_bot.storage.firestore import write_universe_snapshot
+from signals_bot.storage.firestore import read_recent_universe_symbols, write_universe_snapshot
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy
 
 
@@ -102,7 +102,13 @@ def main() -> int:
         help="Override universe.firestore.collection from config (default: universe).",
     )
     p.add_argument("--max-calls", type=int, default=400, help="Max symbol checks per run.")
-    p.add_argument("--limit", type=int, default=500, help="Max symbols to write to Firestore.")
+    p.add_argument("--limit", type=int, default=0, help="Max symbols to write (0 = unlimited).")
+    p.add_argument(
+        "--merge-days",
+        type=int,
+        default=0,
+        help="Merge today's candidates with the last N Firestore universe snapshots (0 = off, overwrite only).",
+    )
     p.add_argument(
         "--symbols-csv",
         help="Optional CSV with a 'symbol' column to override Finnhub universe "
@@ -258,12 +264,37 @@ def main() -> int:
         )
 
     ranked = sorted(candidates, key=lambda x: (-x["confidence"], -x["score"], x["symbol"]))
-    log.info("Candidates in batch: %d (limit=%d)", len(ranked), args.limit)
-    top = ranked[: max(1, args.limit)] if ranked else []
+    if args.limit > 0:
+        top = ranked[: args.limit]
+    else:
+        top = ranked
+    log.info("Candidates in batch: %d (limit=%s)", len(top), args.limit or "unlimited")
 
     asof_date = cfg.asof_date().isoformat()
     collection = args.firestore_collection or cfg.universe.firestore.collection
-    symbol_list = [str(row["symbol"]) for row in top]
+    new_symbols: set[str] = {str(row["symbol"]) for row in top}
+
+    if args.merge_days > 0:
+        try:
+            prior = read_recent_universe_symbols(
+                collection=collection,
+                limit=args.merge_days,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not read prior universe snapshots for merge: %s", exc)
+            prior = []
+        prior_set = set(prior)
+        merged = new_symbols | prior_set
+        log.info(
+            "Merge: today_new=%d prior_symbols=%d merged_total=%d (merge_days=%d)",
+            len(new_symbols),
+            len(prior_set),
+            len(merged),
+            args.merge_days,
+        )
+        symbol_list = sorted(merged)
+    else:
+        symbol_list = sorted(new_symbols)
 
     try:
         write_universe_snapshot(
@@ -275,7 +306,7 @@ def main() -> int:
     except RuntimeError as exc:
         raise SystemExit(f"ERROR: Firestore universe write failed (check credentials): {exc}") from exc
 
-    if not top:
+    if not symbol_list:
         log.warning(
             "No candidates in this batch (start_index=%d); wrote empty Firestore %s/%s",
             start_index,
@@ -283,15 +314,15 @@ def main() -> int:
             asof_date,
         )
     else:
-        log.info("Firestore write collection=%s asof_date=%s count=%d", collection, asof_date, len(top))
+        log.info("Firestore write collection=%s asof_date=%s count=%d", collection, asof_date, len(symbol_list))
         if args.verbose:
-            preview = [row["symbol"] for row in top[:40]]
-            log.debug("Top symbols: %s%s", preview, " …" if len(top) > 40 else "")
+            preview = symbol_list[:40]
+            log.debug("Top symbols: %s%s", preview, " …" if len(symbol_list) > 40 else "")
 
     if args.output:
         out_path = Path(args.output).expanduser()
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        df = pd.DataFrame({"symbol": []}) if not top else pd.DataFrame(top)[["symbol"]]
+        df = pd.DataFrame({"symbol": symbol_list}, columns=["symbol"])
         df.to_csv(out_path, index=False)
         log.info("CSV backup path=%s rows=%d", out_path, len(df))
 

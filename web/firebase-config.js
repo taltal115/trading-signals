@@ -8,8 +8,10 @@ const firebaseConfig = {
   appId: "1:703616057199:web:cd29b5f54d254724dbb29a",
   measurementId: "G-S21BNF9ENK",
 
-  // Google sign-in allowlist (lowercase compared in app). Must match firestore.rules for my_positions.
+  // Google sign-in allowlist (lowercase). Must match firestore.rules for my_positions.
   allowedSignInEmails: ["taltal115@gmail.com"],
+  // Optional: allow these Firebase Auth UIDs even if email matching is awkward (client-only; rules use owner_uid).
+  allowedAuthUids: ["tgIBRfrP1ibiEi6P2LMsVoyvNaM2"],
 };
 
 window.firebaseConfig = firebaseConfig;

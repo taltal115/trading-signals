@@ -26,6 +26,8 @@
     firebase.initializeApp(cfg || {});
   } catch (e) {
     showConfigError("Firebase init failed: " + (e && e.message ? e.message : String(e)));
+    const bootErr = document.getElementById("app-boot-screen");
+    if (bootErr) bootErr.hidden = true;
     return;
   }
 
@@ -112,6 +114,10 @@
   }
 
   function navigateToRoute(routeKey, opts) {
+    if (isLocalHost && (routeKey === "login" || routeKey === "logout")) {
+      routeKey = "dashboard";
+      opts = Object.assign({}, opts, { replace: true });
+    }
     const replace = opts && opts.replace;
     const path = routeKeyToPath(routeKey);
     const tail = window.location.search + window.location.hash;
@@ -158,16 +164,22 @@
         void auth.signOut();
       }
       routeSyncSuppress = true;
-      window.history.replaceState(
-        {},
-        "",
-        "/login" + window.location.search + window.location.hash
-      );
+      const tail = window.location.search + window.location.hash;
+      if (isLocalHost) {
+        window.history.replaceState({}, "", "/dashboard" + tail);
+      } else {
+        window.history.replaceState({}, "", "/login" + tail);
+      }
       routeSyncSuppress = false;
-      showLoginRoute();
       setLoginLoading(false);
       if (sessionStorage.getItem("auth_redirect_pending")) {
         sessionStorage.removeItem("auth_redirect_pending");
+      }
+      if (isLocalHost) {
+        hideLoginRoute();
+        activateRoute("dashboard");
+      } else {
+        showLoginRoute();
       }
       return;
     }
@@ -188,7 +200,22 @@
     const routeKey = segmentsToRoute(segs);
 
     if (routeKey === "login") {
-      if (!isLocalHost && auth.currentUser && isUserAllowed(auth.currentUser)) {
+      if (isLocalHost) {
+        if (!routeSyncSuppress) {
+          routeSyncSuppress = true;
+          window.history.replaceState(
+            {},
+            "",
+            "/dashboard" + window.location.search + window.location.hash
+          );
+          routeSyncSuppress = false;
+        }
+        hideLoginRoute();
+        activateRoute("dashboard");
+        sessionStorage.removeItem("auth_redirect_pending");
+        return;
+      }
+      if (auth.currentUser && isUserAllowed(auth.currentUser)) {
         if (!routeSyncSuppress) {
           routeSyncSuppress = true;
           window.history.replaceState(
@@ -203,12 +230,10 @@
         return;
       }
       showLoginRoute();
-      if (
-        sessionStorage.getItem("auth_redirect_pending") &&
-        loginSpinner &&
-        loginSpinner.hidden
-      ) {
+      if (sessionStorage.getItem("auth_redirect_pending")) {
         setLoginLoading(true);
+      } else {
+        setLoginLoading(false);
       }
       return;
     }
@@ -222,11 +247,9 @@
     if (loginGoogleBtn) loginGoogleBtn.disabled = !!on;
   }
 
-  if (!isLocalHost) {
-    const segsInit = pathnameSegments();
-    if (segsInit[0] === "login" && sessionStorage.getItem("auth_redirect_pending")) {
-      setLoginLoading(true);
-    }
+  function hideAppBootScreen() {
+    const el = document.getElementById("app-boot-screen");
+    if (el) el.hidden = true;
   }
 
   function allowedEmailsList() {
@@ -234,12 +257,49 @@
     return raw.map((e) => String(e).trim().toLowerCase()).filter(Boolean);
   }
 
+  function allowedAuthUidsList() {
+    const raw = cfg && Array.isArray(cfg.allowedAuthUids) ? cfg.allowedAuthUids : [];
+    return raw.map((u) => String(u).trim()).filter(Boolean);
+  }
+
+  /** Email for allowlist: Firebase sometimes leaves user.email empty until provider data is loaded. */
+  function primaryAccountEmail(user) {
+    if (!user) return "";
+    const direct = String(user.email || "")
+      .trim()
+      .toLowerCase();
+    if (direct) return direct;
+    const pd = user.providerData || [];
+    for (let i = 0; i < pd.length; i++) {
+      const e = String((pd[i] && pd[i].email) || "")
+        .trim()
+        .toLowerCase();
+      if (e) return e;
+    }
+    return "";
+  }
+
   function isUserAllowed(user) {
     if (!user) return false;
+    const uids = allowedAuthUidsList();
+    if (uids.length > 0 && uids.indexOf(user.uid) !== -1) {
+      return true;
+    }
     const allow = allowedEmailsList();
     if (allow.length === 0) return true;
-    const email = (user.email || "").trim().toLowerCase();
+    const email = primaryAccountEmail(user);
     return Boolean(email && allow.includes(email));
+  }
+
+  function formatFirestoreErr(err) {
+    const msg = err && err.message ? err.message : String(err);
+    if (err && err.code === "permission-denied") {
+      return (
+        msg +
+        " Sign out and sign in again; deploy firestore.rules to this project. Rules allow only documents where owner_uid matches your account."
+      );
+    }
+    return msg;
   }
 
   function setAuthError(msg) {
@@ -261,6 +321,14 @@
       }
       return;
     }
+    if (user) {
+      try {
+        await user.reload();
+        await user.getIdToken(true);
+      } catch (e) {
+        console.warn(e);
+      }
+    }
     if (user && !isUserAllowed(user)) {
       await auth.signOut();
       setSignedIn(null);
@@ -280,6 +348,9 @@
   let universeUnsub = null;
   let signalsUnsub = null;
   let positionsUnsub = null;
+
+  let signalsInlineFormTrRef = null;
+  let signalsInlineOpenKey = "";
 
   let exitTargetDocId = null;
   let exitEntryPrice = 0;
@@ -391,7 +462,10 @@
 
   function setPositionsGuestMode(guest) {
     const gate = document.getElementById("positions-gate");
-    const form = document.getElementById("position-form");
+    const forms = [
+      document.getElementById("position-form"),
+      document.getElementById("signals-inline-position-form"),
+    ].filter(Boolean);
     if (gate) {
       gate.hidden = !guest;
       if (guest && isLocalHost) {
@@ -401,11 +475,11 @@
         gate.textContent = "Sign in with Google to manage positions.";
       }
     }
-    if (form) {
+    forms.forEach((form) => {
       form.querySelectorAll("input, textarea, button").forEach((el) => {
         el.disabled = guest;
       });
-    }
+    });
   }
 
   function resetPositionsTableGuest() {
@@ -438,8 +512,73 @@
     return u;
   }
 
-  function prefillAndOpenPositions(signalDocId, s) {
-    const form = document.getElementById("position-form");
+  async function submitOpenPositionFromForm(form, statusEl) {
+    if (!form || !statusEl) return;
+    statusEl.textContent = "";
+    let user;
+    try {
+      user = await ensureSignedIn();
+    } catch (err) {
+      statusEl.textContent = err && err.message ? err.message : String(err);
+      return;
+    }
+    if (!user) {
+      statusEl.textContent = "No Firebase user — check Auth configuration.";
+      return;
+    }
+    const fd = new FormData(form);
+    const ticker = String(fd.get("ticker") || "")
+      .trim()
+      .toUpperCase();
+    const entry = parseFloat(fd.get("entry_price"));
+    if (!ticker || !Number.isFinite(entry)) {
+      statusEl.textContent = "Ticker and entry price required.";
+      return;
+    }
+    const qtyRaw = fd.get("quantity");
+    const quantity = qtyRaw === "" || qtyRaw == null ? null : parseFloat(qtyRaw);
+    const stopRaw = fd.get("stop_price");
+    const targetRaw = fd.get("target_price");
+    const stop_price =
+      stopRaw === "" || stopRaw == null ? null : parseFloat(stopRaw);
+    const target_price =
+      targetRaw === "" || targetRaw == null ? null : parseFloat(targetRaw);
+    const signal_doc_id = String(fd.get("signal_doc_id") || "").trim() || null;
+    const holdRaw = fd.get("hold_days_from_signal");
+    const hold_days_from_signal =
+      holdRaw === "" || holdRaw == null ? null : parseInt(holdRaw, 10);
+    const notes = String(fd.get("notes") || "").trim() || null;
+
+    const payload = {
+      owner_uid: user.uid,
+      ticker,
+      entry_price: entry,
+      quantity: quantity != null && Number.isFinite(quantity) ? quantity : null,
+      stop_price: stop_price != null && Number.isFinite(stop_price) ? stop_price : null,
+      target_price:
+        target_price != null && Number.isFinite(target_price) ? target_price : null,
+      signal_doc_id,
+      hold_days_from_signal:
+        hold_days_from_signal != null && Number.isFinite(hold_days_from_signal)
+          ? hold_days_from_signal
+          : null,
+      notes,
+      status: "open",
+      created_at_utc: new Date().toISOString(),
+    };
+
+    try {
+      await db.collection(COL_MY_POSITIONS).add(payload);
+      statusEl.textContent = "Saved to my_positions.";
+      form.reset();
+    } catch (err) {
+      statusEl.textContent = "Error: " + formatFirestoreErr(err);
+      console.error(err);
+    }
+  }
+
+  function fillPositionFormFromSignal(form, signalDocId, s) {
+    if (!form || !s) return;
     const setNum = (name, v) => {
       const el = form.querySelector('[name="' + name + '"]');
       if (!el) return;
@@ -457,11 +596,109 @@
     const hdEl = form.querySelector('[name="hold_days_from_signal"]');
     if (hdEl) hdEl.value = hd != null && hd !== "" ? String(hd) : "";
     form.querySelector('[name="notes"]').value = "";
-    document.getElementById("form-status").textContent =
-      "Prefilled from bot signal — edit fill price / bracket if your execution differed.";
-    navigateToRoute("positions");
-    const card = document.getElementById("position-form-card");
-    if (card) card.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function collapseSignalsInlineForm() {
+    if (!signalsInlineFormTrRef) return;
+    const wrap = signalsInlineFormTrRef.querySelector(".signals-inline-form-slide");
+    if (!wrap) {
+      signalsInlineFormTrRef.hidden = true;
+      signalsInlineOpenKey = "";
+      return;
+    }
+    if (!wrap.classList.contains("is-expanded")) {
+      signalsInlineFormTrRef.hidden = true;
+      signalsInlineOpenKey = "";
+      return;
+    }
+    const onEnd = function (e) {
+      if (e.target !== wrap || e.propertyName !== "max-height") return;
+      wrap.removeEventListener("transitionend", onEnd);
+      signalsInlineFormTrRef.hidden = true;
+    };
+    wrap.addEventListener("transitionend", onEnd);
+    wrap.classList.remove("is-expanded");
+    signalsInlineOpenKey = "";
+  }
+
+  function getOrCreateSignalsInlineFormRow() {
+    if (signalsInlineFormTrRef) return signalsInlineFormTrRef;
+    const tr = document.createElement("tr");
+    tr.id = "signals-inline-form-tr";
+    tr.className = "signals-inline-form-tr";
+    tr.hidden = true;
+    const td = document.createElement("td");
+    td.colSpan = 3;
+    td.className = "signals-inline-form-cell";
+    td.innerHTML =
+      '<div class="signals-inline-form-slide">' +
+      '<div class="signals-inline-form-inner">' +
+      '<div class="signals-inline-form-card">' +
+      '<div class="signals-inline-form-toolbar">' +
+      '<span class="signals-inline-form-title">Log manual fill</span>' +
+      '<button type="button" class="signals-inline-form-close">Hide</button>' +
+      "</div>" +
+      '<form id="signals-inline-position-form">' +
+      '<div class="form-grid">' +
+      "<label>Ticker <input name=\"ticker\" required maxlength=\"8\" placeholder=\"AAPL\" /></label>" +
+      '<label>Entry price <input name="entry_price" type="number" step="any" required min="0" /></label>' +
+      '<label>Quantity (optional) <input name="quantity" type="number" step="any" min="0" placeholder="100" /></label>' +
+      '<label>Stop price <input name="stop_price" type="number" step="any" min="0" placeholder="bracket stop" /></label>' +
+      '<label>Target price <input name="target_price" type="number" step="any" min="0" placeholder="take profit" /></label>' +
+      '<label>Linked signal doc ID (optional) <input name="signal_doc_id" placeholder="Firestore document id" /></label>' +
+      '<label>Hold days (optional) <input name="hold_days_from_signal" type="number" min="1" max="30" placeholder="5" /></label>' +
+      "</div>" +
+      '<label class="signals-inline-notes-label">Notes <textarea name="notes" placeholder="Bracket type, broker, etc."></textarea></label>' +
+      '<div class="form-actions"><button type="submit">Save open position</button></div>' +
+      '<p id="signals-inline-form-status" class="signals-inline-form-status"></p>' +
+      "</form>" +
+      "</div></div></div>";
+    tr.appendChild(td);
+    tr.querySelector(".signals-inline-form-close").addEventListener("click", () => {
+      collapseSignalsInlineForm();
+    });
+    tr.querySelector("#signals-inline-position-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const formEl = tr.querySelector("#signals-inline-position-form");
+      const statusEl = tr.querySelector("#signals-inline-form-status");
+      await submitOpenPositionFromForm(formEl, statusEl);
+    });
+    signalsInlineFormTrRef = tr;
+    const guest =
+      isLocalHost ||
+      !auth.currentUser ||
+      (auth.currentUser && !isUserAllowed(auth.currentUser));
+    setPositionsGuestMode(guest);
+    return tr;
+  }
+
+  function openOrToggleSignalsInlineForm(dataRow, signalDocId, s) {
+    const key =
+      signalDocId +
+      "\t" +
+      String(s.ticker || "")
+        .trim()
+        .toUpperCase();
+    const formTr = getOrCreateSignalsInlineFormRow();
+    const wrap = formTr.querySelector(".signals-inline-form-slide");
+    const statusEl = formTr.querySelector("#signals-inline-form-status");
+    const isToggleClose =
+      signalsInlineOpenKey === key && wrap.classList.contains("is-expanded");
+    if (isToggleClose) {
+      collapseSignalsInlineForm();
+      return;
+    }
+    signalsInlineOpenKey = key;
+    wrap.classList.remove("is-expanded");
+    void wrap.offsetHeight;
+    formTr.hidden = false;
+    dataRow.insertAdjacentElement("afterend", formTr);
+    fillPositionFormFromSignal(formTr.querySelector("#signals-inline-position-form"), signalDocId, s);
+    if (statusEl) {
+      statusEl.textContent =
+        "Prefilled from bot signal — edit fields if your fill or bracket differed.";
+    }
+    requestAnimationFrame(() => wrap.classList.add("is-expanded"));
   }
 
   function rowPnlClass(d) {
@@ -614,7 +851,18 @@
       .limit(25)
       .onSnapshot(
         (snap) => {
+          const savedInlineTr = signalsInlineFormTrRef;
+          if (savedInlineTr && savedInlineTr.parentNode) {
+            savedInlineTr.parentNode.removeChild(savedInlineTr);
+          }
           sigBody.innerHTML = "";
+          signalsInlineOpenKey = "";
+          if (savedInlineTr) {
+            const w = savedInlineTr.querySelector(".signals-inline-form-slide");
+            if (w) w.classList.remove("is-expanded");
+            savedInlineTr.hidden = true;
+          }
+
           if (snap.empty) {
             sigHint.hidden = false;
             sigWrap.hidden = true;
@@ -636,12 +884,6 @@
             const arr = Array.isArray(d.signals) ? d.signals : [];
 
             const tr = document.createElement("tr");
-            const tdTs = document.createElement("td");
-            tdTs.className = "code";
-            tdTs.textContent = String(d.ts_utc || "");
-            const tdRun = document.createElement("td");
-            tdRun.className = "code";
-            tdRun.textContent = String(d.run_id || "");
             const tdAsof = document.createElement("td");
             tdAsof.className = "code";
             tdAsof.textContent = String(d.asof_date || "");
@@ -666,20 +908,22 @@
                 b.textContent = "Log " + String(s.ticker || "?");
                 b.addEventListener("click", (ev) => {
                   ev.stopPropagation();
-                  prefillAndOpenPositions(doc.id, s);
+                  openOrToggleSignalsInlineForm(tr, doc.id, s);
                 });
                 ctaWrap.appendChild(b);
               });
             }
             tdCta.appendChild(ctaWrap);
 
-            tr.appendChild(tdTs);
-            tr.appendChild(tdRun);
             tr.appendChild(tdAsof);
             tr.appendChild(tdN);
             tr.appendChild(tdCta);
             sigBody.appendChild(tr);
           });
+
+          if (savedInlineTr) {
+            sigBody.appendChild(savedInlineTr);
+          }
         },
         (err) => {
           sigHint.hidden = false;
@@ -783,7 +1027,7 @@
         },
         (err) => {
           pHint.hidden = false;
-          pHint.textContent = "Positions error: " + err.message;
+          pHint.textContent = "Positions error: " + formatFirestoreErr(err);
           renderDashboardPositionsGuest();
           console.error(err);
         }
@@ -807,13 +1051,17 @@
     if (user) {
       if (headerUserEmail) {
         headerUserEmail.hidden = false;
-        headerUserEmail.textContent = user.email || user.uid;
-        headerUserEmail.title = user.email || user.uid || "";
+        const label = user.email || primaryAccountEmail(user) || user.uid;
+        headerUserEmail.textContent = label;
+        headerUserEmail.title = label || "";
       }
       if (navSignIn) navSignIn.hidden = true;
       if (logoutLink) logoutLink.hidden = false;
       if (loginLocalhostNote) loginLocalhostNote.hidden = true;
       if (loginGoogleBtn) loginGoogleBtn.hidden = false;
+
+      setLoginLoading(false);
+      hideLoginRoute();
 
       subscribeUniverseAndSignals();
       subscribePositions(user.uid);
@@ -835,6 +1083,10 @@
     if (logoutLink) logoutLink.hidden = true;
     if (navSignIn && !isLocalHost) navSignIn.hidden = false;
     if (navSignIn && isLocalHost) navSignIn.hidden = true;
+
+    if (!isLocalHost) {
+      showLoginRoute();
+    }
 
     subscribeUniverseAndSignals();
     tearDownPositionsSub();
@@ -867,16 +1119,34 @@
     loginGoogleBtn.addEventListener("click", async () => {
       if (isLocalHost) return;
       setAuthError("");
-      sessionStorage.setItem("auth_redirect_pending", "1");
       setLoginLoading(true);
       const provider = new firebase.auth.GoogleAuthProvider();
+      provider.addScope("profile");
+      provider.addScope("email");
       try {
-        await auth.signInWithRedirect(provider);
-      } catch (err) {
-        console.warn(err);
-        setAuthError(err.message || "Google sign-in failed.");
+        await auth.signInWithPopup(provider);
         setLoginLoading(false);
-        sessionStorage.removeItem("auth_redirect_pending");
+      } catch (err) {
+        const code = err && err.code ? String(err.code) : "";
+        if (code === "auth/popup-blocked") {
+          sessionStorage.setItem("auth_redirect_pending", "1");
+          try {
+            await auth.signInWithRedirect(provider);
+          } catch (err2) {
+            console.warn(err2);
+            setAuthError((err2 && err2.message) || "Google sign-in failed.");
+            setLoginLoading(false);
+            sessionStorage.removeItem("auth_redirect_pending");
+          }
+          return;
+        }
+        if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+          setLoginLoading(false);
+          return;
+        }
+        console.warn(err);
+        setAuthError((err && err.message) || "Google sign-in failed.");
+        setLoginLoading(false);
       }
     });
   }
@@ -884,8 +1154,9 @@
   if (logoutLink) {
     logoutLink.addEventListener("click", (e) => {
       e.preventDefault();
-      navigateToRoute("login", { replace: true });
-      void auth.signOut();
+      void auth.signOut().then(() => {
+        navigateToRoute("login", { replace: true });
+      });
     });
   }
 
@@ -895,10 +1166,15 @@
     const r = a.getAttribute("data-route");
     if (!r) return;
     e.preventDefault();
+    if (isLocalHost && (r === "login" || r === "logout")) {
+      navigateToRoute("dashboard", { replace: true });
+      return;
+    }
     navigateToRoute(r);
   });
 
   function setupLocalhostNoGoogle() {
+    hideAppBootScreen();
     setAuthError("");
     hideLoginRoute();
     if (headerUserEmail) {
@@ -925,39 +1201,10 @@
   }
 
   async function bootstrapAuth() {
-    let pendingNullClear = null;
-
-    function onAuthFromFirebase(next) {
-      if (next) {
-        if (pendingNullClear !== null) {
-          clearTimeout(pendingNullClear);
-          pendingNullClear = null;
-        }
-        void applyIncomingUser(next);
-        return;
-      }
-      if (pendingNullClear !== null) {
-        clearTimeout(pendingNullClear);
-      }
-      pendingNullClear = setTimeout(() => {
-        pendingNullClear = null;
-        if (!auth.currentUser) {
-          setLoginLoading(false);
-          if (sessionStorage.getItem("auth_redirect_pending")) {
-            sessionStorage.removeItem("auth_redirect_pending");
-          }
-          void applyIncomingUser(null);
-        }
-      }, 250);
-    }
-
-    auth.onAuthStateChanged(onAuthFromFirebase);
-
+    let redirectCredUser = null;
     try {
       const cred = await auth.getRedirectResult();
-      if (cred && cred.user) {
-        void applyIncomingUser(cred.user);
-      }
+      if (cred && cred.user) redirectCredUser = cred.user;
     } catch (e) {
       setLoginLoading(false);
       sessionStorage.removeItem("auth_redirect_pending");
@@ -967,6 +1214,27 @@
         setAuthError(e.message || "Sign-in redirect failed.");
       }
     }
+
+    await auth.authStateReady();
+
+    let initialUser = redirectCredUser || auth.currentUser;
+
+    if (sessionStorage.getItem("auth_redirect_pending") && !initialUser) {
+      await new Promise((r) => setTimeout(r, 500));
+      await auth.authStateReady();
+      initialUser = redirectCredUser || auth.currentUser;
+    }
+
+    if (sessionStorage.getItem("auth_redirect_pending") && !initialUser) {
+      sessionStorage.removeItem("auth_redirect_pending");
+      setLoginLoading(false);
+    }
+
+    await applyIncomingUser(initialUser);
+
+    auth.onAuthStateChanged(function (next) {
+      void applyIncomingUser(next);
+    });
   }
 
   if (isLocalHost) {
@@ -974,16 +1242,23 @@
       setupLocalhostNoGoogle();
     });
   } else {
-    void bootstrapAuth();
+    void (async function bootHosted() {
+      try {
+        await bootstrapAuth();
+      } catch (err) {
+        console.warn(err);
+        setLoginLoading(false);
+        sessionStorage.removeItem("auth_redirect_pending");
+      } finally {
+        hideAppBootScreen();
+      }
+      applyRouteFromLocation();
+    })();
   }
 
   window.addEventListener("popstate", function () {
     applyRouteFromLocation();
   });
-
-  if (!isLocalHost) {
-    applyRouteFromLocation();
-  }
 
   const posForm = document.getElementById("position-form");
   const formStatus = document.getElementById("form-status");
@@ -1020,72 +1295,13 @@
       exitDialog.close();
       exitTargetDocId = null;
     } catch (err) {
-      alert("Could not save exit: " + err.message);
+      alert("Could not save exit: " + formatFirestoreErr(err));
     }
   });
 
   posForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     formStatus.textContent = "";
-    let user;
-    try {
-      user = await ensureSignedIn();
-    } catch (err) {
-      formStatus.textContent = err && err.message ? err.message : String(err);
-      return;
-    }
-    if (!user) {
-      formStatus.textContent = "No Firebase user — check Auth configuration.";
-      return;
-    }
-    const fd = new FormData(posForm);
-    const ticker = String(fd.get("ticker") || "")
-      .trim()
-      .toUpperCase();
-    const entry = parseFloat(fd.get("entry_price"));
-    if (!ticker || !Number.isFinite(entry)) {
-      formStatus.textContent = "Ticker and entry price required.";
-      return;
-    }
-    const qtyRaw = fd.get("quantity");
-    const quantity = qtyRaw === "" || qtyRaw == null ? null : parseFloat(qtyRaw);
-    const stopRaw = fd.get("stop_price");
-    const targetRaw = fd.get("target_price");
-    const stop_price =
-      stopRaw === "" || stopRaw == null ? null : parseFloat(stopRaw);
-    const target_price =
-      targetRaw === "" || targetRaw == null ? null : parseFloat(targetRaw);
-    const signal_doc_id = String(fd.get("signal_doc_id") || "").trim() || null;
-    const holdRaw = fd.get("hold_days_from_signal");
-    const hold_days_from_signal =
-      holdRaw === "" || holdRaw == null ? null : parseInt(holdRaw, 10);
-    const notes = String(fd.get("notes") || "").trim() || null;
-
-    const payload = {
-      owner_uid: user.uid,
-      ticker,
-      entry_price: entry,
-      quantity: quantity != null && Number.isFinite(quantity) ? quantity : null,
-      stop_price: stop_price != null && Number.isFinite(stop_price) ? stop_price : null,
-      target_price:
-        target_price != null && Number.isFinite(target_price) ? target_price : null,
-      signal_doc_id,
-      hold_days_from_signal:
-        hold_days_from_signal != null && Number.isFinite(hold_days_from_signal)
-          ? hold_days_from_signal
-          : null,
-      notes,
-      status: "open",
-      created_at_utc: new Date().toISOString(),
-    };
-
-    try {
-      await db.collection(COL_MY_POSITIONS).add(payload);
-      formStatus.textContent = "Saved to my_positions.";
-      posForm.reset();
-    } catch (err) {
-      formStatus.textContent = "Error: " + err.message;
-      console.error(err);
-    }
+    await submitOpenPositionFromForm(posForm, formStatus);
   });
 })();
