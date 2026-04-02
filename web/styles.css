@@ -1262,7 +1262,14 @@ button.btn-exit:hover {
 }
 
 .spot-cell {
-  white-space: nowrap;
+  min-width: 5.5rem;
+}
+
+.spot-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
 }
 
 .spot-val {
@@ -1271,7 +1278,7 @@ button.btn-exit:hover {
 }
 
 .spot-stale {
-  display: block;
+  width: 100%;
   font-size: 0.65rem;
   color: var(--muted);
   line-height: 1.2;

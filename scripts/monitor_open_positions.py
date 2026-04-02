@@ -239,6 +239,7 @@ def main() -> int:
                 },
                 merge=True,
             )
+            pos_owner = data.get("owner_uid") or owner_uid or None
             ref.collection("checks").add(
                 {
                     "ts_utc": ts,
@@ -248,7 +249,7 @@ def main() -> int:
                     "last_spot": last,
                     "tag": tag,
                     "ticker": ticker,
-                    "owner_uid": owner_uid or None,
+                    "owner_uid": pos_owner,
                 }
             )
 

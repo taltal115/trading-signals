@@ -1092,18 +1092,26 @@
 
             var spotHtml = "—";
             if (d.last_spot != null && Number.isFinite(Number(d.last_spot))) {
-              var staleTxt = "";
+              var staleLine = "";
               if (d.last_alert_ts_utc) {
-                var ts = String(d.last_alert_ts_utc);
-                staleTxt = '<span class="spot-stale">' + esc(ts.slice(0, 16).replace("T", " ")) + "</span>";
+                var tsStr = String(d.last_alert_ts_utc);
+                staleLine = '<div class="spot-stale">' + esc(tsStr.slice(0, 16).replace("T", " ")) + "</div>";
+              }
+              var refreshBtn = "";
+              if (d.status === "open") {
+                refreshBtn =
+                  ' <button type="button" class="btn-spot-refresh" data-ticker="' +
+                  escAttr(d.ticker) + '" title="Refresh live price">&#x21bb;</button>';
               }
               spotHtml =
+                '<div class="spot-wrap">' +
                 '<span class="spot-val">' + Number(d.last_spot).toFixed(2) + "</span>" +
-                staleTxt;
-            }
-            if (d.status === "open") {
-              spotHtml +=
-                ' <button type="button" class="btn-spot-refresh" data-ticker="' +
+                refreshBtn +
+                staleLine +
+                "</div>";
+            } else if (d.status === "open") {
+              spotHtml =
+                '— <button type="button" class="btn-spot-refresh" data-ticker="' +
                 escAttr(d.ticker) + '" title="Refresh live price">&#x21bb;</button>';
             }
 
@@ -1193,6 +1201,9 @@
                   if (valEl) valEl.textContent = price.toFixed(2);
                   var staleEl = cell.querySelector(".spot-stale");
                   if (staleEl) staleEl.textContent = "just now";
+                } else if (cell && price == null) {
+                  var staleEl2 = cell.querySelector(".spot-stale");
+                  if (staleEl2) staleEl2.textContent = "refresh unavailable";
                 }
                 btn.disabled = false;
                 btn.innerHTML = "&#x21bb;";
@@ -1253,9 +1264,10 @@
       "https://stooq.com/q/l/?s=" +
       encodeURIComponent(ticker.toLowerCase()) +
       ".us&f=sd2t2ohlcv&h&e=csv";
-    return fetch(stooqUrl)
+    var proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(stooqUrl);
+    return fetch(proxyUrl)
       .then(function (r) {
-        if (!r.ok) throw new Error("stooq " + r.status);
+        if (!r.ok) throw new Error("proxy " + r.status);
         return r.text();
       })
       .then(function (txt) {
