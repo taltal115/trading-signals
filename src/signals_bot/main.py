@@ -142,6 +142,15 @@ def main() -> int:
         if signal is None:
             continue
 
+        yahoo_prov = providers.get("yahoo")
+        if signal.action == "BUY" and isinstance(yahoo_prov, YahooProvider):
+            try:
+                info = yahoo_prov.get_ticker_info(ticker)
+                signal.metrics["sector"] = info.get("sector", "")
+                signal.metrics["industry"] = info.get("industry", "")
+            except Exception:
+                pass
+
         signals.append(signal)
         log_signal(logger, signal)
 

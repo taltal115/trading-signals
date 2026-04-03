@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import date
 from typing import Literal
@@ -180,6 +181,13 @@ class BreakoutMomentumStrategy:
         suggested_stop = float(close - (self.cfg.stop_atr_mult * atr14)) if action == "BUY" and not np.isnan(atr14) else None
         suggested_target = float(close + (self.cfg.target_atr_mult * atr14)) if action == "BUY" and not np.isnan(atr14) else None
 
+        hold_days = self.cfg.max_hold_days
+        estimated_hold: float | None = None
+        if action == "BUY" and suggested_target is not None and not np.isnan(atr14) and atr14 > 0:
+            target_dist = suggested_target - close
+            estimated_hold = target_dist / atr14
+            hold_days = max(2, min(math.ceil(estimated_hold), self.cfg.max_hold_days))
+
         return Signal(
             ticker=ticker,
             action=action,
@@ -189,7 +197,7 @@ class BreakoutMomentumStrategy:
             suggested_entry=suggested_entry,
             suggested_stop=suggested_stop,
             suggested_target=suggested_target,
-            max_hold_days=self.cfg.max_hold_days,
+            max_hold_days=hold_days,
             data_provider=data_provider,
             notes=notes,
             metrics={
@@ -203,6 +211,7 @@ class BreakoutMomentumStrategy:
                 "atr_pct": atr_pct,
                 "prior_high_n": prior_high_n,
                 "breakout_dist_pct": breakout_dist_pct,
+                "estimated_hold_days": estimated_hold,
             },
         )
 

@@ -170,6 +170,7 @@ def write_buy_signals(
         close = s.close
         stop = s.suggested_stop
         target = s.suggested_target
+        m = s.metrics or {}
         payload_signals.append(
             {
                 "ticker": s.ticker,
@@ -181,6 +182,9 @@ def write_buy_signals(
                 "stop_pct": _pct_from_close(stop, close),
                 "target": target,
                 "target_pct": _pct_from_close(target, close),
+                "estimated_hold_days": m.get("estimated_hold_days"),
+                "sector": m.get("sector"),
+                "industry": m.get("industry"),
             }
         )
 

@@ -11,6 +11,91 @@ from slack_sdk.errors import SlackApiError
 
 from signals_bot.strategy.breakout import Signal
 
+SECTOR_PALETTE = [
+    "#2eb886",
+    "#36a2eb",
+    "#ff6384",
+    "#ff9f40",
+    "#9966ff",
+    "#4bc0c0",
+    "#c9cb3f",
+    "#e74c3c",
+    "#3498db",
+    "#1abc9c",
+    "#e67e22",
+    "#8e44ad",
+]
+
+
+def sector_color(sector: str) -> str:
+    if not sector:
+        return "#808080"
+    idx = hash(sector) % len(SECTOR_PALETTE)
+    return SECTOR_PALETTE[idx]
+
+
+def _fmt_money(x: float | None) -> str:
+    if x is None:
+        return "-"
+    return f"${x:,.2f}"
+
+
+def _fmt_pct(x: float | None) -> str:
+    if x is None:
+        return "-"
+    return f"{x:,.2f}%"
+
+
+def _pct_from_close(level: float | None, base: float | None) -> float | None:
+    if level is None or base is None or base == 0:
+        return None
+    return ((level - base) / base) * 100.0
+
+
+def _build_signal_attachment(s: Signal) -> dict | None:
+    if s.action not in {"BUY", "SELL"}:
+        return None
+
+    m = s.metrics or {}
+    close = s.close
+    stop = s.suggested_stop
+    target = s.suggested_target
+    stop_pct = _pct_from_close(stop, close)
+    target_pct = _pct_from_close(target, close)
+
+    action_emoji = ":green_circle:" if s.action == "BUY" else ":red_circle:"
+    header = f"{action_emoji} *{s.action}* `{s.ticker}` conf={int(s.confidence)} • Price: ${s.close:,.2f}"
+
+    hold_days = int(s.max_hold_days) if s.max_hold_days is not None else None
+    est_hold = m.get("estimated_hold_days")
+    hold_str = f"{hold_days}d" if hold_days is not None else "-"
+    if est_hold is not None:
+        hold_str += f" (ATR est: {est_hold:.1f}d)"
+    hold_line = f"• Hold: {hold_str}"
+
+    sl_line = f"• SL: {_fmt_money(stop)} ({_fmt_pct(stop_pct)})"
+    tp_line = f"• TP: {_fmt_money(target)} ({_fmt_pct(target_pct)})"
+
+    sector = m.get("sector", "")
+    industry = m.get("industry", "")
+    sector_line = ""
+    if sector:
+        sector_line = f"• Sector: {sector}"
+        if industry:
+            sector_line += f" / {industry}"
+
+    lines = [header, hold_line, sl_line, tp_line]
+    if sector_line:
+        lines.append(sector_line)
+    body = "\n".join(lines)
+
+    return {
+        "color": sector_color(str(sector)),
+        "blocks": [
+            {"type": "section", "text": {"type": "mrkdwn", "text": body}},
+        ],
+    }
+
 
 @dataclass(frozen=True)
 class SlackNotifier:
@@ -19,7 +104,6 @@ class SlackNotifier:
 
     @staticmethod
     def from_env_and_config(*, channel: str) -> "SlackNotifier":
-        # Loads local .env if present (we keep .env out of git).
         load_dotenv(override=False)
 
         token = os.getenv("SLACK_BOT_TOKEN")
@@ -49,7 +133,6 @@ class SlackNotifier:
     ) -> None:
         sigs = [s for s in signals if s.confidence >= min_confidence]
         sigs = sigs[:top_n]
-        # If there are no signals (or no actionable BUY signals), skip Slack entirely.
         if not sigs:
             return
 
@@ -57,86 +140,24 @@ class SlackNotifier:
         if not actionable:
             return
 
-        text = _fmt_action_table(actionable)
-        if not text:
+        attachments = []
+        for s in actionable:
+            att = _build_signal_attachment(s)
+            if att:
+                attachments.append(att)
+
+        if not attachments:
             return
 
+        now = datetime.now(timezone.utc)
+        header = f":chart_with_upwards_trend: *Signal scan* — {now.strftime('%Y-%m-%d %H:%M')} UTC"
+
         try:
-            self.client.chat_postMessage(channel=self.channel, text=text)
+            self.client.chat_postMessage(
+                channel=self.channel,
+                text=header,
+                attachments=attachments,
+            )
         except SlackApiError as e:
             raise RuntimeError(f"Slack post failed: {e.response.get('error')}") from e
-
-
-def _fmt_line(s: Signal) -> str:
-    m = s.metrics or {}
-    ret5 = m.get("ret_5d_pct")
-    volr = m.get("vol_ratio")
-    brk = m.get("breakout_dist_pct")
-    atr = m.get("atr_pct")
-
-    def pct(x: float | None) -> str:
-        return "-" if x is None else f"{x:.1f}%"
-
-    def num(x: float | None) -> str:
-        return "-" if x is None else f"{x:.2f}"
-
-    parts = [
-        f"- *{s.action}* `{s.ticker}` conf={s.confidence} close=${s.close:.2f}",
-        f"ret5={pct(ret5)} volR={num(volr)} brkDist={pct(brk)} atr={pct(atr)}",
-        f"_{s.notes}_",
-    ]
-    if s.action == "BUY":
-        entry = s.suggested_entry or s.close
-        stop = "-" if s.suggested_stop is None else f"${s.suggested_stop:.2f}"
-        target = "-" if s.suggested_target is None else f"${s.suggested_target:.2f}"
-        parts.append(f"entry=${entry:.2f} stop={stop} target={target}")
-    return " | ".join(parts)
-
-
-def _fmt_money(x: float | None) -> str:
-    if x is None:
-        return "-"
-    return f"${x:,.2f}"
-
-
-def _fmt_pct(x: float | None) -> str:
-    if x is None:
-        return "-"
-    return f"{x:,.2f}%"
-
-
-def _fmt_action_table(signals: Iterable[Signal]) -> str:
-    blocks = []
-    for s in signals:
-        if s.action not in {"BUY", "SELL"}:
-            continue
-
-        close = s.close
-        stop = s.suggested_stop
-        target = s.suggested_target
-
-        def pct_from_close(level: float | None, base: float | None) -> float | None:
-            if level is None or base is None or base == 0:
-                return None
-            return ((level - base) / base) * 100.0
-
-        stop_pct = pct_from_close(stop, close)
-        target_pct = pct_from_close(target, close)
-
-        action_emoji = ":green_circle:" if s.action == "BUY" else ":red_circle:"
-        signal_header = f"{action_emoji} *{s.action}* `{s.ticker}` conf={int(s.confidence)} • Price: ${s.close:,.2f}"
-        hold_days = int(s.max_hold_days) if s.max_hold_days is not None else None
-        hold_line = f"• Hold: {hold_days}d" if hold_days is not None else "• Hold: -"
-        sl_line = f"• SL: {_fmt_money(stop)} ({_fmt_pct(stop_pct)})"
-        tp_line = f"• TP: {_fmt_money(target)} ({_fmt_pct(target_pct)})"
-
-        block = "\n".join([signal_header, hold_line, sl_line, tp_line])
-        blocks.append(block)
-
-    if not blocks:
-        return ""
-
-    now = datetime.now(timezone.utc)
-    header = f"📅 {now.strftime('%Y-%m-%d %H:%M:%S')} UTC"
-    return "\n".join([header, ""] + blocks)
 

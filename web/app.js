@@ -657,6 +657,8 @@
       sigCloseRaw === "" || sigCloseRaw == null ? null : parseFloat(sigCloseRaw);
     const notes = String(fd.get("notes") || "").trim() || null;
 
+    var meta = form._signalMeta || {};
+
     const payload = {
       owner_uid: user.uid,
       ticker,
@@ -674,6 +676,9 @@
         signal_close_price != null && Number.isFinite(signal_close_price)
           ? signal_close_price
           : null,
+      sector: meta.sector || null,
+      industry: meta.industry || null,
+      estimated_hold_days: meta.estimated_hold_days || null,
       notes,
       status: "open",
       created_at_utc: new Date().toISOString(),
@@ -709,6 +714,11 @@
     if (hdEl) hdEl.value = hd != null && hd !== "" ? String(hd) : "";
     setNum("signal_close_price", s.close);
     form.querySelector('[name="notes"]').value = "";
+    form._signalMeta = {
+      sector: s.sector || "",
+      industry: s.industry || "",
+      estimated_hold_days: s.estimated_hold_days || null,
+    };
   }
 
   function collapseSignalsInlineForm() {
@@ -1148,15 +1158,32 @@
                 '">Monitor</button>';
             }
 
+            var sectorHtml = "—";
+            if (d.sector) {
+              sectorHtml = '<span class="sector-tag">' + esc(d.sector) + '</span>';
+            }
+
+            var holdHtml = "—";
+            var hdFrom = d.hold_days_from_signal;
+            var estHold = d.estimated_hold_days;
+            if (hdFrom != null) {
+              holdHtml = String(hdFrom) + "d";
+              if (estHold != null) {
+                holdHtml += ' <span class="hold-est">(est ' + Number(estHold).toFixed(1) + 'd)</span>';
+              }
+            }
+
             tr.innerHTML =
               '<td class="code"><strong>' +
               esc(d.ticker) +
               "</strong></td>" +
+              "<td>" + sectorHtml + "</td>" +
               "<td>" + num(d.entry_price) + "</td>" +
               "<td>" + exitCell + "</td>" +
               "<td>" + fmtPnlHtml(d) + "</td>" +
               "<td>" + num(d.stop_price) + "</td>" +
               "<td>" + num(d.target_price) + "</td>" +
+              "<td>" + holdHtml + "</td>" +
               '<td class="spot-cell">' + spotHtml + "</td>" +
               "<td>" + actionHtml + "</td>" +
               "<td>" + esc(d.status) + "</td>" +
@@ -1167,7 +1194,7 @@
             expandTr.className = "pos-monitor-expand";
             expandTr.hidden = true;
             expandTr.innerHTML =
-              '<td colspan="11" class="pos-monitor-expand-cell">' +
+              '<td colspan="13" class="pos-monitor-expand-cell">' +
               '<div class="pos-monitor-expand-inner">Loading checks…</div></td>';
 
             pBody.appendChild(tr);
@@ -1274,18 +1301,28 @@
         snap.forEach(function (doc) {
           var c = doc.data();
           var tagCls = c.tag === "SELL" ? "tag-sell" : "tag-wait";
+          var pnlStr = "—";
+          if (c.pnl_pct != null) {
+            var pv = Number(c.pnl_pct);
+            var pCls = pv > 0.0001 ? "pnl-profit" : (pv < -0.0001 ? "pnl-loss" : "pnl-flat");
+            var sign = pv > 0 ? "+" : "";
+            pnlStr = '<span class="' + pCls + '">' + sign + pv.toFixed(2) + "%</span>";
+          }
+          var daysStr = c.days_held != null ? String(c.days_held) + "d" : "—";
           rows +=
             "<tr>" +
             '<td class="code">' + esc(String(c.ts_utc || "").slice(0, 19).replace("T", " ")) + "</td>" +
             '<td><span class="' + tagCls + '">' + esc(c.tag || c.alert_kind || "") + "</span></td>" +
             "<td>" + (c.confidence != null ? c.confidence : "—") + "</td>" +
             "<td>" + (c.last_spot != null ? Number(c.last_spot).toFixed(2) : "—") + "</td>" +
+            "<td>" + pnlStr + "</td>" +
+            "<td>" + daysStr + "</td>" +
             "<td>" + esc(c.alert_summary || "") + "</td>" +
             "</tr>";
         });
         containerEl.innerHTML =
           '<table class="monitor-mini-table">' +
-          "<thead><tr><th>timestamp</th><th>action</th><th>conf</th><th>spot</th><th>reason</th></tr></thead>" +
+          "<thead><tr><th>timestamp</th><th>action</th><th>conf</th><th>spot</th><th>P/L %</th><th>days</th><th>reason</th></tr></thead>" +
           "<tbody>" + rows + "</tbody></table>";
       })
       .catch(function (err) {
@@ -1345,12 +1382,22 @@
             if (c.tag === "SELL") sellCount++;
             else waitCount++;
             var tagCls = c.tag === "SELL" ? "tag-sell" : "tag-wait";
+            var pnlStr = "—";
+            if (c.pnl_pct != null) {
+              var pv = Number(c.pnl_pct);
+              var pCls = pv > 0.0001 ? "pnl-profit" : (pv < -0.0001 ? "pnl-loss" : "pnl-flat");
+              var sign = pv > 0 ? "+" : "";
+              pnlStr = '<span class="' + pCls + '">' + sign + pv.toFixed(2) + "%</span>";
+            }
+            var daysStr = c.days_held != null ? String(c.days_held) + "d" : "—";
             var tr = document.createElement("tr");
             tr.innerHTML =
               '<td class="code"><strong>' + esc(c.ticker || "") + "</strong></td>" +
               '<td><span class="' + tagCls + '">' + esc(c.tag || c.alert_kind || "") + "</span></td>" +
               "<td>" + (c.confidence != null ? c.confidence : "—") + "</td>" +
               "<td>" + (c.last_spot != null ? Number(c.last_spot).toFixed(2) : "—") + "</td>" +
+              "<td>" + pnlStr + "</td>" +
+              "<td>" + daysStr + "</td>" +
               "<td>" + esc(c.alert_summary || "") + "</td>" +
               '<td class="code">' + esc(String(c.ts_utc || "").slice(0, 19).replace("T", " ")) + "</td>";
             mBody.appendChild(tr);

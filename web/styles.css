@@ -1451,3 +1451,22 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
     display: none !important;
   }
 }
+
+.sector-tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  background: var(--card-bg, #1c2333);
+  border: 1px solid var(--border, #2c3548);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  white-space: nowrap;
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hold-est {
+  font-size: 0.75rem;
+  opacity: 0.65;
+  white-space: nowrap;
+}

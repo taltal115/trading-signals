@@ -15,6 +15,7 @@ class YahooProvider(MarketDataProvider):
     def __init__(self, *, timeout_sec: int = 20, ssl_verify: bool = True, ca_bundle_path: str | None = None) -> None:
         self._timeout_sec = timeout_sec
         self._cache: dict[tuple[str, int], pd.DataFrame] = {}
+        self._info_cache: dict[str, dict[str, str]] = {}
         self._ssl_verify = ssl_verify
         self._ca_bundle_path = ca_bundle_path
 
@@ -95,4 +96,25 @@ class YahooProvider(MarketDataProvider):
         df = df.tail(lookback_days + 10)
         self._cache[cache_key] = df.copy()
         return df
+
+    def get_ticker_info(self, symbol: str) -> dict[str, str]:
+        key = symbol.upper()
+        if key in self._info_cache:
+            return self._info_cache[key]
+
+        try:
+            _stdout = StringIO()
+            _stderr = StringIO()
+            with redirect_stdout(_stdout), redirect_stderr(_stderr):
+                t = yf.Ticker(symbol)
+                info = t.info or {}
+            result = {
+                "sector": info.get("sector", ""),
+                "industry": info.get("industry", ""),
+            }
+        except Exception:
+            result = {"sector": "", "industry": ""}
+
+        self._info_cache[key] = result
+        return result
 
