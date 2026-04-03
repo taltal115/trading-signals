@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import sys
-from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -29,9 +31,10 @@ NEAR_THRESHOLD_PCT = 0.75
 
 @dataclass(frozen=True)
 class Alert:
-    kind: str  # STOP_HIT, STOP_NEAR, TARGET_HIT, TARGET_NEAR, TIME_WARN, HOLD_REVIEW, POSITION_WAIT
+    kind: str
     confidence: int
     message: str
+    atr_hold_est: int | None = field(default=None)
 
 
 def _build_firestore_client() -> firestore.Client:
@@ -79,6 +82,45 @@ def _last_close_and_atr(
     return None, None
 
 
+def _pnl_str(entry_f: float | None, spot: float) -> str:
+    if entry_f is None or entry_f == 0:
+        return ""
+    pnl = ((spot - entry_f) / entry_f) * 100.0
+    return f" ({pnl:+.1f}%)"
+
+
+def _dist_to_target_str(spot: float, target_f: float) -> str:
+    gap = target_f - spot
+    pct = (gap / target_f) * 100.0 if target_f else 0
+    return f"${gap:.2f} ({pct:.1f}%) away from target ${target_f:.2f}"
+
+
+def _compute_atr_hold_est(
+    *,
+    atr14: float | None,
+    target_f: float | None,
+    last_close: float,
+    age_days: int | None,
+) -> int | None:
+    if not atr14 or atr14 <= 0 or not target_f or last_close >= target_f:
+        return None
+    remaining_dist = target_f - last_close
+    est_remaining = remaining_dist / atr14
+    base = age_days if age_days is not None else 0
+    return base + math.ceil(est_remaining)
+
+
+def _due_date_str(created_s: str | None, hold_days: int) -> str:
+    if not created_s:
+        return ""
+    try:
+        created_dt = datetime.fromisoformat(created_s.replace("Z", "+00:00"))
+        due = created_dt.date() + timedelta(days=hold_days)
+        return due.strftime("%b %d")
+    except ValueError:
+        return ""
+
+
 def _eval_position(
     *,
     data: dict[str, Any],
@@ -91,8 +133,7 @@ def _eval_position(
         return Alert(
             "POSITION_WAIT",
             40,
-            f"{ticker} | reason: no daily close from configured providers yet — "
-            "cannot evaluate stop, target, or hold window until a price is available",
+            f"{ticker} — no price data yet. Waiting for market data.",
         )
 
     entry = data.get("entry_price")
@@ -101,83 +142,148 @@ def _eval_position(
     hold_days = data.get("hold_days_from_signal")
     created_s = data.get("created_at_utc")
 
-    age_days = None
+    age_days: int | None = None
     if isinstance(created_s, str):
         try:
             created_dt = datetime.fromisoformat(created_s.replace("Z", "+00:00"))
             age_days = (datetime.now(timezone.utc).date() - created_dt.date()).days
         except ValueError:
-            age_days = None
+            pass
 
     entry_f = float(entry) if isinstance(entry, (int, float)) else None
+    stop_f = float(stop) if isinstance(stop, (int, float)) else None
+    target_f = float(target) if isinstance(target, (int, float)) else None
+    pnl = _pnl_str(entry_f, last_close)
 
-    if isinstance(stop, (int, float)) and last_close <= float(stop):
+    atr_hold_est = _compute_atr_hold_est(
+        atr14=atr14, target_f=target_f, last_close=last_close, age_days=age_days,
+    )
+
+    if stop_f is not None and last_close <= stop_f:
         return Alert(
             "STOP_HIT",
             88,
-            f"{ticker} | reason: last close at or below stop — defensive / risk stop level touched | "
-            f"close={last_close:.2f} stop={float(stop):.2f}",
+            f"{ticker} hit your stop loss. "
+            f"Price ${last_close:.2f} fell to/below stop ${stop_f:.2f}.{pnl} "
+            f"Consider exiting to limit losses.",
+            atr_hold_est=atr_hold_est,
         )
 
-    if isinstance(target, (int, float)) and last_close >= float(target):
+    if target_f is not None and last_close >= target_f:
         return Alert(
             "TARGET_HIT",
             80,
-            f"{ticker} | reason: last close at or above take-profit target | "
-            f"close={last_close:.2f} target={float(target):.2f}",
+            f"{ticker} reached your target! "
+            f"Price ${last_close:.2f} hit target ${target_f:.2f}.{pnl} "
+            f"Consider taking profit.",
+            atr_hold_est=atr_hold_est,
         )
 
-    if isinstance(hold_days, int) and hold_days > 0 and age_days is not None and age_days >= hold_days:
-        return Alert(
-            "TIME_WARN",
-            72,
-            f"{ticker} | reason: max hold from signal reached (time-based exit cue) — "
-            f"review plan vs age={age_days}d hold_days={hold_days} | close={last_close:.2f}",
-        )
+    original_due = (
+        isinstance(hold_days, int) and hold_days > 0
+        and age_days is not None and age_days >= hold_days
+    )
+    atr_due = (
+        atr_hold_est is not None
+        and age_days is not None and age_days >= atr_hold_est
+    )
 
-    if isinstance(hold_days, int) and hold_days > 0 and age_days is not None and age_days == hold_days - 1:
+    if original_due or atr_due:
+        trigger = "original signal hold" if original_due else "ATR re-estimate"
+        hold_ctx = ""
+        if isinstance(hold_days, int) and age_days is not None:
+            due_str = _due_date_str(created_s, hold_days)
+            hold_ctx = f" Original hold: {hold_days}d (due {due_str})."
         atr_ctx = ""
-        if atr14 and entry_f and isinstance(target, (int, float)):
-            remaining_dist = float(target) - last_close
-            if atr14 > 0:
-                est_days_left = remaining_dist / atr14
-                atr_ctx = f" | ATR suggests ~{est_days_left:.1f}d more to target"
+        if atr_hold_est is not None:
+            atr_ctx = f" ATR re-estimate: {atr_hold_est}d total needed."
+        target_ctx = ""
+        if target_f is not None and last_close < target_f:
+            target_ctx = f" Target ${target_f:.2f} still {_dist_to_target_str(last_close, target_f)}."
+
+        return Alert(
+            "DURATION_DUE",
+            72,
+            f"{ticker} signal hold period expired ({trigger}). "
+            f"Day {age_days} of {hold_days or '?'}. Price ${last_close:.2f}.{pnl}"
+            f"{hold_ctx}{atr_ctx}{target_ctx}",
+            atr_hold_est=atr_hold_est,
+        )
+
+    earliest_deadline = None
+    if isinstance(hold_days, int) and hold_days > 0:
+        earliest_deadline = hold_days
+    if atr_hold_est is not None:
+        if earliest_deadline is None or atr_hold_est < earliest_deadline:
+            earliest_deadline = atr_hold_est
+
+    if (
+        earliest_deadline is not None
+        and age_days is not None
+        and age_days == earliest_deadline - 1
+    ):
+        atr_ctx = ""
+        if atr14 and target_f and last_close < target_f:
+            est_left = (target_f - last_close) / atr14
+            atr_ctx = f" ATR suggests ~{est_left:.1f} more days to reach target."
         return Alert(
             "HOLD_REVIEW",
             60,
-            f"{ticker} | reason: 1 day before max hold expires — "
-            f"age={age_days}d of {hold_days}d, close={last_close:.2f}{atr_ctx}",
+            f"{ticker} hold expires tomorrow (day {age_days} of {hold_days or '?'}). "
+            f"Price ${last_close:.2f}.{pnl}{atr_ctx}",
+            atr_hold_est=atr_hold_est,
         )
 
-    if entry_f and isinstance(stop, (int, float)) and float(stop) < entry_f:
-        dist_pct = ((last_close - float(stop)) / entry_f) * 100.0
+    if entry_f and stop_f is not None and stop_f < entry_f:
+        dist_pct = ((last_close - stop_f) / entry_f) * 100.0
         if 0 < dist_pct <= NEAR_THRESHOLD_PCT:
             return Alert(
                 "STOP_NEAR",
                 70,
-                f"{ticker} | reason: within {NEAR_THRESHOLD_PCT:.1f}% of entry→stop cushion (above stop but tight) — "
-                f"elevated stop risk | spot={last_close:.2f}",
+                f"{ticker} is very close to your stop. "
+                f"Price ${last_close:.2f}, only {dist_pct:.1f}% above stop ${stop_f:.2f}.{pnl} "
+                f"Tighten or prepare to exit.",
+                atr_hold_est=atr_hold_est,
             )
 
-    if entry_f and isinstance(target, (int, float)) and float(target) > entry_f:
-        gap = float(target) - last_close
-        room_pct = (gap / float(target)) * 100.0 if float(target) else 100.0
+    if entry_f and target_f is not None and target_f > entry_f:
+        gap = target_f - last_close
+        room_pct = (gap / target_f) * 100.0 if target_f else 100.0
         if 0 < room_pct <= NEAR_THRESHOLD_PCT:
             return Alert(
                 "TARGET_NEAR",
                 65,
-                f"{ticker} | reason: within {NEAR_THRESHOLD_PCT:.1f}% of target (profit zone) — "
-                f"consider partial exit or tightening risk | spot={last_close:.2f}",
+                f"{ticker} is almost at target! "
+                f"Price ${last_close:.2f}, only {room_pct:.1f}% below target ${target_f:.2f}.{pnl} "
+                f"Consider partial exit.",
+                atr_hold_est=atr_hold_est,
             )
 
-    atr_note = ""
+    hold_ctx = ""
+    if isinstance(hold_days, int) and age_days is not None:
+        due_str = _due_date_str(created_s, hold_days)
+        hold_ctx = f" Day {age_days}/{hold_days}"
+        if atr_hold_est is not None and atr_hold_est != hold_days:
+            hold_ctx += f" (ATR est: {atr_hold_est}d)"
+        if due_str:
+            hold_ctx += f", due {due_str}"
+        hold_ctx += "."
+
+    target_ctx = ""
+    if target_f is not None and last_close < target_f:
+        gap = target_f - last_close
+        target_ctx = f" Target ${target_f:.2f} is ${gap:.2f} away."
+
+    atr_ctx = ""
     if atr14:
-        atr_note = f" | atr14={atr14:.2f}"
+        atr_ctx = f" Daily range (ATR): ${atr14:.2f}."
+
     return Alert(
         "POSITION_WAIT",
         55,
-        f"{ticker} | reason: inside planned bracket — no stop breach, target hit, hold overrun, or near-threshold flag | "
-        f"spot={last_close:.2f}{atr_note}",
+        f"{ticker} is on track. Price ${last_close:.2f}{pnl}, between stop and target."
+        f"{hold_ctx}{target_ctx}{atr_ctx}",
+        atr_hold_est=atr_hold_est,
     )
 
 
@@ -212,9 +318,8 @@ def _load_reason_trail(ref: firestore.DocumentReference) -> list[str]:
             pnl = c.get("pnl_pct")
             pnl_str = f" P/L={pnl:+.1f}%" if isinstance(pnl, (int, float)) else ""
             spot = c.get("last_spot")
-            spot_str = f" spot=${spot:.2f}" if isinstance(spot, (int, float)) else ""
-            short_reason = summary.split(" | reason: ")[-1].split(" | ")[0] if " | reason: " in summary else summary
-            trail.append(f"{ts_short} {tag}: {short_reason}{spot_str}{pnl_str}")
+            spot_str = f" ${spot:.2f}" if isinstance(spot, (int, float)) else ""
+            trail.append(f"{ts_short} {tag}:{spot_str}{pnl_str} — {summary}")
         return trail
     except Exception as exc:
         print(f"  WARN: failed to load reason trail: {exc}")
@@ -235,7 +340,7 @@ def _build_exit_attachment(
     hold_days = data.get("hold_days_from_signal")
     days_held = _compute_days_held(data.get("created_at_utc"))
 
-    tag = "SELL" if alert.kind in ("STOP_HIT", "TARGET_HIT", "TIME_WARN") else "REVIEW"
+    tag = "SELL" if alert.kind in EXIT_KINDS else "REVIEW"
     action_emoji = ":red_circle:" if tag == "SELL" else ":warning:"
 
     lines = [f"{action_emoji} *{tag}* `{ticker}` — {alert.kind.replace('_', ' ').lower()}"]
@@ -245,9 +350,18 @@ def _build_exit_attachment(
         lines.append(f"Entry: ${entry_f:.2f} → Spot: ${last_close:.2f} ({pnl_str})")
 
     if days_held is not None and hold_days is not None:
-        lines.append(f"Hold: {days_held}/{hold_days}d")
+        due_str = _due_date_str(data.get("created_at_utc"), hold_days)
+        hold_line = f"Hold: day {days_held} of {hold_days}d"
+        if due_str:
+            hold_line += f" (was due {due_str})"
+        if alert.atr_hold_est is not None:
+            hold_line += f" | ATR re-est: {alert.atr_hold_est}d"
+        lines.append(hold_line)
     elif days_held is not None:
         lines.append(f"Held: {days_held}d")
+
+    lines.append("")
+    lines.append(f"*Reason:* {alert.message}")
 
     if reason_trail:
         lines.append("")
@@ -280,6 +394,7 @@ def _build_wait_attachment(
     if entry_f is not None and last_close is not None:
         pnl_str = f"{pnl_pct:+.1f}%" if pnl_pct is not None else ""
         lines.append(f"Entry: ${entry_f:.2f} → Spot: ${last_close:.2f} ({pnl_str})")
+    lines.append(f"_{alert.message}_")
     body = "\n".join(lines)
     return {
         "color": sector_color(str(sector)) if sector else "#36a2eb",
@@ -307,7 +422,7 @@ def _slack_post_blockkit(*, text: str, attachments: list[dict]) -> None:
         print(f"WARN: Slack failed: {err}")
 
 
-EXIT_KINDS = {"STOP_HIT", "TARGET_HIT", "TIME_WARN"}
+EXIT_KINDS = {"STOP_HIT", "TARGET_HIT", "DURATION_DUE"}
 NOTIFY_KINDS = EXIT_KINDS | {"STOP_NEAR", "TARGET_NEAR", "HOLD_REVIEW"}
 
 
@@ -343,10 +458,10 @@ def main() -> int:
     order = [x for x in cfg.data.provider_order if x in providers] or ["yahoo", "stooq"]
     today = datetime.now(cfg.tz()).date()
 
-    q = db.collection("my_positions").where("status", "==", "open")
+    q = db.collection("my_positions").where(filter=FieldFilter("status", "==", "open"))
     owner_uid = (args.owner_uid or "").strip()
     if owner_uid:
-        q = q.where("owner_uid", "==", owner_uid)
+        q = q.where(filter=FieldFilter("owner_uid", "==", owner_uid))
 
     docs = list(q.stream())
     print(f"monitor_open_positions: {len(docs)} open position(s)")
@@ -407,6 +522,8 @@ def main() -> int:
             }
             if atr14 is not None:
                 check_data["atr14"] = round(atr14, 4)
+            if alert.atr_hold_est is not None:
+                check_data["atr_hold_est"] = alert.atr_hold_est
             try:
                 _, check_ref = ref.collection("checks").add(check_data)
                 print(f"  wrote check → my_positions/{snap.id}/checks/{check_ref.id}  owner_uid={pos_owner}")

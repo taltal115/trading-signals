@@ -1470,3 +1470,9 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
   opacity: 0.65;
   white-space: nowrap;
 }
+
+.hold-due {
+  font-size: 0.7rem;
+  opacity: 0.55;
+  white-space: nowrap;
+}

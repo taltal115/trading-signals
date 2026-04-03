@@ -1135,7 +1135,7 @@
 
             var actionHtml = "—";
             if (d.last_alert_kind) {
-              var isSell = ["STOP_HIT", "TARGET_HIT", "TIME_WARN"].indexOf(d.last_alert_kind) !== -1;
+              var isSell = ["STOP_HIT", "TARGET_HIT", "DURATION_DUE"].indexOf(d.last_alert_kind) !== -1;
               var actionTag = isSell ? "SELL" : "WAIT";
               var actionCls = isSell ? "tag-sell" : "tag-wait";
               actionHtml = '<span class="' + actionCls + '">' + actionTag + "</span>";
@@ -1169,7 +1169,15 @@
             if (hdFrom != null) {
               holdHtml = String(hdFrom) + "d";
               if (estHold != null) {
-                holdHtml += ' <span class="hold-est">(est ' + Number(estHold).toFixed(1) + 'd)</span>';
+                holdHtml += ' <span class="hold-est">(ATR est ' + Number(estHold).toFixed(1) + 'd)</span>';
+              }
+              if (d.created_at_utc) {
+                try {
+                  var created = new Date(d.created_at_utc);
+                  var due = new Date(created.getTime() + hdFrom * 86400000);
+                  var dueStr = due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  holdHtml += '<div class="hold-due">due ' + esc(dueStr) + '</div>';
+                } catch (e) { /* ignore */ }
               }
             }
 
@@ -1309,6 +1317,7 @@
             pnlStr = '<span class="' + pCls + '">' + sign + pv.toFixed(2) + "%</span>";
           }
           var daysStr = c.days_held != null ? String(c.days_held) + "d" : "—";
+          var atrEstStr = c.atr_hold_est != null ? String(c.atr_hold_est) + "d" : "—";
           rows +=
             "<tr>" +
             '<td class="code">' + esc(String(c.ts_utc || "").slice(0, 19).replace("T", " ")) + "</td>" +
@@ -1317,12 +1326,13 @@
             "<td>" + (c.last_spot != null ? Number(c.last_spot).toFixed(2) : "—") + "</td>" +
             "<td>" + pnlStr + "</td>" +
             "<td>" + daysStr + "</td>" +
+            "<td>" + atrEstStr + "</td>" +
             "<td>" + esc(c.alert_summary || "") + "</td>" +
             "</tr>";
         });
         containerEl.innerHTML =
           '<table class="monitor-mini-table">' +
-          "<thead><tr><th>timestamp</th><th>action</th><th>conf</th><th>spot</th><th>P/L %</th><th>days</th><th>reason</th></tr></thead>" +
+          "<thead><tr><th>timestamp</th><th>action</th><th>conf</th><th>spot</th><th>P/L %</th><th>days</th><th>ATR est</th><th>reason</th></tr></thead>" +
           "<tbody>" + rows + "</tbody></table>";
       })
       .catch(function (err) {
@@ -1390,6 +1400,7 @@
               pnlStr = '<span class="' + pCls + '">' + sign + pv.toFixed(2) + "%</span>";
             }
             var daysStr = c.days_held != null ? String(c.days_held) + "d" : "—";
+            var atrEstStr = c.atr_hold_est != null ? String(c.atr_hold_est) + "d" : "—";
             var tr = document.createElement("tr");
             tr.innerHTML =
               '<td class="code"><strong>' + esc(c.ticker || "") + "</strong></td>" +
@@ -1398,6 +1409,7 @@
               "<td>" + (c.last_spot != null ? Number(c.last_spot).toFixed(2) : "—") + "</td>" +
               "<td>" + pnlStr + "</td>" +
               "<td>" + daysStr + "</td>" +
+              "<td>" + atrEstStr + "</td>" +
               "<td>" + esc(c.alert_summary || "") + "</td>" +
               '<td class="code">' + esc(String(c.ts_utc || "").slice(0, 19).replace("T", " ")) + "</td>";
             mBody.appendChild(tr);
