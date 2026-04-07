@@ -81,6 +81,18 @@
     if (!res.ok) throw new Error("GitHub API error: " + res.status);
   }
 
+  async function fetchLivePrice(ticker) {
+    var apiKey = cfg.finnhubApiKey;
+    if (!apiKey) throw new Error("No Finnhub API key configured");
+    var url = "https://finnhub.io/api/v1/quote?symbol=" +
+              encodeURIComponent(ticker) + "&token=" + apiKey;
+    var res = await fetch(url);
+    if (!res.ok) throw new Error("Finnhub error: " + res.status);
+    var data = await res.json();
+    if (data.c == null || data.c === 0) throw new Error("No price data");
+    return data.c;
+  }
+
   const loginScreen = document.getElementById("login-screen");
   const appShell = document.getElementById("app-shell");
   const loginGoogleBtn = document.getElementById("login-google-btn");
@@ -1342,7 +1354,7 @@
               '<td class="spot-cell">' + spotHtml + "</td>" +
               "<td>" + actionHtml + "</td>" +
               "<td>" + esc(d.status) + "</td>" +
-              '<td class="code">' + esc(d.created_at_utc || "") + "</td>" +
+              '<td class="code">' + esc(d.bought_at || d.created_at_utc || "") + "</td>" +
               "<td>" + actionsHtml + "</td>";
 
             var expandTr = document.createElement("tr");
@@ -1387,39 +1399,61 @@
           });
 
           pBody.querySelectorAll(".btn-spot-refresh").forEach(function (btn) {
-            btn.addEventListener("click", function (ev) {
+            btn.addEventListener("click", async function (ev) {
               ev.stopPropagation();
               var docId = btn.getAttribute("data-doc-id");
+              var ticker = btn.getAttribute("data-ticker");
               if (!docId) return;
               btn.disabled = true;
               btn.textContent = "…";
-              db.collection(COL_MY_POSITIONS).doc(docId).get()
-                .then(function (snap) {
-                  if (!snap.exists) return;
-                  var fresh = snap.data();
-                  var cell = btn.closest(".spot-cell");
-                  if (cell && fresh.last_spot != null) {
-                    var spot = Number(fresh.last_spot);
-                    var entry = fresh.entry_price != null ? Number(fresh.entry_price) : null;
-                    var cls = "spot-val";
-                    var arrow = "";
-                    if (entry != null && Number.isFinite(entry) && entry > 0) {
-                      if (spot > entry) { cls = "spot-val spot-up"; arrow = " &#9650;"; }
-                      else if (spot < entry) { cls = "spot-val spot-down"; arrow = " &#9660;"; }
-                    }
-                    var valEl = cell.querySelector(".spot-val");
-                    if (valEl) { valEl.className = cls; valEl.innerHTML = spot.toFixed(2) + arrow; }
-                    var staleEl = cell.querySelector(".spot-stale");
-                    if (staleEl) {
-                      var ts2 = fresh.last_alert_ts_utc ? String(fresh.last_alert_ts_utc).slice(0, 16).replace("T", " ") : "just now";
-                      staleEl.textContent = ts2;
-                    }
+
+              var cell = btn.closest(".spot-cell");
+              var entry = null;
+              try {
+                var snap = await db.collection(COL_MY_POSITIONS).doc(docId).get();
+                if (snap.exists) {
+                  var posData = snap.data();
+                  entry = posData.entry_price != null ? Number(posData.entry_price) : null;
+                }
+              } catch (e) { /* ignore */ }
+
+              var spot = null;
+              var tsLabel = "live";
+              try {
+                if (ticker) {
+                  spot = await fetchLivePrice(ticker);
+                }
+              } catch (liveErr) {
+                console.warn("Finnhub fetch failed, falling back to Firestore:", liveErr);
+                try {
+                  var snap2 = await db.collection(COL_MY_POSITIONS).doc(docId).get();
+                  if (snap2.exists) {
+                    var cached = snap2.data();
+                    spot = cached.last_spot != null ? Number(cached.last_spot) : null;
+                    tsLabel = cached.last_alert_ts_utc
+                      ? String(cached.last_alert_ts_utc).slice(0, 16).replace("T", " ")
+                      : "cached";
                   }
-                })
-                .finally(function () {
-                  btn.disabled = false;
-                  btn.innerHTML = "&#x21bb;";
-                });
+                } catch (fsErr) {
+                  console.error("Firestore fallback failed:", fsErr);
+                }
+              }
+
+              if (cell && spot != null && Number.isFinite(spot)) {
+                var cls = "spot-val";
+                var arrow = "";
+                if (entry != null && Number.isFinite(entry) && entry > 0) {
+                  if (spot > entry) { cls = "spot-val spot-up"; arrow = " &#9650;"; }
+                  else if (spot < entry) { cls = "spot-val spot-down"; arrow = " &#9660;"; }
+                }
+                var valEl = cell.querySelector(".spot-val");
+                if (valEl) { valEl.className = cls; valEl.innerHTML = spot.toFixed(2) + arrow; }
+                var staleEl = cell.querySelector(".spot-stale");
+                if (staleEl) { staleEl.textContent = tsLabel; }
+              }
+
+              btn.disabled = false;
+              btn.innerHTML = "&#x21bb;";
             });
           });
 

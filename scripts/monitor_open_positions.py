@@ -170,11 +170,27 @@ def _eval_position(
         )
 
     if target_f is not None and last_close >= target_f:
+        excess = last_close - target_f
+        excess_pct = (excess / target_f) * 100.0 if target_f else 0
+
+        momentum_ctx = ""
+        if atr14 and atr14 > 0:
+            excess_in_atr = excess / atr14
+            if excess_pct > 5 or excess_in_atr > 1.5:
+                momentum_ctx = " Strong momentum — price moved well past target."
+            elif excess_pct > 2 or excess_in_atr > 0.5:
+                momentum_ctx = " Good momentum continues."
+
+        above_ctx = ""
+        if excess > 0.01:
+            above_ctx = f" Currently ${excess:.2f} ({excess_pct:.1f}%) above target."
+
         return Alert(
             "TARGET_HIT",
             80,
             f"{ticker} reached your target! "
-            f"Price ${last_close:.2f} hit target ${target_f:.2f}.{pnl} "
+            f"Price ${last_close:.2f} hit target ${target_f:.2f}.{pnl}"
+            f"{above_ctx}{momentum_ctx} "
             f"Consider taking profit.",
             atr_hold_est=atr_hold_est,
         )

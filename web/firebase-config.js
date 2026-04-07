@@ -12,6 +12,9 @@ const firebaseConfig = {
   allowedSignInEmails: ["taltal115@gmail.com"],
   // Optional: allow these Firebase Auth UIDs even if email matching is awkward (client-only; rules use owner_uid).
   allowedAuthUids: ["tgIBRfrP1ibiEi6P2LMsVoyvNaM2"],
+
+  // Finnhub API key for live price quotes
+  finnhubApiKey: "d291bthr01qhoen95h40d291bthr01qhoen95h4g",
 };
 
 window.firebaseConfig = firebaseConfig;
