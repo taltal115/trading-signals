@@ -181,33 +181,10 @@
           <main class="app-main">
         <section id="panel-dashboard" class="panel" aria-label="Dashboard">
           <h2>Dashboard</h2>
-          <p class="dashboard-lead">Latest snapshot from Firestore (universe &amp; signals are public reads; positions need sign-in).</p>
-          <div class="dashboard-grid">
-            <article class="dash-card">
-              <h3>Latest universe</h3>
-              <p id="dash-universe-empty" class="dash-muted">Loading…</p>
-              <div id="dash-universe-body" class="dash-body" hidden></div>
-              <a href="/universe" class="dash-more nav-anchor" data-route="universe">View universe →</a>
-            </article>
-            <article class="dash-card">
-              <h3>Latest signal run</h3>
-              <p id="dash-signals-empty" class="dash-muted">Loading…</p>
-              <div id="dash-signals-body" class="dash-body" hidden></div>
-              <a href="/signals" class="dash-more nav-anchor" data-route="signals">View signals →</a>
-            </article>
-            <article class="dash-card">
-              <h3>Positions</h3>
-              <p id="dash-positions-empty" class="dash-muted">Sign in to load my_positions.</p>
-              <div id="dash-positions-body" class="dash-body" hidden></div>
-              <a href="/positions" class="dash-more nav-anchor" data-route="positions">Open positions →</a>
-            </article>
-            <article class="dash-card">
-              <h3>Monitor</h3>
-              <p id="dash-monitor-empty" class="dash-muted">Sign in to load monitor checks.</p>
-              <div id="dash-monitor-body" class="dash-body" hidden></div>
-              <a href="/monitor" class="dash-more nav-anchor" data-route="monitor">View monitor →</a>
-            </article>
-          </div>
+          <p class="dashboard-lead">Your open positions at a glance.</p>
+          <p id="dash-positions-gate" class="dash-muted" hidden>Sign in with Google to view your positions.</p>
+          <p id="dash-positions-empty" class="dash-muted" hidden>No open positions. Log a fill from Signals.</p>
+          <div id="dash-positions-cards" class="positions-cards-grid" hidden></div>
         </section>
 
         <section id="panel-universe" class="panel" aria-label="Universe history">
@@ -284,6 +261,10 @@
                 <label>
                   Signal close price (optional)
                   <input name="signal_close_price" type="number" step="any" min="0" placeholder="market close at signal" />
+                </label>
+                <label>
+                  Buy date/time
+                  <input name="bought_at" type="datetime-local" />
                 </label>
               </div>
               <label style="margin-top: 0.85rem">

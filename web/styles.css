@@ -1331,6 +1331,29 @@ button.btn-monitor-toggle:hover {
   background: rgba(61, 214, 198, 0.22);
 }
 
+button.btn-check-now {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.72rem;
+  border-radius: 4px;
+  border: 1px solid var(--muted);
+  background: rgba(139, 148, 158, 0.1);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+}
+
+button.btn-check-now:hover {
+  border-color: var(--text);
+  color: var(--text);
+  background: rgba(139, 148, 158, 0.2);
+}
+
+button.btn-check-now:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 tr.pos-monitor-expand td.pos-monitor-expand-cell {
   padding: 0 !important;
   border-bottom: 1px solid var(--border);
@@ -1475,4 +1498,112 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
   font-size: 0.7rem;
   opacity: 0.55;
   white-space: nowrap;
+}
+
+.positions-cards-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  margin-bottom: 1.5rem;
+}
+
+.position-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.position-card.row-profit {
+  border-left: 4px solid var(--buy);
+  background: linear-gradient(90deg, rgba(63,185,80,0.08) 0%, var(--surface) 30%);
+}
+
+.position-card.row-loss {
+  border-left: 4px solid var(--sell);
+  background: linear-gradient(90deg, rgba(248,81,73,0.08) 0%, var(--surface) 30%);
+}
+
+.position-card.row-flat,
+.position-card.row-open {
+  border-left: 4px solid var(--muted);
+}
+
+.pos-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pos-card-ticker {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  font-family: ui-monospace, monospace;
+}
+
+.pos-card-action {
+  font-size: 0.78rem;
+}
+
+.pos-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.pos-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.pos-card-label {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.pos-card-value {
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+  word-break: break-word;
+}
+
+.pos-card-value.spot-up {
+  color: var(--buy);
+}
+
+.pos-card-value.spot-down {
+  color: var(--sell);
+}
+
+.pos-card-sector {
+  font-size: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1rem 0.35rem;
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin-top: 1.25rem;
+}
+
+.dashboard-nav-links .dash-more {
+  margin-top: 0;
 }

@@ -436,6 +436,7 @@ def main() -> int:
     )
     p.add_argument("--dry-run", action="store_true", help="Do not write Firestore dedupe fields or Slack.")
     p.add_argument("--no-slack", action="store_true", help="Never post Slack.")
+    p.add_argument("--ticker", default="", help="Single ticker to check (default: all open positions).")
     args = p.parse_args()
 
     load_dotenv(override=False)
@@ -462,6 +463,9 @@ def main() -> int:
     owner_uid = (args.owner_uid or "").strip()
     if owner_uid:
         q = q.where(filter=FieldFilter("owner_uid", "==", owner_uid))
+    single_ticker = (args.ticker or "").strip().upper()
+    if single_ticker:
+        q = q.where(filter=FieldFilter("ticker", "==", single_ticker))
 
     docs = list(q.stream())
     print(f"monitor_open_positions: {len(docs)} open position(s)")

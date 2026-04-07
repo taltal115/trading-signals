@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: "25 14-21 * * 1-5"
   workflow_dispatch:
+    inputs:
+      ticker:
+        description: 'Single ticker to check (leave empty for all)'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -42,4 +47,8 @@ jobs:
           SLACK_CHANNEL: "#trading-signals"
           MONITOR_OWNER_UID: ${{ secrets.MONITOR_OWNER_UID }}
         run: |
-          PYTHONPATH=./src python scripts/monitor_open_positions.py --config config.yaml
+          TICKER_ARG=""
+          if [ -n "${{ github.event.inputs.ticker }}" ]; then
+            TICKER_ARG="--ticker ${{ github.event.inputs.ticker }}"
+          fi
+          PYTHONPATH=./src python scripts/monitor_open_positions.py --config config.yaml $TICKER_ARG

@@ -50,6 +50,37 @@
     window.location.hostname === "127.0.0.1" ||
     window.location.hostname === "[::1]";
 
+  var GH_REPO_OWNER = "taltal115";
+  var GH_REPO_NAME = "trading-signals";
+  var GH_PAT_KEY = "gh_pat_monitor";
+
+  async function triggerMonitorWorkflow(ticker) {
+    var token = null;
+    try { token = localStorage.getItem(GH_PAT_KEY); } catch (e) { /* ignore */ }
+    if (!token) {
+      token = prompt("Enter GitHub PAT with workflow scope (stored locally):");
+    }
+    if (!token) throw new Error("No GitHub token provided");
+    try { localStorage.setItem(GH_PAT_KEY, token); } catch (e) { /* ignore */ }
+
+    var url =
+      "https://api.github.com/repos/" + GH_REPO_OWNER + "/" + GH_REPO_NAME +
+      "/actions/workflows/position-monitor.yml/dispatches";
+    var res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + token,
+        Accept: "application/vnd.github+json",
+      },
+      body: JSON.stringify({ ref: "main", inputs: { ticker: ticker || "" } }),
+    });
+    if (res.status === 401 || res.status === 403) {
+      try { localStorage.removeItem(GH_PAT_KEY); } catch (e) { /* ignore */ }
+      throw new Error("GitHub auth failed - token cleared, try again");
+    }
+    if (!res.ok) throw new Error("GitHub API error: " + res.status);
+  }
+
   const loginScreen = document.getElementById("login-screen");
   const appShell = document.getElementById("app-shell");
   const loginGoogleBtn = document.getElementById("login-google-btn");
@@ -514,37 +545,139 @@
   }
 
   function renderDashboardPositionsGuest() {
+    const gate = document.getElementById("dash-positions-gate");
     const empty = document.getElementById("dash-positions-empty");
-    const body = document.getElementById("dash-positions-body");
-    if (!empty || !body) return;
-    body.hidden = true;
-    empty.hidden = false;
-    if (isLocalHost) {
-      empty.textContent = "Positions disabled on localhost.";
-    } else {
-      empty.textContent = "Sign in to load my_positions.";
+    const cards = document.getElementById("dash-positions-cards");
+    if (gate) {
+      gate.hidden = false;
+      if (isLocalHost) {
+        gate.textContent = "Positions disabled on localhost.";
+      } else {
+        gate.textContent = "Sign in with Google to view your positions.";
+      }
     }
+    if (empty) empty.hidden = true;
+    if (cards) cards.hidden = true;
   }
 
   function updateDashboardPositionsSummary(openC, closedC, emptySnap) {
-    const elEmpty = document.getElementById("dash-positions-empty");
-    const elBody = document.getElementById("dash-positions-body");
-    if (!elEmpty || !elBody) return;
-    if (emptySnap) {
-      elEmpty.hidden = false;
-      elEmpty.textContent = "No positions yet. Log a fill from Signals.";
-      elBody.hidden = true;
+    var gate = document.getElementById("dash-positions-gate");
+    var empty = document.getElementById("dash-positions-empty");
+    if (gate) gate.hidden = true;
+    if (empty) {
+      if (emptySnap) {
+        empty.hidden = false;
+        empty.textContent = "No open positions. Log a fill from Signals.";
+      } else {
+        empty.hidden = true;
+      }
+    }
+  }
+
+  function renderDashboardPositionCards(openPositions) {
+    var cards = document.getElementById("dash-positions-cards");
+    if (!cards) return;
+    if (!openPositions || openPositions.length === 0) {
+      cards.hidden = true;
       return;
     }
-    elEmpty.hidden = true;
-    elBody.hidden = false;
-    elBody.innerHTML =
-      "<p><strong>" +
-      openC +
-      "</strong> open · " +
-      '<span class="dash-meta">' +
-      closedC +
-      " closed (recent)</span></p>";
+    cards.hidden = false;
+    cards.innerHTML = "";
+
+    openPositions.forEach(function (pos) {
+      var d = pos.data;
+      var card = document.createElement("article");
+      card.className = "position-card " + rowPnlClass(d);
+
+      var entryF = d.entry_price != null ? Number(d.entry_price) : null;
+      var spotF = d.last_spot != null ? Number(d.last_spot) : null;
+
+      var pnlHtml = fmtPnlHtml(d);
+      var spotArrow = "";
+      var spotCls = "";
+      if (spotF != null && entryF != null && Number.isFinite(entryF) && entryF > 0) {
+        if (spotF > entryF) { spotCls = "spot-up"; spotArrow = " &#9650;"; }
+        else if (spotF < entryF) { spotCls = "spot-down"; spotArrow = " &#9660;"; }
+      }
+
+      var actionHtml = "—";
+      if (d.last_alert_kind) {
+        var isSell = ["STOP_HIT", "TARGET_HIT", "DURATION_DUE"].indexOf(d.last_alert_kind) !== -1;
+        var actionTag = isSell ? "SELL" : "WAIT";
+        var actionCls = isSell ? "tag-sell" : "tag-wait";
+        actionHtml = '<span class="' + actionCls + '">' + actionTag + "</span>";
+      }
+
+      var holdHtml = "—";
+      var hdFrom = d.hold_days_from_signal;
+      var estHold = d.estimated_hold_days;
+      var dueStr = "";
+      if (hdFrom != null && d.created_at_utc) {
+        try {
+          var created = new Date(d.created_at_utc);
+          var due = new Date(created.getTime() + hdFrom * 86400000);
+          dueStr = due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        } catch (e) { /* ignore */ }
+      }
+      if (hdFrom != null) {
+        holdHtml = hdFrom + "d";
+        if (estHold != null) {
+          holdHtml += " (ATR ~" + Number(estHold).toFixed(0) + "d)";
+        }
+      }
+
+      var boughtAtStr = "";
+      if (d.bought_at) {
+        try {
+          var bDate = new Date(d.bought_at);
+          boughtAtStr = bDate.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        } catch (e) { /* ignore */ }
+      } else if (d.created_at_utc) {
+        try {
+          var cDate = new Date(d.created_at_utc);
+          boughtAtStr = cDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        } catch (e) { /* ignore */ }
+      }
+
+      var spotHtml = spotF != null ? "$" + spotF.toFixed(2) : "—";
+
+      card.innerHTML =
+        '<div class="pos-card-header">' +
+          '<span class="pos-card-ticker">' + esc(d.ticker || "—") + "</span>" +
+          '<span class="pos-card-action">' + actionHtml + "</span>" +
+        "</div>" +
+        '<div class="pos-card-body">' +
+          '<div class="pos-card-row">' +
+            '<span class="pos-card-label">Entry</span>' +
+            '<span class="pos-card-value">$' + (entryF != null ? entryF.toFixed(2) : "—") + "</span>" +
+          "</div>" +
+          '<div class="pos-card-row">' +
+            '<span class="pos-card-label">Spot</span>' +
+            '<span class="pos-card-value ' + spotCls + '">' + spotHtml + spotArrow + "</span>" +
+          "</div>" +
+          '<div class="pos-card-row">' +
+            '<span class="pos-card-label">P/L</span>' +
+            '<span class="pos-card-value">' + pnlHtml + "</span>" +
+          "</div>" +
+          '<div class="pos-card-row">' +
+            '<span class="pos-card-label">Stop</span>' +
+            '<span class="pos-card-value">' + (d.stop_price != null ? "$" + Number(d.stop_price).toFixed(2) : "—") + "</span>" +
+          "</div>" +
+          '<div class="pos-card-row">' +
+            '<span class="pos-card-label">Target</span>' +
+            '<span class="pos-card-value">' + (d.target_price != null ? "$" + Number(d.target_price).toFixed(2) : "—") + "</span>" +
+          "</div>" +
+          '<div class="pos-card-row">' +
+            '<span class="pos-card-label">Hold</span>' +
+            '<span class="pos-card-value">' + holdHtml + "</span>" +
+          "</div>" +
+          (dueStr ? '<div class="pos-card-row"><span class="pos-card-label">Due</span><span class="pos-card-value">' + esc(dueStr) + "</span></div>" : "") +
+          (d.sector ? '<div class="pos-card-row"><span class="pos-card-label">Sector</span><span class="pos-card-value pos-card-sector">' + esc(d.sector) + "</span></div>" : "") +
+          (boughtAtStr ? '<div class="pos-card-row"><span class="pos-card-label">Bought</span><span class="pos-card-value">' + esc(boughtAtStr) + "</span></div>" : "") +
+        "</div>";
+
+      cards.appendChild(card);
+    });
   }
 
   function setPositionsGuestMode(guest) {
@@ -655,6 +788,8 @@
     const sigCloseRaw = fd.get("signal_close_price");
     const signal_close_price =
       sigCloseRaw === "" || sigCloseRaw == null ? null : parseFloat(sigCloseRaw);
+    const boughtAtRaw = fd.get("bought_at");
+    const bought_at = boughtAtRaw ? new Date(boughtAtRaw).toISOString() : null;
     const notes = String(fd.get("notes") || "").trim() || null;
 
     var meta = form._signalMeta || {};
@@ -676,6 +811,7 @@
         signal_close_price != null && Number.isFinite(signal_close_price)
           ? signal_close_price
           : null,
+      bought_at: bought_at,
       sector: meta.sector || null,
       industry: meta.industry || null,
       estimated_hold_days: meta.estimated_hold_days || null,
@@ -771,6 +907,7 @@
       '<label>Linked signal doc ID (optional) <input name="signal_doc_id" placeholder="Firestore document id" /></label>' +
       '<label>Hold days (optional) <input name="hold_days_from_signal" type="number" min="1" max="30" placeholder="5" /></label>' +
       '<label>Signal close price <input name="signal_close_price" type="number" step="any" min="0" placeholder="market close at signal" /></label>' +
+      '<label>Buy date/time <input name="bought_at" type="datetime-local" /></label>' +
       "</div>" +
       '<label class="signals-inline-notes-label">Notes <textarea name="notes" placeholder="Bracket type, broker, etc."></textarea></label>' +
       '<div class="form-actions"><button type="submit">Save open position</button></div>' +
@@ -1078,19 +1215,26 @@
           pBody.innerHTML = "";
           let openC = 0;
           let closedC = 0;
+          var openPositions = [];
           if (snap.empty) {
             pHint.hidden = false;
             pHint.textContent = "No positions yet. Add one with the form above.";
             pWrap.hidden = true;
             updateDashboardPositionsSummary(0, 0, true);
+            renderDashboardPositionCards([]);
             return;
           }
           snap.forEach((docRef) => {
             const d = docRef.data();
-            if (d.status === "open") openC += 1;
-            else closedC += 1;
+            if (d.status === "open") {
+              openC += 1;
+              openPositions.push({ id: docRef.id, data: d });
+            } else {
+              closedC += 1;
+            }
           });
           updateDashboardPositionsSummary(openC, closedC, false);
+          renderDashboardPositionCards(openPositions);
           pHint.hidden = true;
           pWrap.hidden = false;
           snap.forEach((docRef) => {
@@ -1155,7 +1299,10 @@
                 escAttr(docRef.id) +
                 '" data-ticker="' +
                 escAttr(d.ticker) +
-                '">Monitor</button>';
+                '">Monitor</button>' +
+                ' <button type="button" class="btn-check-now" data-ticker="' +
+                escAttr(d.ticker) +
+                '">Check</button>';
             }
 
             var sectorHtml = "—";
@@ -1273,6 +1420,31 @@
                   btn.disabled = false;
                   btn.innerHTML = "&#x21bb;";
                 });
+            });
+          });
+
+          pBody.querySelectorAll(".btn-check-now").forEach(function (btn) {
+            btn.addEventListener("click", async function () {
+              var ticker = btn.getAttribute("data-ticker");
+              if (!ticker) return;
+              btn.disabled = true;
+              var origText = btn.textContent;
+              btn.textContent = "…";
+              try {
+                await triggerMonitorWorkflow(ticker);
+                btn.textContent = "Triggered";
+                setTimeout(function () {
+                  btn.textContent = origText;
+                  btn.disabled = false;
+                }, 3000);
+              } catch (err) {
+                console.error("Check workflow error:", err);
+                btn.textContent = "Error";
+                setTimeout(function () {
+                  btn.textContent = origText;
+                  btn.disabled = false;
+                }, 3000);
+              }
             });
           });
 
