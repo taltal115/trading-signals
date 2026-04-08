@@ -5,6 +5,11 @@ on:
     # Run every hour, Monday through Friday, during market hours (approx 14:00 - 21:00 UTC)
     - cron: "0 14-21 * * 1-5"
   workflow_dispatch:
+    inputs:
+      ticker:
+        description: 'Single ticker to re-evaluate (leave empty for full scan)'
+        required: false
+        default: ''
 
 jobs:
   run-bot:
@@ -43,5 +48,10 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL: "#trading-signals"
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-        run: PYTHONPATH=./src python -m signals_bot.main --config config.yaml
+        run: |
+          TICKER_ARG=""
+          if [ -n "${{ github.event.inputs.ticker }}" ]; then
+            TICKER_ARG="--ticker ${{ github.event.inputs.ticker }}"
+          fi
+          PYTHONPATH=./src python -m signals_bot.main --config config.yaml $TICKER_ARG
 

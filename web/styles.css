@@ -1051,6 +1051,70 @@ button.btn-log-buy:hover {
   background: rgba(63, 185, 80, 0.28);
 }
 
+.sig-actions-cell {
+  white-space: nowrap;
+}
+
+.sig-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.sig-live-cell {
+  white-space: nowrap;
+}
+
+.sig-live-val {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-sig-refresh {
+  font-size: 0.82rem;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.btn-sig-refresh:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-sig-refresh:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.btn-reeval {
+  padding: 0.28rem 0.55rem;
+  font-size: 0.72rem;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: 5px;
+  border: 1px solid var(--accent);
+  background: rgba(61, 214, 198, 0.1);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+button.btn-reeval:hover {
+  background: rgba(61, 214, 198, 0.22);
+}
+
+button.btn-reeval:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .signals-main-table .muted-cell {
   color: var(--muted);
   font-size: 0.78rem;

@@ -23,6 +23,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--config", required=True, help="Path to YAML config.")
     p.add_argument("--no-slack", action="store_true", help="Disable Slack posting for this run.")
     p.add_argument("--dry-run", action="store_true", help="Do not write SQLite or send Slack.")
+    p.add_argument("--ticker", default="", help="Single ticker to evaluate (default: full universe).")
     return p
 
 
@@ -109,7 +110,17 @@ def main() -> int:
         universe_set |= set(scanner_universe)
 
     universe = sorted(universe_set)
-    logger.info("Universe size: %d tickers", len(universe))
+
+    single_ticker = (args.ticker or "").strip().upper()
+    if single_ticker:
+        if single_ticker in universe_set:
+            universe = [single_ticker]
+            logger.info("Single ticker mode: evaluating only %s", single_ticker)
+        else:
+            universe = [single_ticker]
+            logger.info("Single ticker mode: %s (not in universe, evaluating anyway)", single_ticker)
+    else:
+        logger.info("Universe size: %d tickers", len(universe))
 
     signals = []
     for ticker in universe:

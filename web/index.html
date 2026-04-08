@@ -207,15 +207,20 @@
         </section>
 
         <section id="panel-signals" class="panel" aria-label="Signal runs">
-          <h2>Bot signal runs (BUY payloads)</h2>
+          <h2>Bot signals (BUY recommendations)</h2>
           <p class="empty-state" id="signals-hint">Loading…</p>
           <div class="table-wrap" id="signals-table-wrap" hidden>
             <table class="signals-main-table">
               <thead>
                 <tr>
-                  <th>asof_date</th>
-                  <th># BUY</th>
-                  <th>Log a buy</th>
+                  <th>date</th>
+                  <th>ticker</th>
+                  <th>signal price</th>
+                  <th>live price</th>
+                  <th>entry</th>
+                  <th>stop</th>
+                  <th>target</th>
+                  <th>actions</th>
                 </tr>
               </thead>
               <tbody id="signals-body"></tbody>

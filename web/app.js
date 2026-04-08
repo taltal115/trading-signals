@@ -93,6 +93,33 @@
     return data.c;
   }
 
+  async function triggerBotScanWorkflow(ticker) {
+    var token = null;
+    try { token = localStorage.getItem(GH_PAT_KEY); } catch (e) { /* ignore */ }
+    if (!token) {
+      token = prompt("Enter GitHub PAT with workflow scope (stored locally):");
+    }
+    if (!token) throw new Error("No GitHub token provided");
+    try { localStorage.setItem(GH_PAT_KEY, token); } catch (e) { /* ignore */ }
+
+    var url =
+      "https://api.github.com/repos/" + GH_REPO_OWNER + "/" + GH_REPO_NAME +
+      "/actions/workflows/trading-bot-scan.yml/dispatches";
+    var res = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + token,
+        Accept: "application/vnd.github+json",
+      },
+      body: JSON.stringify({ ref: "main", inputs: { ticker: ticker || "" } }),
+    });
+    if (res.status === 401 || res.status === 403) {
+      try { localStorage.removeItem(GH_PAT_KEY); } catch (e) { /* ignore */ }
+      throw new Error("GitHub auth failed - token cleared, try again");
+    }
+    if (!res.ok) throw new Error("GitHub API error: " + res.status);
+  }
+
   const loginScreen = document.getElementById("login-screen");
   const appShell = document.getElementById("app-shell");
   const loginGoogleBtn = document.getElementById("login-google-btn");
@@ -1155,43 +1182,120 @@
           snap.forEach((doc) => {
             const d = doc.data();
             const arr = Array.isArray(d.signals) ? d.signals : [];
+            const asofDate = String(d.asof_date || "");
 
-            const tr = document.createElement("tr");
-            const tdAsof = document.createElement("td");
-            tdAsof.className = "code";
-            tdAsof.textContent = String(d.asof_date || "");
-            const tdN = document.createElement("td");
-            tdN.textContent = String(arr.length);
+            arr.forEach((s) => {
+              const tr = document.createElement("tr");
 
-            const tdCta = document.createElement("td");
-            tdCta.className = "cta-cell";
-            const ctaWrap = document.createElement("div");
-            ctaWrap.className = "cta-row";
+              var tdDate = document.createElement("td");
+              tdDate.className = "code";
+              tdDate.textContent = asofDate;
 
-            if (!arr.length) {
-              const span = document.createElement("span");
-              span.className = "muted-cell";
-              span.textContent = "No BUY rows";
-              ctaWrap.appendChild(span);
-            } else {
-              arr.forEach((s) => {
-                const b = document.createElement("button");
-                b.type = "button";
-                b.className = "btn-log-buy";
-                b.textContent = "Log " + String(s.ticker || "?");
-                b.addEventListener("click", (ev) => {
-                  ev.stopPropagation();
-                  openOrToggleSignalsInlineForm(tr, doc.id, s);
-                });
-                ctaWrap.appendChild(b);
+              var tdTicker = document.createElement("td");
+              tdTicker.className = "code";
+              tdTicker.innerHTML = "<strong>" + esc(s.ticker || "?") + "</strong>";
+
+              var tdSignalPrice = document.createElement("td");
+              tdSignalPrice.textContent = s.close != null ? "$" + Number(s.close).toFixed(2) : "—";
+
+              var tdLivePrice = document.createElement("td");
+              tdLivePrice.className = "sig-live-cell";
+              tdLivePrice.innerHTML =
+                '<span class="sig-live-val">—</span>' +
+                ' <button type="button" class="btn-sig-refresh" data-ticker="' +
+                escAttr(s.ticker || "") + '">&#x21bb;</button>';
+
+              var tdEntry = document.createElement("td");
+              tdEntry.textContent = s.close != null ? "$" + Number(s.close).toFixed(2) : "—";
+
+              var tdStop = document.createElement("td");
+              tdStop.textContent = s.stop != null ? "$" + Number(s.stop).toFixed(2) : "—";
+
+              var tdTarget = document.createElement("td");
+              tdTarget.textContent = s.target != null ? "$" + Number(s.target).toFixed(2) : "—";
+
+              var tdActions = document.createElement("td");
+              tdActions.className = "sig-actions-cell";
+              var actionsWrap = document.createElement("div");
+              actionsWrap.className = "sig-actions-row";
+
+              var btnLog = document.createElement("button");
+              btnLog.type = "button";
+              btnLog.className = "btn-log-buy";
+              btnLog.textContent = "Log Buy";
+              btnLog.addEventListener("click", function (ev) {
+                ev.stopPropagation();
+                openOrToggleSignalsInlineForm(tr, doc.id, s);
               });
-            }
-            tdCta.appendChild(ctaWrap);
+              actionsWrap.appendChild(btnLog);
 
-            tr.appendChild(tdAsof);
-            tr.appendChild(tdN);
-            tr.appendChild(tdCta);
-            sigBody.appendChild(tr);
+              var btnReeval = document.createElement("button");
+              btnReeval.type = "button";
+              btnReeval.className = "btn-reeval";
+              btnReeval.textContent = "Re-eval";
+              btnReeval.setAttribute("data-ticker", s.ticker || "");
+              btnReeval.addEventListener("click", async function () {
+                var ticker = btnReeval.getAttribute("data-ticker");
+                if (!ticker) return;
+                btnReeval.disabled = true;
+                var origText = btnReeval.textContent;
+                btnReeval.textContent = "…";
+                try {
+                  await triggerBotScanWorkflow(ticker);
+                  btnReeval.textContent = "Triggered";
+                  setTimeout(function () {
+                    btnReeval.textContent = origText;
+                    btnReeval.disabled = false;
+                  }, 3000);
+                } catch (err) {
+                  console.error("Re-eval workflow error:", err);
+                  btnReeval.textContent = "Error";
+                  setTimeout(function () {
+                    btnReeval.textContent = origText;
+                    btnReeval.disabled = false;
+                  }, 3000);
+                }
+              });
+              actionsWrap.appendChild(btnReeval);
+
+              tdActions.appendChild(actionsWrap);
+
+              tr.appendChild(tdDate);
+              tr.appendChild(tdTicker);
+              tr.appendChild(tdSignalPrice);
+              tr.appendChild(tdLivePrice);
+              tr.appendChild(tdEntry);
+              tr.appendChild(tdStop);
+              tr.appendChild(tdTarget);
+              tr.appendChild(tdActions);
+              sigBody.appendChild(tr);
+            });
+          });
+
+          sigBody.querySelectorAll(".btn-sig-refresh").forEach(function (btn) {
+            btn.addEventListener("click", async function (ev) {
+              ev.stopPropagation();
+              var ticker = btn.getAttribute("data-ticker");
+              if (!ticker) return;
+              btn.disabled = true;
+              btn.textContent = "…";
+              var cell = btn.closest(".sig-live-cell");
+              try {
+                var price = await fetchLivePrice(ticker);
+                if (cell) {
+                  var valEl = cell.querySelector(".sig-live-val");
+                  if (valEl) valEl.textContent = "$" + price.toFixed(2);
+                }
+              } catch (err) {
+                console.error("Fetch live price error:", err);
+                if (cell) {
+                  var valEl = cell.querySelector(".sig-live-val");
+                  if (valEl) valEl.textContent = "err";
+                }
+              }
+              btn.disabled = false;
+              btn.innerHTML = "&#x21bb;";
+            });
           });
 
           if (savedInlineTr) {
