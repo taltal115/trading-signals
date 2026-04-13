@@ -15,6 +15,10 @@ const firebaseConfig = {
 
   // Finnhub API key for live price quotes
   finnhubApiKey: "d291bthr01qhoen95h40d291bthr01qhoen95h4g",
+
+  // Alpha Vantage API key for historical daily prices (free: 25 requests/day)
+  // Get your free key at: https://www.alphavantage.co/support/#api-key
+  alphaVantageApiKey: "WJ64LJ8AU8ZDZ4ZF",
 };
 
 window.firebaseConfig = firebaseConfig;

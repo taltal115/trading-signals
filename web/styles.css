@@ -831,7 +831,7 @@ tr.universe-expand td {
 .universe-symbols-panel {
   padding: 0.65rem 0.85rem;
   background: var(--bg);
-  max-height: 320px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
@@ -844,6 +844,20 @@ tr.universe-expand td {
 
 .universe-symbols-panel table {
   font-size: 0.78rem;
+  width: 100%;
+}
+
+.universe-symbols-panel th {
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.universe-symbols-panel td {
+  padding: 0.3rem 0.5rem;
+  vertical-align: middle;
 }
 
 .col-expand {
@@ -1575,10 +1589,10 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.15rem;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  overflow: hidden;
 }
 
 .position-card.row-profit {
@@ -1601,6 +1615,7 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  padding: 0.75rem 1rem 0.5rem;
 }
 
 .pos-card-ticker {
@@ -1618,7 +1633,8 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
 .pos-card-body {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
+  padding: 0 1rem 0.65rem;
 }
 
 .pos-card-row {
@@ -1661,6 +1677,19 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
   white-space: nowrap;
 }
 
+.pos-card-chart {
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  padding: 0.5rem;
+  min-height: 80px;
+}
+
+.pos-card-chart-canvas {
+  width: 100%;
+  height: 70px;
+  display: block;
+}
+
 .dashboard-nav-links {
   display: flex;
   flex-wrap: wrap;
@@ -1670,4 +1699,229 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
 
 .dashboard-nav-links .dash-more {
   margin-top: 0;
+}
+
+.pnl-cards-row {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.pnl-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  min-width: 160px;
+  flex: 1;
+  max-width: 240px;
+  border-left: 4px solid var(--muted);
+}
+
+.pnl-card.pnl-card-profit {
+  border-left-color: var(--buy);
+  background: linear-gradient(90deg, rgba(63,185,80,0.08) 0%, var(--surface) 30%);
+}
+
+.pnl-card.pnl-card-loss {
+  border-left-color: var(--sell);
+  background: linear-gradient(90deg, rgba(248,81,73,0.08) 0%, var(--surface) 30%);
+}
+
+.pnl-card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.35rem;
+}
+
+.pnl-card-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pnl-card-value.pnl-profit {
+  color: var(--buy);
+}
+
+.pnl-card-value.pnl-loss {
+  color: var(--sell);
+}
+
+.pnl-card-pct {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.pnl-card-pct.pnl-profit {
+  color: var(--buy);
+}
+
+.pnl-card-pct.pnl-loss {
+  color: var(--sell);
+}
+
+.positions-table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 1.1rem;
+}
+
+.positions-table th[data-sort]:hover {
+  color: var(--text);
+  background: rgba(61, 214, 198, 0.06);
+}
+
+.positions-table th[data-sort]::after {
+  content: "";
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--muted);
+  opacity: 0.4;
+}
+
+.positions-table th[data-sort].sort-asc::after {
+  border-top-color: transparent;
+  border-bottom-color: var(--accent);
+  opacity: 1;
+  transform: translateY(-70%);
+}
+
+.positions-table th[data-sort].sort-desc::after {
+  border-top-color: var(--accent);
+  opacity: 1;
+}
+
+tr.pos-history-expand td.pos-history-expand-cell {
+  padding: 0 !important;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.pos-history-expand-inner {
+  padding: 0.65rem 0.85rem;
+  background: var(--bg);
+}
+
+.history-chart-wrap {
+  width: 100%;
+  padding: 0.5rem 0;
+  position: relative;
+}
+
+.history-chart-canvas {
+  width: 100%;
+  height: 200px;
+  display: block;
+  cursor: crosshair;
+}
+
+.chart-tooltip {
+  position: absolute;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  pointer-events: none;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 90px;
+}
+
+.chart-tooltip .tip-date {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.chart-tooltip .tip-price {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.chart-tooltip .tip-pnl {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.chart-tooltip .tip-pnl.tip-profit {
+  color: var(--buy);
+}
+
+.chart-tooltip .tip-pnl.tip-loss {
+  color: var(--sell);
+}
+
+button.btn-history-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.2rem 0.55rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+button.btn-history-toggle:hover {
+  background: rgba(61, 214, 198, 0.08);
+  color: var(--text);
+}
+
+.positions-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.positions-header-row h2 {
+  margin: 0;
+}
+
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.filter-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.filter-toggle:hover {
+  color: var(--text);
+}
+
+.conf-high {
+  color: var(--buy);
+  font-weight: 600;
+}
+
+.conf-mid {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.conf-low {
+  color: var(--sell);
+  font-weight: 600;
 }

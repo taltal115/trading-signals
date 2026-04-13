@@ -74,6 +74,7 @@ def write_universe_snapshot(
     symbols: Iterable[str],
     collection: str = "universe",
     source: str = "finnhub_discovery",
+    symbol_details: dict[str, dict] | None = None,
 ) -> None:
     normalized = _normalize_universe_symbols(symbols)
     ts = datetime.now(timezone.utc).isoformat()
@@ -83,6 +84,8 @@ def write_universe_snapshot(
         "ts_utc": ts,
         "source": source,
     }
+    if symbol_details:
+        doc["symbol_details"] = symbol_details
     db = _build_client()
     db.collection(collection).document(asof_date).set(doc)
 

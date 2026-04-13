@@ -93,6 +93,280 @@
     return data.c;
   }
 
+  async function fetchDailyCandles(ticker, days) {
+    var apiKey = cfg.alphaVantageApiKey || "demo";
+    var url = "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=" +
+              encodeURIComponent(ticker) + "&outputsize=compact&apikey=" + apiKey;
+
+    var res = await fetch(url);
+    if (!res.ok) throw new Error("Alpha Vantage error: " + res.status);
+    var data = await res.json();
+
+    if (data["Error Message"]) {
+      throw new Error("Invalid ticker symbol");
+    }
+    if (data["Note"]) {
+      throw new Error("API limit reached (25/day)");
+    }
+
+    var timeSeries = data["Time Series (Daily)"];
+    if (!timeSeries) {
+      throw new Error("No data available");
+    }
+
+    var dates = Object.keys(timeSeries).sort().reverse();
+    var len = Math.min(days, dates.length);
+    dates = dates.slice(0, len).reverse();
+
+    var times = [];
+    var closes = [];
+    var opens = [];
+
+    for (var i = 0; i < dates.length; i++) {
+      var dateStr = dates[i];
+      var dayData = timeSeries[dateStr];
+      times.push(Math.floor(new Date(dateStr).getTime() / 1000));
+      closes.push(parseFloat(dayData["4. close"]));
+      opens.push(parseFloat(dayData["1. open"]));
+    }
+
+    return { t: times, c: closes, o: opens };
+  }
+
+  function drawPriceChart(canvas, candles, entryPrice, buyDateTs) {
+    var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    var width = rect.width;
+    var height = rect.height;
+
+    var padding = { top: 25, right: 55, bottom: 30, left: 10 };
+    var chartW = width - padding.left - padding.right;
+    var chartH = height - padding.top - padding.bottom;
+
+    var prices = candles.c;
+    var minPrice = Math.min.apply(null, prices);
+    var maxPrice = Math.max.apply(null, prices);
+    if (entryPrice > 0) {
+      minPrice = Math.min(minPrice, entryPrice);
+      maxPrice = Math.max(maxPrice, entryPrice);
+    }
+    var priceRange = maxPrice - minPrice || 1;
+    minPrice -= priceRange * 0.08;
+    maxPrice += priceRange * 0.08;
+    priceRange = maxPrice - minPrice;
+
+    ctx.clearRect(0, 0, width, height);
+
+    ctx.strokeStyle = "rgba(128,128,128,0.2)";
+    ctx.lineWidth = 1;
+    for (var g = 0; g <= 4; g++) {
+      var gy = padding.top + (chartH * g / 4);
+      ctx.beginPath();
+      ctx.moveTo(padding.left, gy);
+      ctx.lineTo(width - padding.right, gy);
+      ctx.stroke();
+    }
+
+    if (entryPrice > 0) {
+      var entryY = padding.top + chartH - ((entryPrice - minPrice) / priceRange) * chartH;
+      ctx.strokeStyle = "rgba(61, 214, 198, 0.6)";
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(padding.left, entryY);
+      ctx.lineTo(width - padding.right, entryY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(61, 214, 198, 0.9)";
+      ctx.font = "10px system-ui, sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("Entry $" + entryPrice.toFixed(2), width - padding.right + 4, entryY + 3);
+    }
+
+    var points = [];
+    var buyPointIdx = -1;
+    var buyDateDay = buyDateTs ? new Date(buyDateTs).toDateString() : null;
+
+    for (var i = 0; i < prices.length; i++) {
+      var x = padding.left + (i / (prices.length - 1)) * chartW;
+      var y = padding.top + chartH - ((prices[i] - minPrice) / priceRange) * chartH;
+      var pointDate = new Date(candles.t[i] * 1000);
+      points.push({ x: x, y: y, price: prices[i], date: pointDate });
+
+      if (buyDateDay && pointDate.toDateString() === buyDateDay) {
+        buyPointIdx = i;
+      }
+    }
+
+    var lastPrice = prices[prices.length - 1];
+    var firstPrice = prices[0];
+    var isUp = lastPrice >= firstPrice;
+    var lineColor = isUp ? "rgba(63, 185, 80, 1)" : "rgba(248, 81, 73, 1)";
+    var fillColor = isUp ? "rgba(63, 185, 80, 0.15)" : "rgba(248, 81, 73, 0.15)";
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, padding.top + chartH);
+    for (var j = 0; j < points.length; j++) {
+      ctx.lineTo(points[j].x, points[j].y);
+    }
+    ctx.lineTo(points[points.length - 1].x, padding.top + chartH);
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (var k = 1; k < points.length; k++) {
+      ctx.lineTo(points[k].x, points[k].y);
+    }
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    for (var m = 0; m < points.length; m++) {
+      var prev = m > 0 ? prices[m - 1] : candles.o[m];
+      var dotUp = prices[m] >= prev;
+      ctx.beginPath();
+      ctx.arc(points[m].x, points[m].y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = dotUp ? "rgba(63, 185, 80, 1)" : "rgba(248, 81, 73, 1)";
+      ctx.fill();
+    }
+
+    if (buyPointIdx >= 0) {
+      var bp = points[buyPointIdx];
+      ctx.fillStyle = "rgba(61, 214, 198, 1)";
+      ctx.beginPath();
+      ctx.arc(bp.x, bp.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(bp.x, bp.y - 6);
+      ctx.lineTo(bp.x, bp.y - 22);
+      ctx.strokeStyle = "rgba(61, 214, 198, 1)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(bp.x, bp.y - 22);
+      ctx.lineTo(bp.x - 6, bp.y - 28);
+      ctx.lineTo(bp.x - 6, bp.y - 38);
+      ctx.lineTo(bp.x + 6, bp.y - 38);
+      ctx.lineTo(bp.x + 6, bp.y - 28);
+      ctx.closePath();
+      ctx.fillStyle = "rgba(61, 214, 198, 1)";
+      ctx.fill();
+
+      ctx.fillStyle = "#000";
+      ctx.font = "bold 9px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("BUY", bp.x, bp.y - 30);
+    }
+
+    ctx.fillStyle = "rgba(128,128,128,0.7)";
+    ctx.font = "10px system-ui, sans-serif";
+    ctx.textAlign = "right";
+    for (var p = 0; p <= 4; p++) {
+      var priceVal = maxPrice - (priceRange * p / 4);
+      var py = padding.top + (chartH * p / 4);
+      ctx.fillText("$" + priceVal.toFixed(2), width - 4, py + 3);
+    }
+
+    ctx.textAlign = "center";
+    var labelCount = Math.min(5, points.length);
+    for (var d = 0; d < labelCount; d++) {
+      var idx = Math.floor(d * (points.length - 1) / (labelCount - 1));
+      var dateLabel = points[idx].date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      ctx.fillText(dateLabel, points[idx].x, height - 8);
+    }
+
+    var latestPnl = entryPrice > 0 ? ((lastPrice - entryPrice) / entryPrice * 100) : 0;
+    var pnlText = (latestPnl >= 0 ? "+" : "") + latestPnl.toFixed(2) + "%";
+    ctx.textAlign = "left";
+    ctx.font = "bold 12px system-ui, sans-serif";
+    ctx.fillStyle = isUp ? "rgba(63, 185, 80, 1)" : "rgba(248, 81, 73, 1)";
+    ctx.fillText("$" + lastPrice.toFixed(2) + " (" + pnlText + ")", padding.left + 5, padding.top - 8);
+
+    return { points: points, entryPrice: entryPrice };
+  }
+
+  async function loadPriceHistory(ticker, entryPrice, buyDateStr, containerEl) {
+    try {
+      var candles = await fetchDailyCandles(ticker, 20);
+      var buyDateTs = buyDateStr ? new Date(buyDateStr).getTime() : null;
+
+      containerEl.innerHTML =
+        '<div class="history-chart-wrap">' +
+        '<canvas class="history-chart-canvas"></canvas>' +
+        '<div class="chart-tooltip" hidden></div>' +
+        '</div>';
+
+      var canvas = containerEl.querySelector(".history-chart-canvas");
+      var tooltip = containerEl.querySelector(".chart-tooltip");
+
+      if (canvas) {
+        var chartData = drawPriceChart(canvas, candles, entryPrice, buyDateTs);
+        var points = chartData.points;
+
+        canvas.addEventListener("mousemove", function (e) {
+          var rect = canvas.getBoundingClientRect();
+          var mx = e.clientX - rect.left;
+          var my = e.clientY - rect.top;
+
+          var closest = null;
+          var closestDist = Infinity;
+          for (var i = 0; i < points.length; i++) {
+            var dx = points[i].x - mx;
+            var dy = points[i].y - my;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < closestDist && dist < 30) {
+              closestDist = dist;
+              closest = points[i];
+            }
+          }
+
+          if (closest && tooltip) {
+            var dateStr = closest.date.toLocaleDateString("en-US", {
+              weekday: "short",
+              month: "short",
+              day: "numeric"
+            });
+            var pnl = entryPrice > 0 ? ((closest.price - entryPrice) / entryPrice * 100) : 0;
+            var pnlStr = (pnl >= 0 ? "+" : "") + pnl.toFixed(2) + "%";
+            var pnlCls = pnl > 0 ? "tip-profit" : (pnl < 0 ? "tip-loss" : "");
+
+            tooltip.innerHTML =
+              '<div class="tip-date">' + dateStr + '</div>' +
+              '<div class="tip-price">$' + closest.price.toFixed(2) + '</div>' +
+              '<div class="tip-pnl ' + pnlCls + '">' + pnlStr + '</div>';
+
+            var tipX = closest.x + 10;
+            var tipY = closest.y - 10;
+            if (tipX + 100 > rect.width) tipX = closest.x - 110;
+            if (tipY < 10) tipY = closest.y + 20;
+
+            tooltip.style.left = tipX + "px";
+            tooltip.style.top = tipY + "px";
+            tooltip.hidden = false;
+          } else if (tooltip) {
+            tooltip.hidden = true;
+          }
+        });
+
+        canvas.addEventListener("mouseleave", function () {
+          if (tooltip) tooltip.hidden = true;
+        });
+      }
+    } catch (err) {
+      containerEl.innerHTML = '<span class="dash-muted">Error: ' + err.message + '</span>';
+    }
+  }
+
   async function triggerBotScanWorkflow(ticker) {
     var token = null;
     try { token = localStorage.getItem(GH_PAT_KEY); } catch (e) { /* ignore */ }
@@ -137,6 +411,277 @@
 
   function isMobileSidebar() {
     return MOBILE_NAV_MQ.matches;
+  }
+
+  function addTradingDays(startDate, tradingDays) {
+    var date = new Date(startDate);
+    var added = 0;
+    while (added < tradingDays) {
+      date.setDate(date.getDate() + 1);
+      var day = date.getDay();
+      if (day !== 0 && day !== 6) {
+        added++;
+      }
+    }
+    return date;
+  }
+
+  function countTradingDaysBetween(startDate, endDate) {
+    var start = new Date(startDate);
+    var end = new Date(endDate);
+    var count = 0;
+    var current = new Date(start);
+    while (current < end) {
+      current.setDate(current.getDate() + 1);
+      var day = current.getDay();
+      if (day !== 0 && day !== 6) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  var positionsDataCache = [];
+  var positionsSortKey = "bought_at";
+  var positionsSortDir = "desc";
+  var hideClosedPositions = false;
+  var livePricesCache = {};
+  var previousDayPricesCache = {};
+  var priceRefreshInterval = null;
+
+  function calculatePnlForPosition(d) {
+    var entry = d.entry_price != null ? Number(d.entry_price) : null;
+    var qty = d.quantity != null ? Number(d.quantity) : 1;
+    if (entry == null || entry === 0) return { pnlValue: 0, pnlPct: 0 };
+
+    var currentPrice = livePricesCache[d.ticker] || d.last_spot;
+    var exitOrSpot = d.status === "closed" && d.exit_price != null
+      ? Number(d.exit_price)
+      : (currentPrice != null ? Number(currentPrice) : entry);
+
+    var pnlValue = (exitOrSpot - entry) * qty;
+    var pnlPct = ((exitOrSpot - entry) / entry) * 100;
+    return { pnlValue: pnlValue, pnlPct: pnlPct, investment: entry * qty, currentPrice: exitOrSpot };
+  }
+
+  function calculateDailyPnl(positions) {
+    var dailyPnl = 0;
+    var dailyInvestment = 0;
+
+    positions.forEach(function (pos) {
+      var d = pos.data;
+      if (d.status !== "open") return;
+
+      var entry = d.entry_price != null ? Number(d.entry_price) : null;
+      var qty = d.quantity != null ? Number(d.quantity) : 1;
+      if (entry == null || entry === 0) return;
+
+      var currentPrice = livePricesCache[d.ticker] || d.last_spot;
+      if (currentPrice == null) return;
+
+      var prevClose = previousDayPricesCache[d.ticker];
+      if (prevClose == null) {
+        prevClose = entry;
+      }
+
+      var dayChange = (Number(currentPrice) - prevClose) * qty;
+      dailyPnl += dayChange;
+      dailyInvestment += prevClose * qty;
+    });
+
+    var dailyPct = dailyInvestment > 0 ? (dailyPnl / dailyInvestment) * 100 : 0;
+    return { pnlValue: dailyPnl, pnlPct: dailyPct };
+  }
+
+  function updatePnlCards(positions) {
+    var cardsEl = document.getElementById("positions-pnl-cards");
+    var totalCardEl = document.getElementById("pnl-card-total");
+    var todayCardEl = document.getElementById("pnl-card-today");
+    var totalValueEl = document.getElementById("pnl-total-value");
+    var totalPctEl = document.getElementById("pnl-total-pct");
+    var todayValueEl = document.getElementById("pnl-today-value");
+    var todayPctEl = document.getElementById("pnl-today-pct");
+
+    if (!cardsEl) return;
+
+    var totalPnl = 0;
+    var totalInvestment = 0;
+
+    positions.forEach(function (pos) {
+      var d = pos.data;
+      if (d.status !== "open") return;
+      var calc = calculatePnlForPosition(d);
+      totalPnl += calc.pnlValue;
+      totalInvestment += calc.investment || 0;
+    });
+
+    var daily = calculateDailyPnl(positions);
+
+    cardsEl.hidden = positions.length === 0;
+
+    var totalPct = totalInvestment > 0 ? (totalPnl / totalInvestment) * 100 : 0;
+
+    var totalCls = totalPnl > 0.01 ? "pnl-profit" : (totalPnl < -0.01 ? "pnl-loss" : "");
+    var todayCls = daily.pnlValue > 0.01 ? "pnl-profit" : (daily.pnlValue < -0.01 ? "pnl-loss" : "");
+    var totalCardCls = totalPnl > 0.01 ? "pnl-card-profit" : (totalPnl < -0.01 ? "pnl-card-loss" : "");
+    var todayCardCls = daily.pnlValue > 0.01 ? "pnl-card-profit" : (daily.pnlValue < -0.01 ? "pnl-card-loss" : "");
+
+    if (totalCardEl) {
+      totalCardEl.className = "pnl-card " + totalCardCls;
+    }
+    if (todayCardEl) {
+      todayCardEl.className = "pnl-card " + todayCardCls;
+    }
+
+    totalValueEl.className = "pnl-card-value " + totalCls;
+    totalValueEl.textContent = (totalPnl >= 0 ? "+$" : "-$") + Math.abs(totalPnl).toFixed(2);
+    totalPctEl.className = "pnl-card-pct " + totalCls;
+    totalPctEl.textContent = (totalPct >= 0 ? "+" : "") + totalPct.toFixed(2) + "%";
+
+    todayValueEl.className = "pnl-card-value " + todayCls;
+    todayValueEl.textContent = (daily.pnlValue >= 0 ? "+$" : "-$") + Math.abs(daily.pnlValue).toFixed(2);
+    todayPctEl.className = "pnl-card-pct " + todayCls;
+    todayPctEl.textContent = (daily.pnlPct >= 0 ? "+" : "") + daily.pnlPct.toFixed(2) + "%";
+  }
+
+  async function refreshAllLivePrices() {
+    var openPositions = positionsDataCache.filter(function (p) {
+      return p.data.status === "open";
+    });
+
+    for (var i = 0; i < openPositions.length; i++) {
+      var ticker = openPositions[i].data.ticker;
+      try {
+        var price = await fetchLivePrice(ticker);
+        if (price != null) {
+          livePricesCache[ticker] = price;
+          updateSpotCellInTable(ticker, price);
+        }
+      } catch (e) {
+        console.warn("Failed to fetch price for " + ticker, e);
+      }
+    }
+
+    var openForCards = positionsDataCache.filter(function (p) {
+      return p.data.status === "open";
+    });
+    updatePnlCards(openForCards);
+  }
+
+  function updateSpotCellInTable(ticker, price) {
+    var pBody = document.getElementById("positions-body");
+    if (!pBody) return;
+
+    pBody.querySelectorAll(".spot-cell").forEach(function (cell) {
+      var btn = cell.querySelector(".btn-spot-refresh");
+      if (btn && btn.getAttribute("data-ticker") === ticker) {
+        var valEl = cell.querySelector(".spot-val");
+        if (valEl) {
+          var pos = positionsDataCache.find(function (p) { return p.data.ticker === ticker; });
+          var entry = pos && pos.data.entry_price ? Number(pos.data.entry_price) : null;
+          var cls = "spot-val";
+          var arrow = "";
+          if (entry != null && entry > 0) {
+            if (price > entry) { cls = "spot-val spot-up"; arrow = " &#9650;"; }
+            else if (price < entry) { cls = "spot-val spot-down"; arrow = " &#9660;"; }
+          }
+          valEl.className = cls;
+          valEl.innerHTML = price.toFixed(2) + arrow;
+        }
+        var staleEl = cell.querySelector(".spot-stale");
+        if (staleEl) staleEl.textContent = "live";
+      }
+    });
+  }
+
+  function startPriceRefreshInterval() {
+    if (priceRefreshInterval) clearInterval(priceRefreshInterval);
+    priceRefreshInterval = setInterval(refreshAllLivePrices, 3000);
+  }
+
+  function stopPriceRefreshInterval() {
+    if (priceRefreshInterval) {
+      clearInterval(priceRefreshInterval);
+      priceRefreshInterval = null;
+    }
+  }
+
+  async function fetchPreviousDayCloses() {
+    var openPositions = positionsDataCache.filter(function (p) {
+      return p.data.status === "open";
+    });
+
+    for (var i = 0; i < openPositions.length; i++) {
+      var ticker = openPositions[i].data.ticker;
+      if (previousDayPricesCache[ticker] != null) continue;
+      try {
+        var candles = await fetchDailyCandles(ticker, 2);
+        if (candles.c.length >= 2) {
+          previousDayPricesCache[ticker] = candles.c[candles.c.length - 2];
+        } else if (candles.c.length === 1) {
+          previousDayPricesCache[ticker] = candles.o[0];
+        }
+      } catch (e) {
+        console.warn("Failed to fetch previous close for " + ticker, e);
+      }
+    }
+  }
+
+  function getFilteredPositions(positions) {
+    if (!hideClosedPositions) return positions;
+    return positions.filter(function (p) {
+      return p.data.status === "open";
+    });
+  }
+
+  function sortPositionsData(positions, key, dir) {
+    return positions.slice().sort(function (a, b) {
+      var aVal = a.data[key];
+      var bVal = b.data[key];
+
+      if (key === "hold") {
+        aVal = a.data.hold_days_from_signal || a.data.estimated_hold_days || 0;
+        bVal = b.data.hold_days_from_signal || b.data.estimated_hold_days || 0;
+      }
+      if (key === "pnl_pct") {
+        var aCalc = calculatePnlForPosition(a.data);
+        var bCalc = calculatePnlForPosition(b.data);
+        aVal = aCalc.pnlPct;
+        bVal = bCalc.pnlPct;
+      }
+
+      if (aVal == null) aVal = "";
+      if (bVal == null) bVal = "";
+
+      if (typeof aVal === "string") aVal = aVal.toLowerCase();
+      if (typeof bVal === "string") bVal = bVal.toLowerCase();
+
+      if (aVal < bVal) return dir === "asc" ? -1 : 1;
+      if (aVal > bVal) return dir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }
+
+  function setupPositionsTableSort() {
+    var table = document.getElementById("positions-table");
+    if (!table) return;
+    var headers = table.querySelectorAll("th[data-sort]");
+    headers.forEach(function (th) {
+      th.addEventListener("click", function () {
+        var key = th.getAttribute("data-sort");
+        if (positionsSortKey === key) {
+          positionsSortDir = positionsSortDir === "asc" ? "desc" : "asc";
+        } else {
+          positionsSortKey = key;
+          positionsSortDir = "asc";
+        }
+        headers.forEach(function (h) {
+          h.classList.remove("sort-asc", "sort-desc");
+        });
+        th.classList.add(positionsSortDir === "asc" ? "sort-asc" : "sort-desc");
+        renderPositionsTable(sortPositionsData(positionsDataCache, positionsSortKey, positionsSortDir));
+      });
+    });
   }
 
   function setMobileSidebarOpen(open) {
@@ -650,17 +1195,23 @@
       var holdHtml = "—";
       var hdFrom = d.hold_days_from_signal;
       var estHold = d.estimated_hold_days;
+      var effectiveHold = hdFrom != null ? hdFrom : (estHold != null ? Math.ceil(estHold) : null);
       var dueStr = "";
-      if (hdFrom != null && d.created_at_utc) {
+      var tradingDaysHeld = 0;
+      var startDate = d.bought_at || d.created_at_utc;
+      if (effectiveHold != null && startDate) {
         try {
-          var created = new Date(d.created_at_utc);
-          var due = new Date(created.getTime() + hdFrom * 86400000);
+          var created = new Date(startDate);
+          var due = addTradingDays(created, effectiveHold);
           dueStr = due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+          tradingDaysHeld = countTradingDaysBetween(created, new Date());
         } catch (e) { /* ignore */ }
       }
-      if (hdFrom != null) {
-        holdHtml = hdFrom + "d";
-        if (estHold != null) {
+      if (effectiveHold != null) {
+        holdHtml = "day " + tradingDaysHeld + "/" + effectiveHold + "d";
+        if (hdFrom == null && estHold != null) {
+          holdHtml += " (ATR est)";
+        } else if (estHold != null && estHold !== hdFrom) {
           holdHtml += " (ATR ~" + Number(estHold).toFixed(0) + "d)";
         }
       }
@@ -713,10 +1264,140 @@
           (dueStr ? '<div class="pos-card-row"><span class="pos-card-label">Due</span><span class="pos-card-value">' + esc(dueStr) + "</span></div>" : "") +
           (d.sector ? '<div class="pos-card-row"><span class="pos-card-label">Sector</span><span class="pos-card-value pos-card-sector">' + esc(d.sector) + "</span></div>" : "") +
           (boughtAtStr ? '<div class="pos-card-row"><span class="pos-card-label">Bought</span><span class="pos-card-value">' + esc(boughtAtStr) + "</span></div>" : "") +
+        "</div>" +
+        '<div class="pos-card-chart">' +
+          '<canvas class="pos-card-chart-canvas" data-ticker="' + escAttr(d.ticker) + '" ' +
+          'data-entry="' + escAttr(String(entryF ?? "")) + '" ' +
+          'data-bought="' + escAttr(d.bought_at || d.created_at_utc || "") + '"></canvas>' +
         "</div>";
 
       cards.appendChild(card);
     });
+
+    loadDashboardCardCharts();
+  }
+
+  async function loadDashboardCardCharts() {
+    var canvases = document.querySelectorAll(".pos-card-chart-canvas");
+    for (var i = 0; i < canvases.length; i++) {
+      var canvas = canvases[i];
+      var ticker = canvas.getAttribute("data-ticker");
+      var entry = parseFloat(canvas.getAttribute("data-entry") || "0");
+      var bought = canvas.getAttribute("data-bought") || "";
+
+      if (!ticker) continue;
+
+      try {
+        var candles = await fetchDailyCandles(ticker, 15);
+        var buyDateTs = bought ? new Date(bought).getTime() : null;
+        drawMiniPriceChart(canvas, candles, entry, buyDateTs);
+      } catch (e) {
+        console.warn("Failed to load chart for " + ticker, e);
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "rgba(128,128,128,0.5)";
+        ctx.font = "10px system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Chart unavailable", canvas.width / 2, canvas.height / 2);
+      }
+    }
+  }
+
+  function drawMiniPriceChart(canvas, candles, entryPrice, buyDateTs) {
+    var ctx = canvas.getContext("2d");
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    var width = rect.width;
+    var height = rect.height;
+
+    var padding = { top: 8, right: 8, bottom: 8, left: 8 };
+    var chartW = width - padding.left - padding.right;
+    var chartH = height - padding.top - padding.bottom;
+
+    var prices = candles.c;
+    var minPrice = Math.min.apply(null, prices);
+    var maxPrice = Math.max.apply(null, prices);
+    if (entryPrice > 0) {
+      minPrice = Math.min(minPrice, entryPrice);
+      maxPrice = Math.max(maxPrice, entryPrice);
+    }
+    var priceRange = maxPrice - minPrice || 1;
+    minPrice -= priceRange * 0.05;
+    maxPrice += priceRange * 0.05;
+    priceRange = maxPrice - minPrice;
+
+    ctx.clearRect(0, 0, width, height);
+
+    if (entryPrice > 0) {
+      var entryY = padding.top + chartH - ((entryPrice - minPrice) / priceRange) * chartH;
+      ctx.strokeStyle = "rgba(61, 214, 198, 0.4)";
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padding.left, entryY);
+      ctx.lineTo(width - padding.right, entryY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    var points = [];
+    var buyPointIdx = -1;
+    var buyDateDay = buyDateTs ? new Date(buyDateTs).toDateString() : null;
+
+    for (var i = 0; i < prices.length; i++) {
+      var x = padding.left + (i / (prices.length - 1)) * chartW;
+      var y = padding.top + chartH - ((prices[i] - minPrice) / priceRange) * chartH;
+      var pointDate = new Date(candles.t[i] * 1000);
+      points.push({ x: x, y: y, price: prices[i], date: pointDate });
+
+      if (buyDateDay && pointDate.toDateString() === buyDateDay) {
+        buyPointIdx = i;
+      }
+    }
+
+    var lastPrice = prices[prices.length - 1];
+    var firstPrice = prices[0];
+    var isUp = lastPrice >= firstPrice;
+    var lineColor = isUp ? "rgba(63, 185, 80, 1)" : "rgba(248, 81, 73, 1)";
+    var fillColor = isUp ? "rgba(63, 185, 80, 0.2)" : "rgba(248, 81, 73, 0.2)";
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, padding.top + chartH);
+    for (var j = 0; j < points.length; j++) {
+      ctx.lineTo(points[j].x, points[j].y);
+    }
+    ctx.lineTo(points[points.length - 1].x, padding.top + chartH);
+    ctx.closePath();
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (var k = 1; k < points.length; k++) {
+      ctx.lineTo(points[k].x, points[k].y);
+    }
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    if (buyPointIdx >= 0) {
+      var bp = points[buyPointIdx];
+      ctx.fillStyle = "rgba(61, 214, 198, 1)";
+      ctx.beginPath();
+      ctx.arc(bp.x, bp.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    var lastPt = points[points.length - 1];
+    ctx.fillStyle = lineColor;
+    ctx.beginPath();
+    ctx.arc(lastPt.x, lastPt.y, 3, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   function setPositionsGuestMode(guest) {
@@ -1063,6 +1744,7 @@
           snap.forEach((doc) => {
             const d = doc.data();
             const symbols = Array.isArray(d.symbols) ? d.symbols : [];
+            const symbolDetails = d.symbol_details || {};
             const syms = symbols.length;
 
             const tr = document.createElement("tr");
@@ -1087,12 +1769,20 @@
             trExp.hidden = true;
             const symBody = symbols
               .map(
-                (sym, idx) =>
-                  "<tr><td>" +
-                  (idx + 1) +
-                  "</td><td class=\"code\">" +
-                  esc(String(sym)) +
-                  "</td></tr>"
+                (sym, idx) => {
+                  const details = symbolDetails[sym] || {};
+                  const name = details.name || "";
+                  const sector = details.sector || "";
+                  return "<tr><td>" +
+                    (idx + 1) +
+                    "</td><td class=\"code\"><strong>" +
+                    esc(String(sym)) +
+                    "</strong></td><td>" +
+                    esc(name) +
+                    "</td><td><span class=\"sector-tag\">" +
+                    esc(sector) +
+                    "</span></td></tr>";
+                }
               )
               .join("");
             trExp.innerHTML =
@@ -1104,9 +1794,9 @@
               " symbols · " +
               esc(d.asof_date || doc.id) +
               "</caption>" +
-              "<thead><tr><th>#</th><th>Symbol</th></tr></thead>" +
+              "<thead><tr><th>#</th><th>Symbol</th><th>Name</th><th>Sector</th></tr></thead>" +
               "<tbody>" +
-              (symBody || "<tr><td colspan=\"2\">(empty list)</td></tr>") +
+              (symBody || "<tr><td colspan=\"4\">(empty list)</td></tr>") +
               "</tbody></table></div></td>";
 
             tr.addEventListener("click", () => {
@@ -1312,6 +2002,307 @@
       );
   }
 
+  function renderPositionsTable(positions) {
+    var pBody = document.getElementById("positions-body");
+    if (!pBody) return;
+    pBody.innerHTML = "";
+
+    positions.forEach(function (pos) {
+      var docId = pos.id;
+      var d = pos.data;
+      var tr = document.createElement("tr");
+      tr.className = rowPnlClass(d);
+      var exitCell = d.status === "closed" && d.exit_price != null ? num(d.exit_price) : "—";
+
+      var spotHtml = "—";
+      var entryF = d.entry_price != null ? Number(d.entry_price) : null;
+      var spotF = d.last_spot != null ? Number(d.last_spot) : null;
+      if (spotF != null && Number.isFinite(spotF)) {
+        var spotCls = "spot-val";
+        var arrow = "";
+        if (entryF != null && Number.isFinite(entryF) && entryF > 0) {
+          if (spotF > entryF) { spotCls = "spot-val spot-up"; arrow = " &#9650;"; }
+          else if (spotF < entryF) { spotCls = "spot-val spot-down"; arrow = " &#9660;"; }
+        }
+        var staleLine = "";
+        if (d.last_alert_ts_utc) {
+          var tsStr = String(d.last_alert_ts_utc);
+          staleLine = '<div class="spot-stale">' + esc(tsStr.slice(0, 16).replace("T", " ")) + "</div>";
+        }
+        var refreshBtn = "";
+        if (d.status === "open") {
+          refreshBtn =
+            ' <button type="button" class="btn-spot-refresh" data-doc-id="' +
+            escAttr(docId) + '" data-ticker="' +
+            escAttr(d.ticker) + '" title="Re-fetch spot price">&#x21bb;</button>';
+        }
+        spotHtml =
+          '<div class="spot-wrap">' +
+          '<span class="' + spotCls + '">' + spotF.toFixed(2) + arrow + "</span>" +
+          refreshBtn + staleLine + "</div>";
+      } else if (d.status === "open") {
+        spotHtml =
+          '— <button type="button" class="btn-spot-refresh" data-doc-id="' +
+          escAttr(docId) + '" data-ticker="' +
+          escAttr(d.ticker) + '" title="Fetch spot price">&#x21bb;</button>';
+      }
+
+      var actionHtml = "—";
+      if (d.last_alert_kind) {
+        var isSell = ["STOP_HIT", "TARGET_HIT", "DURATION_DUE"].indexOf(d.last_alert_kind) !== -1;
+        var actionTag = isSell ? "SELL" : "WAIT";
+        var actionCls = isSell ? "tag-sell" : "tag-wait";
+        actionHtml = '<span class="' + actionCls + '">' + actionTag + "</span>";
+      }
+
+      var actionsHtml = "";
+      if (d.status === "open") {
+        actionsHtml =
+          '<button type="button" class="btn-exit" data-exit="' +
+          escAttr(docId) +
+          '" data-ticker="' +
+          escAttr(d.ticker) +
+          '" data-entry="' +
+          escAttr(String(d.entry_price ?? "")) +
+          '">Exit…</button>' +
+          ' <button type="button" class="btn-monitor-toggle" data-pos-id="' +
+          escAttr(docId) +
+          '" data-ticker="' +
+          escAttr(d.ticker) +
+          '">Monitor</button>' +
+          ' <button type="button" class="btn-history-toggle" data-ticker="' +
+          escAttr(d.ticker) +
+          '" data-entry="' +
+          escAttr(String(d.entry_price ?? "")) +
+          '" data-bought="' +
+          escAttr(d.bought_at || d.created_at_utc || "") +
+          '">History</button>' +
+          ' <button type="button" class="btn-check-now" data-ticker="' +
+          escAttr(d.ticker) +
+          '">Check</button>';
+      }
+
+      var sectorHtml = "—";
+      if (d.sector) {
+        sectorHtml = '<span class="sector-tag">' + esc(d.sector) + '</span>';
+      }
+
+      var holdHtml = "—";
+      var hdFrom = d.hold_days_from_signal;
+      var estHold = d.estimated_hold_days;
+      var effectiveHold = hdFrom != null ? hdFrom : (estHold != null ? Math.ceil(estHold) : null);
+      if (effectiveHold != null) {
+        holdHtml = String(effectiveHold) + "d";
+        if (hdFrom == null && estHold != null) {
+          holdHtml += ' <span class="hold-est">(ATR est)</span>';
+        } else if (estHold != null && estHold !== hdFrom) {
+          holdHtml += ' <span class="hold-est">(ATR ' + Number(estHold).toFixed(1) + 'd)</span>';
+        }
+        var startDate = d.bought_at || d.created_at_utc;
+        if (startDate) {
+          try {
+            var created = new Date(startDate);
+            var due = addTradingDays(created, effectiveHold);
+            var dueStr = due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+            var tradingDaysHeld = countTradingDaysBetween(created, new Date());
+            holdHtml += '<div class="hold-due">day ' + tradingDaysHeld + '/' + effectiveHold + ' · due ' + esc(dueStr) + '</div>';
+          } catch (e) { /* ignore */ }
+        }
+      }
+
+      var confHtml = "—";
+      if (d.last_confidence != null) {
+        var confVal = Number(d.last_confidence);
+        var confCls = confVal >= 70 ? "conf-high" : (confVal >= 50 ? "conf-mid" : "conf-low");
+        confHtml = '<span class="' + confCls + '">' + confVal + '%</span>';
+      }
+
+      tr.innerHTML =
+        '<td class="code"><strong>' +
+        esc(d.ticker) +
+        "</strong></td>" +
+        "<td>" + sectorHtml + "</td>" +
+        "<td>" + num(d.entry_price) + "</td>" +
+        "<td>" + exitCell + "</td>" +
+        "<td>" + fmtPnlHtml(d) + "</td>" +
+        "<td>" + num(d.stop_price) + "</td>" +
+        "<td>" + num(d.target_price) + "</td>" +
+        "<td>" + holdHtml + "</td>" +
+        '<td class="spot-cell">' + spotHtml + "</td>" +
+        "<td>" + confHtml + "</td>" +
+        "<td>" + actionHtml + "</td>" +
+        "<td>" + esc(d.status) + "</td>" +
+        '<td class="code">' + esc(d.bought_at || d.created_at_utc || "") + "</td>" +
+        "<td>" + actionsHtml + "</td>";
+
+      var expandTr = document.createElement("tr");
+      expandTr.className = "pos-monitor-expand";
+      expandTr.hidden = true;
+      expandTr.innerHTML =
+        '<td colspan="14" class="pos-monitor-expand-cell">' +
+        '<div class="pos-monitor-expand-inner">Loading checks…</div></td>';
+
+      var historyTr = document.createElement("tr");
+      historyTr.className = "pos-history-expand";
+      historyTr.hidden = true;
+      historyTr.innerHTML =
+        '<td colspan="14" class="pos-history-expand-cell">' +
+        '<div class="pos-history-expand-inner">Loading price history…</div></td>';
+
+      pBody.appendChild(tr);
+      pBody.appendChild(expandTr);
+      pBody.appendChild(historyTr);
+    });
+
+    attachPositionsTableHandlers(pBody);
+  }
+
+  function attachPositionsTableHandlers(pBody) {
+    pBody.querySelectorAll(".btn-exit").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        openExitDialog(
+          btn.getAttribute("data-exit"),
+          btn.getAttribute("data-ticker") || "",
+          parseFloat(btn.getAttribute("data-entry") || "0")
+        );
+      });
+    });
+
+    pBody.querySelectorAll(".btn-monitor-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var posId = btn.getAttribute("data-pos-id");
+        var ticker = btn.getAttribute("data-ticker") || "";
+        var row = btn.closest("tr");
+        var expandRow = row ? row.nextElementSibling : null;
+        if (!expandRow || !expandRow.classList.contains("pos-monitor-expand")) return;
+        var opening = expandRow.hidden;
+        pBody.querySelectorAll("tr.pos-monitor-expand").forEach(function (r) {
+          r.hidden = true;
+        });
+        pBody.querySelectorAll("tr.pos-history-expand").forEach(function (r) {
+          r.hidden = true;
+        });
+        if (opening) {
+          expandRow.hidden = false;
+          var inner = expandRow.querySelector(".pos-monitor-expand-inner");
+          if (inner) inner.innerHTML = '<span class="dash-muted">Loading checks…</span>';
+          loadPositionChecks(posId, ticker, inner);
+        }
+      });
+    });
+
+    pBody.querySelectorAll(".btn-history-toggle").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var ticker = btn.getAttribute("data-ticker") || "";
+        var entry = parseFloat(btn.getAttribute("data-entry") || "0");
+        var bought = btn.getAttribute("data-bought") || "";
+        var row = btn.closest("tr");
+        var expandRow = row ? row.nextElementSibling : null;
+        if (expandRow) expandRow = expandRow.nextElementSibling;
+        if (!expandRow || !expandRow.classList.contains("pos-history-expand")) return;
+        var opening = expandRow.hidden;
+        pBody.querySelectorAll("tr.pos-monitor-expand").forEach(function (r) {
+          r.hidden = true;
+        });
+        pBody.querySelectorAll("tr.pos-history-expand").forEach(function (r) {
+          r.hidden = true;
+        });
+        if (opening) {
+          expandRow.hidden = false;
+          var inner = expandRow.querySelector(".pos-history-expand-inner");
+          if (inner) {
+            inner.innerHTML = '<span class="dash-muted">Loading price history…</span>';
+            loadPriceHistory(ticker, entry, bought, inner);
+          }
+        }
+      });
+    });
+
+    pBody.querySelectorAll(".btn-spot-refresh").forEach(function (btn) {
+      btn.addEventListener("click", async function (ev) {
+        ev.stopPropagation();
+        var docId = btn.getAttribute("data-doc-id");
+        var ticker = btn.getAttribute("data-ticker");
+        if (!docId) return;
+        btn.disabled = true;
+        btn.textContent = "…";
+
+        var cell = btn.closest(".spot-cell");
+        var entry = null;
+        try {
+          var snap = await db.collection(COL_MY_POSITIONS).doc(docId).get();
+          if (snap.exists) {
+            var posData = snap.data();
+            entry = posData.entry_price != null ? Number(posData.entry_price) : null;
+          }
+        } catch (e) { /* ignore */ }
+
+        var spot = null;
+        var tsLabel = "live";
+        try {
+          if (ticker) {
+            spot = await fetchLivePrice(ticker);
+          }
+        } catch (liveErr) {
+          console.warn("Finnhub fetch failed, falling back to Firestore:", liveErr);
+          try {
+            var snap2 = await db.collection(COL_MY_POSITIONS).doc(docId).get();
+            if (snap2.exists) {
+              var cached = snap2.data();
+              spot = cached.last_spot != null ? Number(cached.last_spot) : null;
+              tsLabel = cached.last_alert_ts_utc
+                ? String(cached.last_alert_ts_utc).slice(0, 16).replace("T", " ")
+                : "cached";
+            }
+          } catch (fsErr) {
+            console.error("Firestore fallback failed:", fsErr);
+          }
+        }
+
+        if (cell && spot != null && Number.isFinite(spot)) {
+          var cls = "spot-val";
+          var arrow = "";
+          if (entry != null && Number.isFinite(entry) && entry > 0) {
+            if (spot > entry) { cls = "spot-val spot-up"; arrow = " &#9650;"; }
+            else if (spot < entry) { cls = "spot-val spot-down"; arrow = " &#9660;"; }
+          }
+          var valEl = cell.querySelector(".spot-val");
+          if (valEl) { valEl.className = cls; valEl.innerHTML = spot.toFixed(2) + arrow; }
+          var staleEl = cell.querySelector(".spot-stale");
+          if (staleEl) { staleEl.textContent = tsLabel; }
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = "&#x21bb;";
+      });
+    });
+
+    pBody.querySelectorAll(".btn-check-now").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        var ticker = btn.getAttribute("data-ticker");
+        if (!ticker) return;
+        btn.disabled = true;
+        var origText = btn.textContent;
+        btn.textContent = "…";
+        try {
+          await triggerMonitorWorkflow(ticker);
+          btn.textContent = "Triggered";
+          setTimeout(function () {
+            btn.textContent = origText;
+            btn.disabled = false;
+          }, 3000);
+        } catch (err) {
+          console.error("Check workflow error:", err);
+          btn.textContent = "Error";
+          setTimeout(function () {
+            btn.textContent = origText;
+            btn.disabled = false;
+          }, 3000);
+        }
+      });
+    });
+  }
+
   function subscribePositions(uid) {
     tearDownPositionsSub();
 
@@ -1328,20 +2319,25 @@
       .limit(60)
       .onSnapshot(
         (snap) => {
-          pBody.innerHTML = "";
           let openC = 0;
           let closedC = 0;
           var openPositions = [];
+          var allPositions = [];
+          var pnlCards = document.getElementById("positions-pnl-cards");
           if (snap.empty) {
             pHint.hidden = false;
             pHint.textContent = "No positions yet. Add one with the form above.";
             pWrap.hidden = true;
+            if (pnlCards) pnlCards.hidden = true;
             updateDashboardPositionsSummary(0, 0, true);
             renderDashboardPositionCards([]);
+            positionsDataCache = [];
+            stopPriceRefreshInterval();
             return;
           }
           snap.forEach((docRef) => {
             const d = docRef.data();
+            allPositions.push({ id: docRef.id, data: d });
             if (d.status === "open") {
               openC += 1;
               openPositions.push({ id: docRef.id, data: d });
@@ -1349,243 +2345,23 @@
               closedC += 1;
             }
           });
+          positionsDataCache = allPositions;
           updateDashboardPositionsSummary(openC, closedC, false);
           renderDashboardPositionCards(openPositions);
+          updatePnlCards(openPositions);
           pHint.hidden = true;
           pWrap.hidden = false;
-          snap.forEach((docRef) => {
-            const d = docRef.data();
-            const tr = document.createElement("tr");
-            tr.className = rowPnlClass(d);
-            const exitCell =
-              d.status === "closed" && d.exit_price != null ? num(d.exit_price) : "—";
+          if (pnlCards) pnlCards.hidden = false;
+          var filtered = getFilteredPositions(allPositions);
+          var sorted = sortPositionsData(filtered, positionsSortKey, positionsSortDir);
+          renderPositionsTable(sorted);
 
-            var spotHtml = "—";
-            var entryF = (d.entry_price != null) ? Number(d.entry_price) : null;
-            var spotF = (d.last_spot != null) ? Number(d.last_spot) : null;
-            if (spotF != null && Number.isFinite(spotF)) {
-              var spotCls = "spot-val";
-              var arrow = "";
-              if (entryF != null && Number.isFinite(entryF) && entryF > 0) {
-                if (spotF > entryF) { spotCls = "spot-val spot-up"; arrow = " &#9650;"; }
-                else if (spotF < entryF) { spotCls = "spot-val spot-down"; arrow = " &#9660;"; }
-              }
-              var staleLine = "";
-              if (d.last_alert_ts_utc) {
-                var tsStr = String(d.last_alert_ts_utc);
-                staleLine = '<div class="spot-stale">' + esc(tsStr.slice(0, 16).replace("T", " ")) + "</div>";
-              }
-              var refreshBtn = "";
-              if (d.status === "open") {
-                refreshBtn =
-                  ' <button type="button" class="btn-spot-refresh" data-doc-id="' +
-                  escAttr(docRef.id) + '" data-ticker="' +
-                  escAttr(d.ticker) + '" title="Re-fetch spot price">&#x21bb;</button>';
-              }
-              spotHtml =
-                '<div class="spot-wrap">' +
-                '<span class="' + spotCls + '">' + spotF.toFixed(2) + arrow + "</span>" +
-                refreshBtn + staleLine + "</div>";
-            } else if (d.status === "open") {
-              spotHtml =
-                '— <button type="button" class="btn-spot-refresh" data-doc-id="' +
-                escAttr(docRef.id) + '" data-ticker="' +
-                escAttr(d.ticker) + '" title="Fetch spot price">&#x21bb;</button>';
-            }
-
-            var actionHtml = "—";
-            if (d.last_alert_kind) {
-              var isSell = ["STOP_HIT", "TARGET_HIT", "DURATION_DUE"].indexOf(d.last_alert_kind) !== -1;
-              var actionTag = isSell ? "SELL" : "WAIT";
-              var actionCls = isSell ? "tag-sell" : "tag-wait";
-              actionHtml = '<span class="' + actionCls + '">' + actionTag + "</span>";
-            }
-
-            var actionsHtml = "";
-            if (d.status === "open") {
-              actionsHtml =
-                '<button type="button" class="btn-exit" data-exit="' +
-                escAttr(docRef.id) +
-                '" data-ticker="' +
-                escAttr(d.ticker) +
-                '" data-entry="' +
-                escAttr(String(d.entry_price ?? "")) +
-                '">Exit…</button>' +
-                ' <button type="button" class="btn-monitor-toggle" data-pos-id="' +
-                escAttr(docRef.id) +
-                '" data-ticker="' +
-                escAttr(d.ticker) +
-                '">Monitor</button>' +
-                ' <button type="button" class="btn-check-now" data-ticker="' +
-                escAttr(d.ticker) +
-                '">Check</button>';
-            }
-
-            var sectorHtml = "—";
-            if (d.sector) {
-              sectorHtml = '<span class="sector-tag">' + esc(d.sector) + '</span>';
-            }
-
-            var holdHtml = "—";
-            var hdFrom = d.hold_days_from_signal;
-            var estHold = d.estimated_hold_days;
-            if (hdFrom != null) {
-              holdHtml = String(hdFrom) + "d";
-              if (estHold != null) {
-                holdHtml += ' <span class="hold-est">(ATR est ' + Number(estHold).toFixed(1) + 'd)</span>';
-              }
-              if (d.created_at_utc) {
-                try {
-                  var created = new Date(d.created_at_utc);
-                  var due = new Date(created.getTime() + hdFrom * 86400000);
-                  var dueStr = due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                  holdHtml += '<div class="hold-due">due ' + esc(dueStr) + '</div>';
-                } catch (e) { /* ignore */ }
-              }
-            }
-
-            tr.innerHTML =
-              '<td class="code"><strong>' +
-              esc(d.ticker) +
-              "</strong></td>" +
-              "<td>" + sectorHtml + "</td>" +
-              "<td>" + num(d.entry_price) + "</td>" +
-              "<td>" + exitCell + "</td>" +
-              "<td>" + fmtPnlHtml(d) + "</td>" +
-              "<td>" + num(d.stop_price) + "</td>" +
-              "<td>" + num(d.target_price) + "</td>" +
-              "<td>" + holdHtml + "</td>" +
-              '<td class="spot-cell">' + spotHtml + "</td>" +
-              "<td>" + actionHtml + "</td>" +
-              "<td>" + esc(d.status) + "</td>" +
-              '<td class="code">' + esc(d.bought_at || d.created_at_utc || "") + "</td>" +
-              "<td>" + actionsHtml + "</td>";
-
-            var expandTr = document.createElement("tr");
-            expandTr.className = "pos-monitor-expand";
-            expandTr.hidden = true;
-            expandTr.innerHTML =
-              '<td colspan="13" class="pos-monitor-expand-cell">' +
-              '<div class="pos-monitor-expand-inner">Loading checks…</div></td>';
-
-            pBody.appendChild(tr);
-            pBody.appendChild(expandTr);
-          });
-
-          pBody.querySelectorAll(".btn-exit").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-              openExitDialog(
-                btn.getAttribute("data-exit"),
-                btn.getAttribute("data-ticker") || "",
-                parseFloat(btn.getAttribute("data-entry") || "0")
-              );
-            });
-          });
-
-          pBody.querySelectorAll(".btn-monitor-toggle").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-              var posId = btn.getAttribute("data-pos-id");
-              var ticker = btn.getAttribute("data-ticker") || "";
-              var row = btn.closest("tr");
-              var expandRow = row ? row.nextElementSibling : null;
-              if (!expandRow || !expandRow.classList.contains("pos-monitor-expand")) return;
-              var opening = expandRow.hidden;
-              pBody.querySelectorAll("tr.pos-monitor-expand").forEach(function (r) {
-                r.hidden = true;
-              });
-              if (opening) {
-                expandRow.hidden = false;
-                var inner = expandRow.querySelector(".pos-monitor-expand-inner");
-                if (inner) inner.innerHTML = '<span class="dash-muted">Loading checks…</span>';
-                loadPositionChecks(posId, ticker, inner);
-              }
-            });
-          });
-
-          pBody.querySelectorAll(".btn-spot-refresh").forEach(function (btn) {
-            btn.addEventListener("click", async function (ev) {
-              ev.stopPropagation();
-              var docId = btn.getAttribute("data-doc-id");
-              var ticker = btn.getAttribute("data-ticker");
-              if (!docId) return;
-              btn.disabled = true;
-              btn.textContent = "…";
-
-              var cell = btn.closest(".spot-cell");
-              var entry = null;
-              try {
-                var snap = await db.collection(COL_MY_POSITIONS).doc(docId).get();
-                if (snap.exists) {
-                  var posData = snap.data();
-                  entry = posData.entry_price != null ? Number(posData.entry_price) : null;
-                }
-              } catch (e) { /* ignore */ }
-
-              var spot = null;
-              var tsLabel = "live";
-              try {
-                if (ticker) {
-                  spot = await fetchLivePrice(ticker);
-                }
-              } catch (liveErr) {
-                console.warn("Finnhub fetch failed, falling back to Firestore:", liveErr);
-                try {
-                  var snap2 = await db.collection(COL_MY_POSITIONS).doc(docId).get();
-                  if (snap2.exists) {
-                    var cached = snap2.data();
-                    spot = cached.last_spot != null ? Number(cached.last_spot) : null;
-                    tsLabel = cached.last_alert_ts_utc
-                      ? String(cached.last_alert_ts_utc).slice(0, 16).replace("T", " ")
-                      : "cached";
-                  }
-                } catch (fsErr) {
-                  console.error("Firestore fallback failed:", fsErr);
-                }
-              }
-
-              if (cell && spot != null && Number.isFinite(spot)) {
-                var cls = "spot-val";
-                var arrow = "";
-                if (entry != null && Number.isFinite(entry) && entry > 0) {
-                  if (spot > entry) { cls = "spot-val spot-up"; arrow = " &#9650;"; }
-                  else if (spot < entry) { cls = "spot-val spot-down"; arrow = " &#9660;"; }
-                }
-                var valEl = cell.querySelector(".spot-val");
-                if (valEl) { valEl.className = cls; valEl.innerHTML = spot.toFixed(2) + arrow; }
-                var staleEl = cell.querySelector(".spot-stale");
-                if (staleEl) { staleEl.textContent = tsLabel; }
-              }
-
-              btn.disabled = false;
-              btn.innerHTML = "&#x21bb;";
-            });
-          });
-
-          pBody.querySelectorAll(".btn-check-now").forEach(function (btn) {
-            btn.addEventListener("click", async function () {
-              var ticker = btn.getAttribute("data-ticker");
-              if (!ticker) return;
-              btn.disabled = true;
-              var origText = btn.textContent;
-              btn.textContent = "…";
-              try {
-                await triggerMonitorWorkflow(ticker);
-                btn.textContent = "Triggered";
-                setTimeout(function () {
-                  btn.textContent = origText;
-                  btn.disabled = false;
-                }, 3000);
-              } catch (err) {
-                console.error("Check workflow error:", err);
-                btn.textContent = "Error";
-                setTimeout(function () {
-                  btn.textContent = origText;
-                  btn.disabled = false;
-                }, 3000);
-              }
-            });
-          });
-
+          if (openPositions.length > 0) {
+            startPriceRefreshInterval();
+            fetchPreviousDayCloses();
+          } else {
+            stopPriceRefreshInterval();
+          }
         },
         (err) => {
           pHint.hidden = false;
@@ -2026,4 +2802,16 @@
     formStatus.textContent = "";
     await submitOpenPositionFromForm(posForm, formStatus);
   });
+
+  setupPositionsTableSort();
+
+  var hideClosedToggle = document.getElementById("hide-closed-toggle");
+  if (hideClosedToggle) {
+    hideClosedToggle.addEventListener("change", function () {
+      hideClosedPositions = hideClosedToggle.checked;
+      var filtered = getFilteredPositions(positionsDataCache);
+      var sorted = sortPositionsData(filtered, positionsSortKey, positionsSortDir);
+      renderPositionsTable(sorted);
+    });
+  }
 })();

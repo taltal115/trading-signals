@@ -57,8 +57,8 @@ jobs:
           PYTHONPATH=./src python scripts/update_universe_finnhub.py \
             --config config.yaml \
             --state data/universe_state.json \
-            --max-calls 1500 \
-            --merge-days 5
+            --max-calls 2000 \
+            --merge-days 7
 
       - name: Save Finnhub batch rotation state
         uses: actions/upload-artifact@v4

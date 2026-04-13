@@ -284,23 +284,42 @@
             </div>
           </details>
 
-          <h2>Your positions</h2>
+          <div class="positions-header-row">
+            <h2>Your positions</h2>
+            <label class="filter-toggle">
+              <input type="checkbox" id="hide-closed-toggle" />
+              <span>Hide closed</span>
+            </label>
+          </div>
+          <div id="positions-pnl-cards" class="pnl-cards-row" hidden>
+            <div class="pnl-card" id="pnl-card-total">
+              <div class="pnl-card-label">Total P&amp;L</div>
+              <div class="pnl-card-value" id="pnl-total-value">—</div>
+              <div class="pnl-card-pct" id="pnl-total-pct"></div>
+            </div>
+            <div class="pnl-card" id="pnl-card-today">
+              <div class="pnl-card-label">Daily P&amp;L</div>
+              <div class="pnl-card-value" id="pnl-today-value">—</div>
+              <div class="pnl-card-pct" id="pnl-today-pct"></div>
+            </div>
+          </div>
           <div class="table-wrap" id="positions-table-wrap" hidden>
-            <table class="positions-table">
+            <table class="positions-table" id="positions-table">
               <thead>
                 <tr>
-                  <th>ticker</th>
-                  <th>sector</th>
-                  <th>entry</th>
-                  <th>exit</th>
-                  <th>P/L %</th>
-                  <th>stop</th>
-                  <th>target</th>
-                  <th>hold</th>
-                  <th>spot</th>
-                  <th>action</th>
-                  <th>status</th>
-                  <th>bought</th>
+                  <th data-sort="ticker">ticker</th>
+                  <th data-sort="sector">sector</th>
+                  <th data-sort="entry_price">entry</th>
+                  <th data-sort="exit_price">exit</th>
+                  <th data-sort="pnl_pct">P/L %</th>
+                  <th data-sort="stop_price">stop</th>
+                  <th data-sort="target_price">target</th>
+                  <th data-sort="hold">hold</th>
+                  <th data-sort="last_spot">spot</th>
+                  <th data-sort="last_confidence">conf</th>
+                  <th data-sort="last_alert_kind">action</th>
+                  <th data-sort="status">status</th>
+                  <th data-sort="bought_at">bought</th>
                   <th></th>
                 </tr>
               </thead>

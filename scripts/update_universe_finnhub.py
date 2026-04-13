@@ -57,8 +57,9 @@ def _is_valid_symbol(sym: str) -> bool:
     return True
 
 
-def _filter_symbols(raw: list[dict[str, Any]]) -> list[str]:
+def _filter_symbols(raw: list[dict[str, Any]]) -> tuple[list[str], dict[str, dict]]:
     symbols: list[str] = []
+    details: dict[str, dict] = {}
     for r in raw:
         sym = _clean_symbol(str(r.get("symbol", "")))
         if not _is_valid_symbol(sym):
@@ -71,7 +72,12 @@ def _filter_symbols(raw: list[dict[str, Any]]) -> list[str]:
         if mic and mic not in US_MICS:
             continue
         symbols.append(sym)
-    return sorted(set(symbols))
+        details[sym] = {
+            "name": str(r.get("description", "") or r.get("name", "") or ""),
+            "mic": mic,
+        }
+    unique_symbols = sorted(set(symbols))
+    return unique_symbols, {s: details[s] for s in unique_symbols if s in details}
 
 
 def _select_batch(symbols: list[str], *, start: int, batch_size: int) -> tuple[list[str], int]:
@@ -130,6 +136,7 @@ def main() -> int:
     log.info("universe-discovery start config=%s verbose=%s", config_path, args.verbose)
 
     symbols: list[str]
+    symbol_base_details: dict[str, dict] = {}
     if args.symbols_csv:
         symbols_path = Path(args.symbols_csv).expanduser().resolve()
         if not symbols_path.exists():
@@ -149,7 +156,7 @@ def main() -> int:
             }
             for sym in df["symbol"].astype(str).tolist()
         ]
-        symbols = _filter_symbols(raw_symbols)
+        symbols, symbol_base_details = _filter_symbols(raw_symbols)
         log.info(
             "Universe source=symbols_csv path=%s rows=%d filtered_unique=%d",
             symbols_path,
@@ -164,8 +171,11 @@ def main() -> int:
         client = finnhub.Client(api_key=api_key)
         raw_symbols = client.stock_symbols("US")
         log.debug("Finnhub raw_symbols count=%d", len(raw_symbols) if raw_symbols else 0)
-        symbols = _filter_symbols(raw_symbols)
+        symbols, symbol_base_details = _filter_symbols(raw_symbols)
         log.info("Universe source=finnhub_us filtered_unique=%d", len(symbols))
+
+        first_letters = sorted(set(s[0] for s in symbols if s))
+        log.info("Universe coverage: letters=%s total_symbols=%d", "".join(first_letters), len(symbols))
 
     if not symbols:
         raise SystemExit("ERROR: no symbols available after filtering")
@@ -260,6 +270,7 @@ def main() -> int:
                 "symbol": symbol,
                 "confidence": signal.confidence,
                 "score": signal.score,
+                "name": symbol_base_details.get(symbol, {}).get("name", ""),
             }
         )
 
@@ -269,6 +280,34 @@ def main() -> int:
     else:
         top = ranked
     log.info("Candidates in batch: %d (limit=%s)", len(top), args.limit or "unlimited")
+
+    symbol_details: dict[str, dict] = {}
+    for cand in top:
+        sym = cand["symbol"]
+        symbol_details[sym] = {
+            "name": cand.get("name", ""),
+            "confidence": cand.get("confidence", 0),
+            "score": cand.get("score", 0),
+        }
+
+    api_key = os.getenv("FINNHUB_API_KEY")
+    if api_key and top:
+        log.info("Fetching company profiles for %d candidates...", len(top))
+        profile_client = finnhub.Client(api_key=api_key)
+        import time
+        for i, cand in enumerate(top):
+            sym = cand["symbol"]
+            try:
+                profile = profile_client.company_profile2(symbol=sym)
+                if profile:
+                    symbol_details[sym]["sector"] = profile.get("finnhubIndustry", "")
+                    symbol_details[sym]["name"] = profile.get("name", "") or symbol_details[sym].get("name", "")
+                    symbol_details[sym]["country"] = profile.get("country", "")
+                    symbol_details[sym]["market_cap"] = profile.get("marketCapitalization", 0)
+                if i > 0 and i % 30 == 0:
+                    time.sleep(1)
+            except Exception as exc:
+                log.debug("Failed to fetch profile for %s: %s", sym, exc)
 
     asof_date = cfg.asof_date().isoformat()
     collection = args.firestore_collection or cfg.universe.firestore.collection
@@ -302,6 +341,7 @@ def main() -> int:
             symbols=symbol_list,
             collection=collection,
             source="finnhub_discovery",
+            symbol_details=symbol_details,
         )
     except RuntimeError as exc:
         raise SystemExit(f"ERROR: Firestore universe write failed (check credentials): {exc}") from exc
