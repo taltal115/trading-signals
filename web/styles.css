@@ -1251,6 +1251,10 @@ button.btn-exit:hover {
   background: rgba(210, 153, 34, 0.22);
 }
 
+.positions-table {
+  min-width: 1200px;
+}
+
 .positions-table tbody tr.row-open td {
   border-left: 3px solid var(--muted);
 }

@@ -1904,6 +1904,15 @@
               var tdTarget = document.createElement("td");
               tdTarget.textContent = s.target != null ? "$" + Number(s.target).toFixed(2) : "—";
 
+              var tdConf = document.createElement("td");
+              if (s.confidence != null) {
+                var confVal = Number(s.confidence);
+                var confCls = confVal >= 70 ? "conf-high" : (confVal >= 50 ? "conf-mid" : "conf-low");
+                tdConf.innerHTML = '<span class="' + confCls + '">' + confVal + '%</span>';
+              } else {
+                tdConf.textContent = "—";
+              }
+
               var tdActions = document.createElement("td");
               tdActions.className = "sig-actions-cell";
               var actionsWrap = document.createElement("div");
@@ -1957,6 +1966,7 @@
               tr.appendChild(tdEntry);
               tr.appendChild(tdStop);
               tr.appendChild(tdTarget);
+              tr.appendChild(tdConf);
               tr.appendChild(tdActions);
               sigBody.appendChild(tr);
             });
@@ -2110,13 +2120,6 @@
         }
       }
 
-      var confHtml = "—";
-      if (d.last_confidence != null) {
-        var confVal = Number(d.last_confidence);
-        var confCls = confVal >= 70 ? "conf-high" : (confVal >= 50 ? "conf-mid" : "conf-low");
-        confHtml = '<span class="' + confCls + '">' + confVal + '%</span>';
-      }
-
       tr.innerHTML =
         '<td class="code"><strong>' +
         esc(d.ticker) +
@@ -2129,7 +2132,6 @@
         "<td>" + num(d.target_price) + "</td>" +
         "<td>" + holdHtml + "</td>" +
         '<td class="spot-cell">' + spotHtml + "</td>" +
-        "<td>" + confHtml + "</td>" +
         "<td>" + actionHtml + "</td>" +
         "<td>" + esc(d.status) + "</td>" +
         '<td class="code">' + esc(d.bought_at || d.created_at_utc || "") + "</td>" +
@@ -2139,14 +2141,14 @@
       expandTr.className = "pos-monitor-expand";
       expandTr.hidden = true;
       expandTr.innerHTML =
-        '<td colspan="14" class="pos-monitor-expand-cell">' +
+        '<td colspan="13" class="pos-monitor-expand-cell">' +
         '<div class="pos-monitor-expand-inner">Loading checks…</div></td>';
 
       var historyTr = document.createElement("tr");
       historyTr.className = "pos-history-expand";
       historyTr.hidden = true;
       historyTr.innerHTML =
-        '<td colspan="14" class="pos-history-expand-cell">' +
+        '<td colspan="13" class="pos-history-expand-cell">' +
         '<div class="pos-history-expand-inner">Loading price history…</div></td>';
 
       pBody.appendChild(tr);
