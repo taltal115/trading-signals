@@ -12,6 +12,11 @@ const firebaseConfig = {
   allowedSignInEmails: ["taltal115@gmail.com"],
   // Optional client allowlist by uid (Firestore rules only require owner_uid == auth.uid).
   allowedAuthUids: [],
+
+  // Optional — market data (copy from your real firebase-config.js when needed)
+  // finnhubApiKey: "",
+  // alphaVantageApiKey: "",
+  // twelveDataApiKey: "", // recommended for dashboard charts if Alpha Vantage hits 25 req/day
 };
 
 window.firebaseConfig = firebaseConfig;

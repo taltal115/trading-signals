@@ -19,6 +19,10 @@ const firebaseConfig = {
   // Alpha Vantage API key for historical daily prices (free: 25 requests/day)
   // Get your free key at: https://www.alphavantage.co/support/#api-key
   alphaVantageApiKey: "WJ64LJ8AU8ZDZ4ZF",
+
+  // Optional: Twelve Data — charts/history use this first (CORS-friendly, higher free limits than AV).
+  // If unset, falls back to Alpha Vantage only. https://twelvedata.com
+  twelveDataApiKey: "",
 };
 
 window.firebaseConfig = firebaseConfig;

@@ -273,6 +273,12 @@
                   <input name="bought_at" type="datetime-local" />
                 </label>
               </div>
+              <div class="bracket-sync-row">
+                <button type="button" class="btn-sync-bracket" disabled>
+                  Update SL/TP from signal %
+                </button>
+                <span class="bracket-sync-hint" aria-live="polite"></span>
+              </div>
               <label style="margin-top: 0.85rem">
                 Notes
                 <textarea name="notes" placeholder="Bracket type, broker, etc."></textarea>
@@ -287,9 +293,10 @@
 
           <div class="positions-header-row">
             <h2>Your positions</h2>
-            <label class="filter-toggle">
-              <input type="checkbox" id="hide-closed-toggle" />
+            <label class="ios-switch-label">
               <span>Hide closed</span>
+              <input type="checkbox" id="hide-closed-toggle" checked />
+              <span class="ios-switch-track"><span class="ios-switch-thumb"></span></span>
             </label>
           </div>
           <div id="positions-pnl-cards" class="pnl-cards-row" hidden>

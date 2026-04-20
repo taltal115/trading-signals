@@ -81,56 +81,184 @@
     if (!res.ok) throw new Error("GitHub API error: " + res.status);
   }
 
+  var finnhubLastCall = 0;
+  var FINNHUB_MIN_INTERVAL = 1200;
+
   async function fetchLivePrice(ticker) {
     var apiKey = cfg.finnhubApiKey;
     if (!apiKey) throw new Error("No Finnhub API key configured");
+
+    var now = Date.now();
+    var wait = FINNHUB_MIN_INTERVAL - (now - finnhubLastCall);
+    if (wait > 0) {
+      await new Promise(function (r) { setTimeout(r, wait); });
+    }
+    finnhubLastCall = Date.now();
+
     var url = "https://finnhub.io/api/v1/quote?symbol=" +
               encodeURIComponent(ticker) + "&token=" + apiKey;
     var res = await fetch(url);
+    if (res.status === 429) {
+      throw new Error("Rate limited - try again later");
+    }
     if (!res.ok) throw new Error("Finnhub error: " + res.status);
     var data = await res.json();
     if (data.c == null || data.c === 0) throw new Error("No price data");
     return data.c;
   }
 
-  async function fetchDailyCandles(ticker, days) {
+  var dailyCandlesCache = {};
+  var DAILY_CANDLES_TTL_MS = 5 * 60 * 1000;
+  /** Alpha Vantage free tier: max ~1 request/sec; serialize all calls and space them after each completes. */
+  var alphaVantageQueue = Promise.resolve();
+  var alphaVantageLastDone = 0;
+  var ALPHAVANTAGE_MIN_GAP_MS = 1250;
+
+  function scrubProviderMsg(msg) {
+    if (!msg) return "";
+    return String(msg).replace(/\b[A-Z0-9]{16,}\b/g, "***");
+  }
+
+  async function fetchDailyCandlesAlphaVantage(ticker, days) {
     var apiKey = cfg.alphaVantageApiKey || "demo";
-    var url = "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=" +
-              encodeURIComponent(ticker) + "&outputsize=compact&apikey=" + apiKey;
+
+    var run = alphaVantageQueue.then(async function () {
+      var gap = ALPHAVANTAGE_MIN_GAP_MS - (Date.now() - alphaVantageLastDone);
+      if (gap > 0) {
+        await new Promise(function (r) { setTimeout(r, gap); });
+      }
+
+      var url = "https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=" +
+                encodeURIComponent(ticker) + "&outputsize=compact&apikey=" + apiKey;
+
+      try {
+        var res = await fetch(url);
+        if (!res.ok) throw new Error("Alpha Vantage HTTP " + res.status);
+        var data = await res.json();
+
+        if (data["Error Message"]) {
+          throw new Error("Alpha Vantage: " + scrubProviderMsg(data["Error Message"]).slice(0, 160));
+        }
+        if (data["Note"]) {
+          throw new Error("Alpha Vantage (frequency limit): " + scrubProviderMsg(data["Note"]).slice(0, 160));
+        }
+        if (data["Information"]) {
+          throw new Error("Alpha Vantage: " + scrubProviderMsg(data["Information"]).slice(0, 220));
+        }
+
+        var timeSeries = data["Time Series (Daily)"];
+        if (!timeSeries || typeof timeSeries !== "object") {
+          throw new Error("Alpha Vantage: no daily time series in response");
+        }
+
+        var dates = Object.keys(timeSeries).sort().reverse();
+        var len = Math.min(days, dates.length);
+        dates = dates.slice(0, len).reverse();
+
+        var times = [];
+        var closes = [];
+        var opens = [];
+
+        for (var i = 0; i < dates.length; i++) {
+          var dateStr = dates[i];
+          var dayData = timeSeries[dateStr];
+          times.push(Math.floor(new Date(dateStr).getTime() / 1000));
+          closes.push(parseFloat(dayData["4. close"]));
+          opens.push(parseFloat(dayData["1. open"]));
+        }
+
+        return { t: times, c: closes, o: opens };
+      } finally {
+        alphaVantageLastDone = Date.now();
+      }
+    });
+
+    alphaVantageQueue = run.catch(function () {});
+    return run;
+  }
+
+  async function fetchDailyCandlesTwelveData(ticker, days, apiKey) {
+    var n = Math.min(Math.max(days, 5), 5000);
+    var url =
+      "https://api.twelvedata.com/time_series?symbol=" +
+      encodeURIComponent(ticker) +
+      "&interval=1day&outputsize=" +
+      String(n) +
+      "&apikey=" +
+      encodeURIComponent(apiKey);
 
     var res = await fetch(url);
-    if (!res.ok) throw new Error("Alpha Vantage error: " + res.status);
+    if (!res.ok) throw new Error("Twelve Data HTTP " + res.status);
     var data = await res.json();
 
-    if (data["Error Message"]) {
-      throw new Error("Invalid ticker symbol");
-    }
-    if (data["Note"]) {
-      throw new Error("API limit reached (25/day)");
+    if (data.status === "error") {
+      throw new Error("Twelve Data: " + (data.message || "error"));
     }
 
-    var timeSeries = data["Time Series (Daily)"];
-    if (!timeSeries) {
-      throw new Error("No data available");
+    var values = data.values;
+    if (!values || !values.length) {
+      throw new Error("Twelve Data: no values");
     }
 
-    var dates = Object.keys(timeSeries).sort().reverse();
-    var len = Math.min(days, dates.length);
-    dates = dates.slice(0, len).reverse();
+    var slice = values.slice(0, n);
+    slice.reverse();
 
     var times = [];
     var closes = [];
     var opens = [];
 
-    for (var i = 0; i < dates.length; i++) {
-      var dateStr = dates[i];
-      var dayData = timeSeries[dateStr];
-      times.push(Math.floor(new Date(dateStr).getTime() / 1000));
-      closes.push(parseFloat(dayData["4. close"]));
-      opens.push(parseFloat(dayData["1. open"]));
+    for (var j = 0; j < slice.length; j++) {
+      var row = slice[j];
+      var ds = String(row.datetime || "").trim().split(" ")[0];
+      times.push(Math.floor(new Date(ds + "T12:00:00Z").getTime() / 1000));
+      closes.push(parseFloat(row.close));
+      opens.push(parseFloat(row.open));
     }
 
     return { t: times, c: closes, o: opens };
+  }
+
+  async function fetchDailyCandles(ticker, days) {
+    var sym = String(ticker || "").trim().toUpperCase();
+    if (!sym) throw new Error("Missing ticker");
+
+    var cacheKey = sym + ":" + String(days);
+    var cached = dailyCandlesCache[cacheKey];
+    if (cached && Date.now() - cached.ts < DAILY_CANDLES_TTL_MS) {
+      return cached.data;
+    }
+
+    var lastErr = null;
+    var tdKey = cfg.twelveDataApiKey;
+
+    if (tdKey && String(tdKey).trim()) {
+      try {
+        var fromTd = await fetchDailyCandlesTwelveData(sym, days, String(tdKey).trim());
+        if (fromTd.c.length < 2) {
+          throw new Error("Twelve Data: not enough history");
+        }
+        dailyCandlesCache[cacheKey] = { ts: Date.now(), data: fromTd };
+        return fromTd;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+
+    try {
+      var fromAv = await fetchDailyCandlesAlphaVantage(sym, days);
+      if (fromAv.c.length < 2) {
+        throw new Error("Alpha Vantage: not enough history");
+      }
+      dailyCandlesCache[cacheKey] = { ts: Date.now(), data: fromAv };
+      return fromAv;
+    } catch (e2) {
+      lastErr = e2;
+    }
+
+    if (lastErr) throw lastErr;
+    throw new Error(
+      "No chart data: set twelveDataApiKey in firebase-config (recommended) or wait for Alpha Vantage daily quota reset"
+    );
   }
 
   function drawPriceChart(canvas, candles, entryPrice, buyDateTs) {
@@ -148,6 +276,13 @@
     var chartH = height - padding.top - padding.bottom;
 
     var prices = candles.c;
+    if (!prices || prices.length < 2) {
+      ctx.fillStyle = "rgba(128,128,128,0.65)";
+      ctx.font = "12px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Not enough price history", width / 2, height / 2);
+      return;
+    }
     var minPrice = Math.min.apply(null, prices);
     var maxPrice = Math.max.apply(null, prices);
     if (entryPrice > 0) {
@@ -444,7 +579,7 @@
   var positionsDataCache = [];
   var positionsSortKey = "bought_at";
   var positionsSortDir = "desc";
-  var hideClosedPositions = false;
+  var hideClosedPositions = true;
   var livePricesCache = {};
   var previousDayPricesCache = {};
   var priceRefreshInterval = null;
@@ -596,7 +731,7 @@
 
   function startPriceRefreshInterval() {
     if (priceRefreshInterval) clearInterval(priceRefreshInterval);
-    priceRefreshInterval = setInterval(refreshAllLivePrices, 3000);
+    priceRefreshInterval = setInterval(refreshAllLivePrices, 30000);
   }
 
   function stopPriceRefreshInterval() {
@@ -1294,10 +1429,15 @@
       } catch (e) {
         console.warn("Failed to load chart for " + ticker, e);
         var ctx = canvas.getContext("2d");
+        var dpr = window.devicePixelRatio || 1;
+        var rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
         ctx.fillStyle = "rgba(128,128,128,0.5)";
         ctx.font = "10px system-ui, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("Chart unavailable", canvas.width / 2, canvas.height / 2);
+        ctx.fillText("Chart unavailable", rect.width / 2, rect.height / 2);
       }
     }
   }
@@ -1317,6 +1457,13 @@
     var chartH = height - padding.top - padding.bottom;
 
     var prices = candles.c;
+    if (!prices || prices.length < 2) {
+      ctx.fillStyle = "rgba(128,128,128,0.5)";
+      ctx.font = "10px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("No history", width / 2, height / 2);
+      return;
+    }
     var minPrice = Math.min.apply(null, prices);
     var maxPrice = Math.max.apply(null, prices);
     if (entryPrice > 0) {
@@ -1470,6 +1617,95 @@
     return u;
   }
 
+  function extractBracketPctsFromSignal(s) {
+    if (!s) return null;
+    var sp = s.stop_pct;
+    var tp = s.target_pct;
+    if (
+      sp != null &&
+      tp != null &&
+      Number.isFinite(Number(sp)) &&
+      Number.isFinite(Number(tp))
+    ) {
+      return { stopPct: Number(sp), targetPct: Number(tp) };
+    }
+    var close = Number(s.close);
+    var stop = s.stop != null ? Number(s.stop) : NaN;
+    var target = s.target != null ? Number(s.target) : NaN;
+    if (
+      Number.isFinite(close) &&
+      close !== 0 &&
+      Number.isFinite(stop) &&
+      Number.isFinite(target)
+    ) {
+      return {
+        stopPct: ((stop - close) / close) * 100,
+        targetPct: ((target - close) / close) * 100,
+      };
+    }
+    return null;
+  }
+
+  function fmtMoneyInput(x) {
+    return String(Math.round(x * 100) / 100);
+  }
+
+  function applyBracketPctToPrices(form, statusEl) {
+    var bp = form._bracketPct;
+    if (
+      !bp ||
+      !Number.isFinite(bp.stopPct) ||
+      !Number.isFinite(bp.targetPct)
+    ) {
+      if (statusEl) {
+        statusEl.textContent =
+          "No signal bracket % on this form. Open it with Log Buy from the signals table.";
+      }
+      return false;
+    }
+    var entryEl = form.querySelector('[name="entry_price"]');
+    var entry = entryEl ? parseFloat(entryEl.value) : NaN;
+    if (!Number.isFinite(entry) || entry <= 0) {
+      if (statusEl) statusEl.textContent = "Enter a valid entry price first.";
+      return false;
+    }
+    var stop = entry * (1 + bp.stopPct / 100);
+    var target = entry * (1 + bp.targetPct / 100);
+    var stopIn = form.querySelector('[name="stop_price"]');
+    var targetIn = form.querySelector('[name="target_price"]');
+    if (stopIn) stopIn.value = fmtMoneyInput(stop);
+    if (targetIn) targetIn.value = fmtMoneyInput(target);
+    if (statusEl) statusEl.textContent = "";
+    return true;
+  }
+
+  function updateBracketSyncUi(form) {
+    if (!form) return;
+    var btn = form.querySelector(".btn-sync-bracket");
+    if (!btn) return;
+    var bp = form._bracketPct;
+    var has =
+      bp &&
+      Number.isFinite(bp.stopPct) &&
+      Number.isFinite(bp.targetPct);
+    btn.disabled = !has;
+    var hint = form.querySelector(".bracket-sync-hint");
+    if (hint) {
+      if (has) {
+        hint.textContent =
+          "Signal: SL " +
+          (bp.stopPct >= 0 ? "+" : "") +
+          bp.stopPct.toFixed(2) +
+          "% · TP " +
+          (bp.targetPct >= 0 ? "+" : "") +
+          bp.targetPct.toFixed(2) +
+          "% vs entry (same as Slack).";
+      } else {
+        hint.textContent = "";
+      }
+    }
+  }
+
   async function submitOpenPositionFromForm(form, statusEl) {
     if (!form || !statusEl) return;
     statusEl.textContent = "";
@@ -1544,6 +1780,15 @@
       await db.collection(COL_MY_POSITIONS).add(payload);
       statusEl.textContent = "Saved to my_positions.";
       form.reset();
+      form._bracketPct = null;
+      form._signalMeta = {};
+      updateBracketSyncUi(form);
+      if (form.id === "signals-inline-position-form") {
+        collapseSignalsInlineForm();
+      } else if (form.id === "position-form") {
+        var det = document.getElementById("position-form-details");
+        if (det) det.removeAttribute("open");
+      }
     } catch (err) {
       statusEl.textContent = "Error: " + formatFirestoreErr(err);
       console.error(err);
@@ -1575,6 +1820,8 @@
       industry: s.industry || "",
       estimated_hold_days: s.estimated_hold_days || null,
     };
+    form._bracketPct = extractBracketPctsFromSignal(s);
+    updateBracketSyncUi(form);
   }
 
   function collapseSignalsInlineForm() {
@@ -1607,7 +1854,7 @@
     tr.className = "signals-inline-form-tr";
     tr.hidden = true;
     const td = document.createElement("td");
-    td.colSpan = 3;
+    td.colSpan = 9;
     td.className = "signals-inline-form-cell";
     td.innerHTML =
       '<div class="signals-inline-form-slide">' +
@@ -1629,6 +1876,10 @@
       '<label>Signal close price <input name="signal_close_price" type="number" step="any" min="0" placeholder="market close at signal" /></label>' +
       '<label>Buy date/time <input name="bought_at" type="datetime-local" /></label>' +
       "</div>" +
+      '<div class="bracket-sync-row">' +
+      '<button type="button" class="btn-sync-bracket" disabled>Update SL/TP from signal %</button>' +
+      '<span class="bracket-sync-hint" aria-live="polite"></span>' +
+      "</div>" +
       '<label class="signals-inline-notes-label">Notes <textarea name="notes" placeholder="Bracket type, broker, etc."></textarea></label>' +
       '<div class="form-actions"><button type="submit">Save open position</button></div>' +
       '<p id="signals-inline-form-status" class="signals-inline-form-status"></p>' +
@@ -1643,6 +1894,11 @@
       const formEl = tr.querySelector("#signals-inline-position-form");
       const statusEl = tr.querySelector("#signals-inline-form-status");
       await submitOpenPositionFromForm(formEl, statusEl);
+    });
+    tr.querySelector(".btn-sync-bracket").addEventListener("click", function () {
+      const formEl = tr.querySelector("#signals-inline-position-form");
+      const statusEl = tr.querySelector("#signals-inline-form-status");
+      applyBracketPctToPrices(formEl, statusEl);
     });
     signalsInlineFormTrRef = tr;
     const guest =
@@ -2090,6 +2346,20 @@
           ' <button type="button" class="btn-check-now" data-ticker="' +
           escAttr(d.ticker) +
           '">Check</button>';
+      } else {
+        actionsHtml =
+          '<button type="button" class="btn-monitor-toggle" data-pos-id="' +
+          escAttr(docId) +
+          '" data-ticker="' +
+          escAttr(d.ticker) +
+          '">Monitor</button>' +
+          ' <button type="button" class="btn-history-toggle" data-ticker="' +
+          escAttr(d.ticker) +
+          '" data-entry="' +
+          escAttr(String(d.entry_price ?? "")) +
+          '" data-bought="' +
+          escAttr(d.bought_at || d.created_at_utc || "") +
+          '">History</button>';
       }
 
       var sectorHtml = "—";
@@ -2804,6 +3074,13 @@
     formStatus.textContent = "";
     await submitOpenPositionFromForm(posForm, formStatus);
   });
+
+  var posSyncBracket = posForm.querySelector(".btn-sync-bracket");
+  if (posSyncBracket) {
+    posSyncBracket.addEventListener("click", function () {
+      applyBracketPctToPrices(posForm, formStatus);
+    });
+  }
 
   setupPositionsTableSort();
 
