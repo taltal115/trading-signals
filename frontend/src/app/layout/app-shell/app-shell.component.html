@@ -1,0 +1,184 @@
+<div id="app-shell" class="app-shell">
+  <div
+    class="app-layout"
+    id="app-layout"
+    [class.sidebar-collapsed]="sidebarCollapsed()"
+    [class.sidebar-mobile-open]="mobileOpen()"
+  >
+    <div
+      id="sidebar-backdrop"
+      class="sidebar-backdrop"
+      [hidden]="!mobileOpen()"
+      aria-hidden="true"
+      (click)="closeMobileNav()"
+    ></div>
+
+    <aside id="app-sidebar" class="app-sidebar" aria-label="Main navigation">
+      <div class="sidebar-top">
+        <a routerLink="/dashboard" class="brand-link sidebar-brand" title="Home">
+          signals <span>dashboard</span>
+        </a>
+        <button
+          type="button"
+          id="sidebar-collapse-toggle"
+          class="sidebar-collapse-toggle"
+          [attr.aria-expanded]="!sidebarCollapsed()"
+          aria-controls="app-sidebar"
+          [title]="sidebarCollapsed() ? 'Expand menu' : 'Collapse menu'"
+          (click)="toggleSidebarCollapse()"
+        >
+          <span class="sidebar-collapse-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Collapse sidebar</span>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <a
+          routerLink="/dashboard"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link"
+          data-abbr="Da"
+          title="Dashboard"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">Dashboard</span>
+        </a>
+        <a
+          routerLink="/positions"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link"
+          data-abbr="Po"
+          title="My positions"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">My positions</span>
+        </a>
+        <a
+          routerLink="/reporting"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link"
+          data-abbr="Rp"
+          title="Reporting"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">Reporting</span>
+        </a>
+        <a
+          routerLink="/signals"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link nav-link-signals"
+          data-abbr="Si"
+          title="Signals"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">Signals</span>
+          @if (signalsNewBadge.count() > 0) {
+            <span class="nav-signals-badge" [attr.aria-label]="signalsNewBadge.count() + ' new signal rows'">{{
+              signalsNewBadge.count()
+            }}</span>
+          }
+        </a>
+        <a
+          routerLink="/universe"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link"
+          data-abbr="Un"
+          title="Universe"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">Universe</span>
+        </a>
+        <a
+          routerLink="/monitor"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link"
+          data-abbr="Mo"
+          title="Monitor"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">Monitor</span>
+        </a>
+        <a
+          routerLink="/about"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          class="sidebar-nav-link nav-link"
+          data-abbr="Ab"
+          title="About"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">About</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        @if (authSvc.allowedUser$ | async; as u) {
+          <span id="header-user-email" class="sidebar-user-email">{{ authSvc.displayEmail(u) }}</span>
+        }
+        @if (!env.devAuthBypass) {
+          <a
+            routerLink="/login"
+            class="sidebar-auth-btn sidebar-auth-signin nav-link"
+            id="nav-sign-in"
+            [hidden]="!!(authSvc.allowedUser$ | async)"
+          >
+            Sign in with Google
+          </a>
+          <button
+            type="button"
+            class="sidebar-auth-btn sidebar-auth-signout"
+            id="logout-btn"
+            [hidden]="!(authSvc.allowedUser$ | async)"
+            (click)="signOutClick()"
+          >
+            Sign out
+          </button>
+        }
+      </div>
+    </aside>
+
+    <div class="app-main-wrap">
+      <header class="app-topbar">
+        <button
+          type="button"
+          id="mobile-nav-open"
+          class="mobile-nav-open"
+          [attr.aria-expanded]="mobileOpen()"
+          aria-controls="app-sidebar"
+          (click)="toggleMobileNav()"
+        >
+          <span class="mobile-nav-bars" aria-hidden="true"></span>
+          <span class="visually-hidden">Open menu</span>
+        </button>
+        <a routerLink="/dashboard" class="brand-link brand-link-topbar" title="Home">
+          signals <span>dashboard</span>
+        </a>
+      </header>
+
+      <main class="app-main">
+        <router-outlet />
+      </main>
+    </div>
+  </div>
+</div>
+
+<dialog id="exit-dialog" class="exit-dialog">
+  <form id="exit-form" (submit)="$event.preventDefault(); submitExit()">
+    <h3>Exit position</h3>
+    <p id="exit-dialog-summary" class="exit-dialog-summary">
+      {{ exitTicker || '(ticker)' }} · entry {{ exitEntry > 0 ? (exitEntry | number : '1.4-4') : '—' }}
+    </p>
+    <label>
+      Actual sell price
+      <input id="exit-price-input" name="exit_price" type="number" step="any" required min="0.000001" [(ngModel)]="exitPrice" />
+    </label>
+    <label>
+      Notes (optional)
+      <input id="exit-notes-input" name="exit_notes" type="text" placeholder="broker, time, etc." [(ngModel)]="exitNotes" />
+    </label>
+    <div class="dialog-actions">
+      <button type="button" class="secondary" id="exit-cancel-btn" (click)="closeExitDialog()">Cancel</button>
+      <button type="submit" class="primary">Save exit</button>
+    </div>
+  </form>
+</dialog>

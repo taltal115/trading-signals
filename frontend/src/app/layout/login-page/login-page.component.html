@@ -1,0 +1,21 @@
+<div id="login-screen" class="login-screen" aria-label="Sign in">
+  <div class="login-card">
+    <h1 class="login-title">signals <span>dashboard</span></h1>
+    <p class="login-message">
+      Sign in with Google to manage positions and sync with your allowlisted account.
+    </p>
+    <div class="login-actions">
+      <button type="button" id="login-google-btn" class="btn-google login-google-btn" (click)="googleSignIn()" [disabled]="loading()">
+        Continue with Google
+      </button>
+      <div id="login-spinner" class="login-spinner" [hidden]="!loading()">
+        <span class="spinner-ring" aria-hidden="true"></span>
+        <span>Signing in…</span>
+      </div>
+    </div>
+    <p class="login-back">
+      <a routerLink="/dashboard" class="nav-anchor">← Back to dashboard</a>
+    </p>
+    <p id="login-auth-error" class="auth-error login-auth-error" [hidden]="!error()">{{ error() }}</p>
+  </div>
+</div>

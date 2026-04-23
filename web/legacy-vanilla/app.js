@@ -119,6 +119,27 @@
     return String(msg).replace(/\b[A-Z0-9]{16,}\b/g, "***");
   }
 
+  var UI_MAX_DECIMALS = 3;
+  function roundUiNum(n) {
+    if (!Number.isFinite(n)) return NaN;
+    var f = Math.pow(10, UI_MAX_DECIMALS);
+    return Math.round(n * f) / f;
+  }
+  function fmtUiDec(n) {
+    if (!Number.isFinite(n)) return "—";
+    var r = roundUiNum(n);
+    return r.toFixed(UI_MAX_DECIMALS).replace(/\.?0+$/, "");
+  }
+  function fmtUsdUi(n) {
+    if (n == null || n === "") return "—";
+    var x = Number(n);
+    return Number.isFinite(x) ? "$" + fmtUiDec(x) : "—";
+  }
+  function fmtSignedUsdUi(v) {
+    if (!Number.isFinite(v)) return "—";
+    return (v >= 0 ? "+$" : "-$") + fmtUiDec(Math.abs(v));
+  }
+
   async function fetchDailyCandlesAlphaVantage(ticker, days) {
     var apiKey = cfg.alphaVantageApiKey || "demo";
 
@@ -318,7 +339,7 @@
       ctx.fillStyle = "rgba(61, 214, 198, 0.9)";
       ctx.font = "10px system-ui, sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("Entry $" + entryPrice.toFixed(2), width - padding.right + 4, entryY + 3);
+      ctx.fillText("Entry $" + fmtUiDec(entryPrice), width - padding.right + 4, entryY + 3);
     }
 
     var points = [];
@@ -409,7 +430,7 @@
     for (var p = 0; p <= 4; p++) {
       var priceVal = maxPrice - (priceRange * p / 4);
       var py = padding.top + (chartH * p / 4);
-      ctx.fillText("$" + priceVal.toFixed(2), width - 4, py + 3);
+      ctx.fillText("$" + fmtUiDec(priceVal), width - 4, py + 3);
     }
 
     ctx.textAlign = "center";
@@ -421,11 +442,11 @@
     }
 
     var latestPnl = entryPrice > 0 ? ((lastPrice - entryPrice) / entryPrice * 100) : 0;
-    var pnlText = (latestPnl >= 0 ? "+" : "") + latestPnl.toFixed(2) + "%";
+    var pnlText = (latestPnl >= 0 ? "+" : "") + fmtUiDec(latestPnl) + "%";
     ctx.textAlign = "left";
     ctx.font = "bold 12px system-ui, sans-serif";
     ctx.fillStyle = isUp ? "rgba(63, 185, 80, 1)" : "rgba(248, 81, 73, 1)";
-    ctx.fillText("$" + lastPrice.toFixed(2) + " (" + pnlText + ")", padding.left + 5, padding.top - 8);
+    ctx.fillText("$" + fmtUiDec(lastPrice) + " (" + pnlText + ")", padding.left + 5, padding.top - 8);
 
     return { points: points, entryPrice: entryPrice };
   }
@@ -472,12 +493,12 @@
               day: "numeric"
             });
             var pnl = entryPrice > 0 ? ((closest.price - entryPrice) / entryPrice * 100) : 0;
-            var pnlStr = (pnl >= 0 ? "+" : "") + pnl.toFixed(2) + "%";
+            var pnlStr = (pnl >= 0 ? "+" : "") + fmtUiDec(pnl) + "%";
             var pnlCls = pnl > 0 ? "tip-profit" : (pnl < 0 ? "tip-loss" : "");
 
             tooltip.innerHTML =
               '<div class="tip-date">' + dateStr + '</div>' +
-              '<div class="tip-price">$' + closest.price.toFixed(2) + '</div>' +
+              '<div class="tip-price">' + fmtUsdUi(closest.price) + '</div>' +
               '<div class="tip-pnl ' + pnlCls + '">' + pnlStr + '</div>';
 
             var tipX = closest.x + 10;
@@ -669,14 +690,14 @@
     }
 
     totalValueEl.className = "pnl-card-value " + totalCls;
-    totalValueEl.textContent = (totalPnl >= 0 ? "+$" : "-$") + Math.abs(totalPnl).toFixed(2);
+    totalValueEl.textContent = fmtSignedUsdUi(totalPnl);
     totalPctEl.className = "pnl-card-pct " + totalCls;
-    totalPctEl.textContent = (totalPct >= 0 ? "+" : "") + totalPct.toFixed(2) + "%";
+    totalPctEl.textContent = (totalPct >= 0 ? "+" : "") + fmtUiDec(totalPct) + "%";
 
     todayValueEl.className = "pnl-card-value " + todayCls;
-    todayValueEl.textContent = (daily.pnlValue >= 0 ? "+$" : "-$") + Math.abs(daily.pnlValue).toFixed(2);
+    todayValueEl.textContent = fmtSignedUsdUi(daily.pnlValue);
     todayPctEl.className = "pnl-card-pct " + todayCls;
-    todayPctEl.textContent = (daily.pnlPct >= 0 ? "+" : "") + daily.pnlPct.toFixed(2) + "%";
+    todayPctEl.textContent = (daily.pnlPct >= 0 ? "+" : "") + fmtUiDec(daily.pnlPct) + "%";
   }
 
   async function refreshAllLivePrices() {
@@ -721,7 +742,7 @@
             else if (price < entry) { cls = "spot-val spot-down"; arrow = " &#9660;"; }
           }
           valEl.className = cls;
-          valEl.innerHTML = price.toFixed(2) + arrow;
+          valEl.innerHTML = fmtUiDec(price) + arrow;
         }
         var staleEl = cell.querySelector(".spot-stale");
         if (staleEl) staleEl.textContent = "live";
@@ -1347,7 +1368,7 @@
         if (hdFrom == null && estHold != null) {
           holdHtml += " (ATR est)";
         } else if (estHold != null && estHold !== hdFrom) {
-          holdHtml += " (ATR ~" + Number(estHold).toFixed(0) + "d)";
+          holdHtml += " (ATR ~" + fmtUiDec(Number(estHold)) + "d)";
         }
       }
 
@@ -1364,7 +1385,7 @@
         } catch (e) { /* ignore */ }
       }
 
-      var spotHtml = spotF != null ? "$" + spotF.toFixed(2) : "—";
+      var spotHtml = spotF != null ? fmtUsdUi(spotF) : "—";
 
       card.innerHTML =
         '<div class="pos-card-header">' +
@@ -1374,7 +1395,7 @@
         '<div class="pos-card-body">' +
           '<div class="pos-card-row">' +
             '<span class="pos-card-label">Entry</span>' +
-            '<span class="pos-card-value">$' + (entryF != null ? entryF.toFixed(2) : "—") + "</span>" +
+            '<span class="pos-card-value">' + (entryF != null ? fmtUsdUi(entryF) : "—") + "</span>" +
           "</div>" +
           '<div class="pos-card-row">' +
             '<span class="pos-card-label">Spot</span>' +
@@ -1386,11 +1407,11 @@
           "</div>" +
           '<div class="pos-card-row">' +
             '<span class="pos-card-label">Stop</span>' +
-            '<span class="pos-card-value">' + (d.stop_price != null ? "$" + Number(d.stop_price).toFixed(2) : "—") + "</span>" +
+            '<span class="pos-card-value">' + (d.stop_price != null ? fmtUsdUi(d.stop_price) : "—") + "</span>" +
           "</div>" +
           '<div class="pos-card-row">' +
             '<span class="pos-card-label">Target</span>' +
-            '<span class="pos-card-value">' + (d.target_price != null ? "$" + Number(d.target_price).toFixed(2) : "—") + "</span>" +
+            '<span class="pos-card-value">' + (d.target_price != null ? fmtUsdUi(d.target_price) : "—") + "</span>" +
           "</div>" +
           '<div class="pos-card-row">' +
             '<span class="pos-card-label">Hold</span>' +
@@ -1647,7 +1668,8 @@
   }
 
   function fmtMoneyInput(x) {
-    return String(Math.round(x * 100) / 100);
+    if (!Number.isFinite(x)) return "";
+    return fmtUiDec(x);
   }
 
   function applyBracketPctToPrices(form, statusEl) {
@@ -1695,10 +1717,10 @@
         hint.textContent =
           "Signal: SL " +
           (bp.stopPct >= 0 ? "+" : "") +
-          bp.stopPct.toFixed(2) +
+          fmtUiDec(bp.stopPct) +
           "% · TP " +
           (bp.targetPct >= 0 ? "+" : "") +
-          bp.targetPct.toFixed(2) +
+          fmtUiDec(bp.targetPct) +
           "% vs entry (same as Slack).";
       } else {
         hint.textContent = "";
@@ -1801,7 +1823,7 @@
       const el = form.querySelector('[name="' + name + '"]');
       if (!el) return;
       if (v == null || v === "") el.value = "";
-      else el.value = String(Number(v));
+      else el.value = fmtMoneyInput(Number(v));
     };
     form.querySelector('[name="ticker"]').value = String(s.ticker || "")
       .trim()
@@ -1965,7 +1987,7 @@
     p = Number(p);
     const cls = p > 0.0001 ? "pnl-profit" : p < -0.0001 ? "pnl-loss" : "pnl-flat";
     const sign = p > 0 ? "+" : "";
-    return '<span class="' + cls + '">' + sign + p.toFixed(2) + "%</span>";
+    return '<span class="' + cls + '">' + sign + fmtUiDec(p) + "%</span>";
   }
 
   function subscribeUniverseAndSignals() {
@@ -2142,7 +2164,7 @@
               tdTicker.innerHTML = "<strong>" + esc(s.ticker || "?") + "</strong>";
 
               var tdSignalPrice = document.createElement("td");
-              tdSignalPrice.textContent = s.close != null ? "$" + Number(s.close).toFixed(2) : "—";
+              tdSignalPrice.textContent = s.close != null ? fmtUsdUi(s.close) : "—";
 
               var tdLivePrice = document.createElement("td");
               tdLivePrice.className = "sig-live-cell";
@@ -2152,13 +2174,13 @@
                 escAttr(s.ticker || "") + '">&#x21bb;</button>';
 
               var tdEntry = document.createElement("td");
-              tdEntry.textContent = s.close != null ? "$" + Number(s.close).toFixed(2) : "—";
+              tdEntry.textContent = s.close != null ? fmtUsdUi(s.close) : "—";
 
               var tdStop = document.createElement("td");
-              tdStop.textContent = s.stop != null ? "$" + Number(s.stop).toFixed(2) : "—";
+              tdStop.textContent = s.stop != null ? fmtUsdUi(s.stop) : "—";
 
               var tdTarget = document.createElement("td");
-              tdTarget.textContent = s.target != null ? "$" + Number(s.target).toFixed(2) : "—";
+              tdTarget.textContent = s.target != null ? fmtUsdUi(s.target) : "—";
 
               var tdConf = document.createElement("td");
               if (s.confidence != null) {
@@ -2240,7 +2262,7 @@
                 var price = await fetchLivePrice(ticker);
                 if (cell) {
                   var valEl = cell.querySelector(".sig-live-val");
-                  if (valEl) valEl.textContent = "$" + price.toFixed(2);
+                  if (valEl) valEl.textContent = fmtUsdUi(price);
                 }
               } catch (err) {
                 console.error("Fetch live price error:", err);
@@ -2304,7 +2326,7 @@
         }
         spotHtml =
           '<div class="spot-wrap">' +
-          '<span class="' + spotCls + '">' + spotF.toFixed(2) + arrow + "</span>" +
+          '<span class="' + spotCls + '">' + fmtUiDec(spotF) + arrow + "</span>" +
           refreshBtn + staleLine + "</div>";
       } else if (d.status === "open") {
         spotHtml =
@@ -2376,7 +2398,7 @@
         if (hdFrom == null && estHold != null) {
           holdHtml += ' <span class="hold-est">(ATR est)</span>';
         } else if (estHold != null && estHold !== hdFrom) {
-          holdHtml += ' <span class="hold-est">(ATR ' + Number(estHold).toFixed(1) + 'd)</span>';
+          holdHtml += ' <span class="hold-est">(ATR ' + fmtUiDec(Number(estHold)) + 'd)</span>';
         }
         var startDate = d.bought_at || d.created_at_utc;
         if (startDate) {
@@ -2539,7 +2561,7 @@
             else if (spot < entry) { cls = "spot-val spot-down"; arrow = " &#9660;"; }
           }
           var valEl = cell.querySelector(".spot-val");
-          if (valEl) { valEl.className = cls; valEl.innerHTML = spot.toFixed(2) + arrow; }
+          if (valEl) { valEl.className = cls; valEl.innerHTML = fmtUiDec(spot) + arrow; }
           var staleEl = cell.querySelector(".spot-stale");
           if (staleEl) { staleEl.textContent = tsLabel; }
         }
@@ -2672,7 +2694,7 @@
             var pv = Number(c.pnl_pct);
             var pCls = pv > 0.0001 ? "pnl-profit" : (pv < -0.0001 ? "pnl-loss" : "pnl-flat");
             var sign = pv > 0 ? "+" : "";
-            pnlStr = '<span class="' + pCls + '">' + sign + pv.toFixed(2) + "%</span>";
+            pnlStr = '<span class="' + pCls + '">' + sign + fmtUiDec(pv) + "%</span>";
           }
           var daysStr = c.days_held != null ? String(c.days_held) + "d" : "—";
           var atrEstStr = c.atr_hold_est != null ? String(c.atr_hold_est) + "d" : "—";
@@ -2681,7 +2703,7 @@
             '<td class="code">' + esc(String(c.ts_utc || "").slice(0, 19).replace("T", " ")) + "</td>" +
             '<td><span class="' + tagCls + '">' + esc(c.tag || c.alert_kind || "") + "</span></td>" +
             "<td>" + (c.confidence != null ? c.confidence : "—") + "</td>" +
-            "<td>" + (c.last_spot != null ? Number(c.last_spot).toFixed(2) : "—") + "</td>" +
+            "<td>" + (c.last_spot != null ? fmtUiDec(Number(c.last_spot)) : "—") + "</td>" +
             "<td>" + pnlStr + "</td>" +
             "<td>" + daysStr + "</td>" +
             "<td>" + atrEstStr + "</td>" +
@@ -2755,7 +2777,7 @@
               var pv = Number(c.pnl_pct);
               var pCls = pv > 0.0001 ? "pnl-profit" : (pv < -0.0001 ? "pnl-loss" : "pnl-flat");
               var sign = pv > 0 ? "+" : "";
-              pnlStr = '<span class="' + pCls + '">' + sign + pv.toFixed(2) + "%</span>";
+              pnlStr = '<span class="' + pCls + '">' + sign + fmtUiDec(pv) + "%</span>";
             }
             var daysStr = c.days_held != null ? String(c.days_held) + "d" : "—";
             var atrEstStr = c.atr_hold_est != null ? String(c.atr_hold_est) + "d" : "—";
@@ -2764,7 +2786,7 @@
               '<td class="code"><strong>' + esc(c.ticker || "") + "</strong></td>" +
               '<td><span class="' + tagCls + '">' + esc(c.tag || c.alert_kind || "") + "</span></td>" +
               "<td>" + (c.confidence != null ? c.confidence : "—") + "</td>" +
-              "<td>" + (c.last_spot != null ? Number(c.last_spot).toFixed(2) : "—") + "</td>" +
+              "<td>" + (c.last_spot != null ? fmtUiDec(Number(c.last_spot)) : "—") + "</td>" +
               "<td>" + pnlStr + "</td>" +
               "<td>" + daysStr + "</td>" +
               "<td>" + atrEstStr + "</td>" +
@@ -2799,7 +2821,7 @@
     exitEntryPrice = Number(entryPrice);
     if (!Number.isFinite(exitEntryPrice)) exitEntryPrice = 0;
     document.getElementById("exit-dialog-summary").textContent =
-      (exitTicker || "(ticker)") + " · entry " + (exitEntryPrice > 0 ? exitEntryPrice.toFixed(4) : "—");
+      (exitTicker || "(ticker)") + " · entry " + (exitEntryPrice > 0 ? fmtUiDec(exitEntryPrice) : "—");
     document.getElementById("exit-price-input").value = "";
     document.getElementById("exit-notes-input").value = "";
     document.getElementById("exit-dialog").showModal();
@@ -2875,7 +2897,7 @@
   function num(x) {
     if (x == null || x === "") return "—";
     const n = Number(x);
-    return Number.isFinite(n) ? n.toFixed(4).replace(/\.?0+$/, "") : "—";
+    return Number.isFinite(n) ? n.toFixed(UI_MAX_DECIMALS).replace(/\.?0+$/, "") : "—";
   }
 
   if (loginGoogleBtn) {

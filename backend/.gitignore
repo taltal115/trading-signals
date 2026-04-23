@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Nest build output (compiled JS lives here)
+dist/
+
+# Local npm cache (see .npmrc)
+.npm-cache/
+
+# Logs & coverage
+*.log
+npm-debug.log*
+coverage/
+.nyc_output/

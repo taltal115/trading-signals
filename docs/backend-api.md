@@ -1,0 +1,94 @@
+# NestJS API (Firebase Admin)
+
+The Angular dashboard talks to this API over HTTP (`HttpClient`, `withCredentials: true`). The browser does **not** load the Firebase Web SDK for Firestore or Auth; the server uses **firebase-admin** and enforces allowlists.
+
+## Layout
+
+- Code: [`backend/`](../backend/) at repo root (Python `src/` is unchanged).
+- Global route prefix: **`/api`** (e.g. `GET /api/health`).
+- Auth: **Google OAuth** via Passport → **express-session** cookie (`signals.sid`, HTTP-only).
+
+## Environment variables
+
+| Variable | Purpose |
+| -------- | ------- |
+| `PORT` | Listen port (default `3000`). |
+| `NODE_ENV` | `production` enables `secure` session cookies and disables local auth bypass. |
+| `SESSION_SECRET` | Session HMAC secret (required in production). |
+| `FRONTEND_URL` | SPA origin for CORS and post-login redirect (e.g. `http://localhost:4200`). |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | OAuth app credentials. |
+| `GOOGLE_CALLBACK_URL` | Optional. Defaults to `{FRONTEND_URL}/api/auth/google/callback` (works with `ng serve` + [`frontend/proxy.conf.json`](../frontend/proxy.conf.json)). |
+| `ALLOWED_SIGN_IN_EMAILS` | Comma-separated allowlist (lowercased server-side). |
+| `ALLOWED_AUTH_UIDS` | Comma-separated Firebase Auth UIDs allowed after Google sign-in (resolved via Admin `getUserByEmail`). |
+| `AUTH_BYPASS_LOCAL` | Set `true` for local dev only; uses `DEV_OWNER_UID` for all Firestore access. **Never** in production. |
+| `DEV_OWNER_UID` | Firebase Auth UID used when bypass is active. |
+| `DEV_USER_EMAIL` | Optional label for logs when bypass is active. |
+| `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON, **or** |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Inline JSON string for the service account. |
+| `GITHUB_PERSONAL_TOKEN` | (Optional but required for **Check** / **Re-eval** buttons.) PAT with Actions workflow dispatch permission; **server-only**, never in the Angular bundle. Also accepts `GITHUB_TOKEN`. |
+| `GITHUB_REPO_OWNER` / `GITHUB_REPO_NAME` | Optional; default `taltal115` / `trading-signals`. |
+
+Align `ALLOWED_*` with [`frontend/src/environments/environment.ts`](../frontend/src/environments/environment.ts) `allowedSignInEmails` / `allowedAuthUids` for consistent UX.
+
+## Environment file
+
+You can keep variables in the **repo-root** [`.env`](../.env) (gitignored). `ConfigModule` loads **`backend/.env`** first, then **`../.env`**, so `cd backend && npm run start:dev` still picks up the root file.
+
+**`GOOGLE_APPLICATION_CREDENTIALS`:** paths are resolved from **process cwd**. If the JSON lives in the repo root and you start Nest from `backend/`, use an **absolute** path or a path like **`../your-service-account.json`**. Alternatively set **`FIREBASE_SERVICE_ACCOUNT_JSON`** (inline JSON) in `.env`.
+
+See [`.env.example`](../.env.example) for all keys.
+
+## Local development
+
+Terminal 1 — API (example with exports):
+
+```bash
+cd backend
+npm ci
+export SESSION_SECRET=local-dev-secret
+export AUTH_BYPASS_LOCAL=true
+export DEV_OWNER_UID=your_firebase_auth_uid
+export FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account",...}'
+# or: export GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa.json
+export ALLOWED_SIGN_IN_EMAILS=you@example.com
+export ALLOWED_AUTH_UIDS=your_uid
+npm run start:dev
+```
+
+Or put the same keys in **repo-root `.env`** and run `npm run start:dev` from `backend/` (no `export` needed).
+
+Terminal 2 — Angular (proxies `/api` → `http://localhost:3000`):
+
+```bash
+cd frontend
+npm ci
+npm start
+```
+
+Open `http://localhost:4200`. The shell guard skips `/login` when `environment.devAuthBypass` is true (localhost only in `environment.ts`).
+
+For real Google sign-in locally, set `AUTH_BYPASS_LOCAL=false`, provide `GOOGLE_*`, and add the OAuth **Authorized redirect URI** in Google Cloud Console:  
+`http://localhost:4200/api/auth/google/callback` (same path the SPA proxies to the API).
+
+## Main HTTP routes
+
+- `GET /api/health` — liveness.
+- `GET /api/auth/me` — `{ user: { uid, email?, ... } | null }`.
+- `GET /api/auth/google` — start OAuth.
+- `GET /api/auth/google/callback` — OAuth callback; sets session; redirects to `FRONTEND_URL/dashboard`.
+- `POST /api/auth/logout` — clears session.
+- `GET /api/universe`, `GET /api/signals` — public reads (mirrors previous client limits).
+- `GET|POST|PATCH /api/positions...`, `GET /api/monitor/checks` — session required (or bypass user).
+- `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**).
+- `POST /api/github/workflows/bot-scan` — body `{ "ticker": "AAPL" }`; dispatches `trading-bot-scan.yml` (**Re-eval**). Both require session + `GITHUB_PERSONAL_TOKEN` on the server.
+
+## Production deployment
+
+**Recommended (Firebase + Firestore in one project):** deploy the API to **Cloud Run** and use **Firebase Hosting** rewrites so `/api/**` hits Cloud Run while the SPA stays on the same origin. Step-by-step: [`docs/deploy-api-cloud-run.md`](deploy-api-cloud-run.md).
+
+Alternatively host Nest on a VM or another Node platform and either:
+
+- Put a reverse proxy in front of both (same site → cookie `SameSite=Lax` works well), or
+- Run the API on a dedicated subdomain and configure CORS + cookies (`secure: true`, correct `FRONTEND_URL`).
+
+After all reads/writes go through the API, consider tightening [`firestore.rules`](../firestore.rules) so clients cannot access Firestore directly (optional follow-up).

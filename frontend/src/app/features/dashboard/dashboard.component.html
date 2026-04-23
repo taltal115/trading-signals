@@ -1,0 +1,62 @@
+<section id="panel-dashboard" class="panel active" aria-label="Dashboard">
+  <h2>Dashboard</h2>
+  <p class="dashboard-lead">Your open positions at a glance.</p>
+
+  @let openPositions = openPositions$ | async;
+  @if (!(authSvc.allowedUser$ | async)) {
+    <p id="dash-positions-gate" class="dash-muted">
+      @if (env.devAuthBypass) {
+        Local dev: no session yet — run Nest with AUTH_BYPASS_LOCAL and ensure GET /api/auth/me returns a user.
+      } @else {
+        Sign in with Google to view your positions.
+      }
+    </p>
+  } @else if (openPositions?.length === 0) {
+    <p id="dash-positions-empty" class="dash-muted">No open positions. Log a fill from Signals.</p>
+  } @else {
+    <div id="dash-positions-cards" class="positions-cards-grid">
+      @for (p of openPositions!; track p.id) {
+        <article class="position-card" [class]="'position-card ' + (p.data.status === 'closed' ? '' : '')">
+          <div class="pos-card-header">
+            <span class="pos-card-ticker">{{ p.data.ticker }}</span>
+            @if (p.data.last_alert_kind) {
+              @let a = actionTag(p.data.last_alert_kind);
+              <span [class]="a.cls">{{ a.text }}</span>
+            }
+          </div>
+          <div class="pos-card-body">
+            <div class="pos-card-row">
+              <span class="pos-card-label">Entry</span>
+              <span class="pos-card-value">${{ p.data.entry_price | number : '1.2-2' }}</span>
+            </div>
+            <div class="pos-card-row">
+              <span class="pos-card-label">Spot</span>
+              <span [class]="spotClass(p, p.data.last_spot)">
+                {{ p.data.last_spot != null ? (p.data.last_spot | number : '1.2-2') : '—' }}
+              </span>
+            </div>
+            <div class="pos-card-row">
+              <span class="pos-card-label">P/L</span>
+              <span class="pos-card-value">—</span>
+            </div>
+            <div class="pos-card-row">
+              <span class="pos-card-label">Stop / Target</span>
+              <span class="pos-card-value">
+                {{ p.data.stop_price != null ? (p.data.stop_price | number : '1.2-2') : '—' }} /
+                {{ p.data.target_price != null ? (p.data.target_price | number : '1.2-2') : '—' }}
+              </span>
+            </div>
+            <div class="pos-card-row">
+              <span class="pos-card-label">Sector</span>
+              <span class="pos-card-sector">{{ p.data.sector || '—' }}</span>
+            </div>
+            <div class="pos-card-row">
+              <span class="pos-card-label">Bought</span>
+              <span class="pos-card-value">{{ p.data.bought_at || p.data.created_at_utc || '—' }}</span>
+            </div>
+          </div>
+        </article>
+      }
+    </div>
+  }
+</section>

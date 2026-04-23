@@ -1,0 +1,297 @@
+<section id="panel-positions" class="panel active" aria-label="Positions">
+  <p class="empty-state" *ngIf="!guestMode() && positionsLoading()">Loading positions…</p>
+
+  <p id="positions-gate" class="positions-gate" *ngIf="guestMode()">
+    {{
+      authSvc.devAuthBypass
+        ? 'Local dev: positions use the Nest API session (AUTH_BYPASS_LOCAL + DEV_OWNER_UID).'
+        : 'Sign in with Google to manage positions.'
+    }}
+  </p>
+
+  <details
+    #detailsEl
+    id="position-form-details"
+    class="position-form-details"
+    *ngIf="!guestMode()"
+  >
+    <summary class="position-form-summary">Log a fill (manual)</summary>
+    <div class="form-card" id="position-form-card">
+      <form id="position-form" [formGroup]="manualForm" (ngSubmit)="submitManual()">
+        <div class="form-grid">
+          <label>
+            Ticker
+            <input formControlName="ticker" maxlength="8" placeholder="AAPL" />
+          </label>
+          <label>
+            Entry price
+            <input formControlName="entry_price" type="number" step="any" min="0" />
+          </label>
+          <label>
+            Quantity (optional)
+            <input formControlName="quantity" type="number" step="any" min="0" placeholder="10" />
+          </label>
+          <label>
+            Stop price
+            <input formControlName="stop_price" type="number" step="any" min="0" />
+          </label>
+          <label>
+            Target price
+            <input formControlName="target_price" type="number" step="any" min="0" />
+          </label>
+          <label>
+            Linked signal doc ID (optional)
+            <input formControlName="signal_doc_id" placeholder="Firestore document id from Signals" />
+          </label>
+          <label>
+            Hold days (from signal, optional)
+            <input formControlName="hold_days_from_signal" type="number" min="1" max="30" placeholder="5" />
+          </label>
+          <label>
+            Signal close price (optional)
+            <input formControlName="signal_close_price" type="number" step="any" min="0" />
+          </label>
+          <label>
+            Buy date/time
+            <input formControlName="bought_at" type="datetime-local" />
+          </label>
+        </div>
+        <div class="bracket-sync-row">
+          <button type="button" class="btn-sync-bracket" [disabled]="manualSyncDisabled()" (click)="syncManualBracket()">
+            Update SL/TP from signal %
+          </button>
+          <span class="bracket-sync-hint" aria-live="polite">{{ manualBracketHint() }}</span>
+        </div>
+        <label style="margin-top: 0.85rem">
+          Notes
+          <textarea formControlName="notes" placeholder="Bracket type, broker, etc."></textarea>
+        </label>
+        <div class="form-actions">
+          <button type="submit" [disabled]="manualSaving()">Save open position</button>
+        </div>
+        <p id="form-status">{{ manualStatus() }}</p>
+      </form>
+    </div>
+  </details>
+
+  <div class="positions-header-row" *ngIf="!guestMode()">
+    <h2>Your positions</h2>
+    <label class="ios-switch-label">
+      <span>Hide closed</span>
+      <input
+        type="checkbox"
+        [checked]="hideClosed()"
+        (change)="hideClosed.set($any($event.target).checked)"
+      />
+      <span class="ios-switch-track"><span class="ios-switch-thumb"></span></span>
+    </label>
+  </div>
+
+  <div class="table-wrap" id="positions-table-wrap" *ngIf="showTable()">
+    <table class="positions-table" id="positions-table">
+      <thead>
+        <tr>
+          <th data-sort="ticker" (click)="onSortHeader('ticker')" [ngClass]="thClass('ticker')">ticker</th>
+          <th data-sort="sector" (click)="onSortHeader('sector')" [ngClass]="thClass('sector')">sector</th>
+          <th data-sort="entry_price" (click)="onSortHeader('entry_price')" [ngClass]="thClass('entry_price')">
+            entry
+          </th>
+          <th data-sort="exit_price" (click)="onSortHeader('exit_price')" [ngClass]="thClass('exit_price')">
+            exit
+          </th>
+          <th data-sort="pnl_pct" (click)="onSortHeader('pnl_pct')" [ngClass]="thClass('pnl_pct')">P/L %</th>
+          <th data-sort="stop_price" (click)="onSortHeader('stop_price')" [ngClass]="thClass('stop_price')">
+            stop
+          </th>
+          <th data-sort="target_price" (click)="onSortHeader('target_price')" [ngClass]="thClass('target_price')">
+            target
+          </th>
+          <th data-sort="hold" (click)="onSortHeader('hold')" [ngClass]="thClass('hold')">hold</th>
+          <th data-sort="last_spot" (click)="onSortHeader('last_spot')" [ngClass]="thClass('last_spot')">spot</th>
+          <th
+            data-sort="last_alert_kind"
+            (click)="onSortHeader('last_alert_kind')"
+            [ngClass]="thClass('last_alert_kind')"
+          >
+            action
+          </th>
+          <th data-sort="status" (click)="onSortHeader('status')" [ngClass]="thClass('status')">status</th>
+          <th data-sort="bought_at" (click)="onSortHeader('bought_at')" [ngClass]="thClass('bought_at')">
+            bought
+          </th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let pos of sortedRows()">
+          <tr [class]="rowClass(pos.data)">
+            <td class="code">
+              <strong>{{ pos.data.ticker }}</strong>
+            </td>
+            <td>
+              <span class="sector-tag" *ngIf="pos.data.sector">{{ pos.data.sector }}</span>
+              <ng-container *ngIf="!pos.data.sector">—</ng-container>
+            </td>
+            <td>{{ formatNum(pos.data.entry_price) }}</td>
+            <td>
+              {{
+                pos.data.status === 'closed' && pos.data.exit_price != null
+                  ? formatNum(pos.data.exit_price)
+                  : '—'
+              }}
+            </td>
+            <td>
+              <ng-container *ngIf="pnlClosed(pos) as pnl; else pnlDash">
+                <span [class]="pnl.cls">{{ pnl.text }}</span>
+              </ng-container>
+              <ng-template #pnlDash>—</ng-template>
+            </td>
+            <td>{{ formatNum(pos.data.stop_price) }}</td>
+            <td>{{ formatNum(pos.data.target_price) }}</td>
+            <td>
+              <ng-container *ngIf="holdLines(pos.data) as h; else holdDash">
+                {{ h.main }}<span *ngIf="h.extra" class="hold-est"> {{ h.extra }}</span>
+                <div class="hold-due" *ngIf="h.due">{{ h.due }}</div>
+              </ng-container>
+              <ng-template #holdDash>—</ng-template>
+            </td>
+            <td class="spot-cell">
+              <ng-container *ngIf="spotBlock(pos) as sp">
+                <div class="spot-wrap" *ngIf="sp.hasVal || sp.showRefresh">
+                  <span *ngIf="sp.hasVal" [class]="sp.valCls">{{ sp.valText }}{{ sp.arrow }}</span>
+                  <ng-container *ngIf="!sp.hasVal">{{ sp.valText }}</ng-container>
+                  <button
+                    *ngIf="sp.showRefresh"
+                    type="button"
+                    class="btn-spot-refresh"
+                    [disabled]="spotRefreshing() === pos.id"
+                    (click)="onSpotRefresh(pos)"
+                    title="Re-fetch spot price"
+                  >
+                    ↻
+                  </button>
+                  <div class="spot-stale" *ngIf="sp.stale">{{ sp.stale }}</div>
+                </div>
+              </ng-container>
+            </td>
+            <td>
+              <ng-container *ngIf="actionCell(pos.data) as ac; else actionDash">
+                <span [class]="ac.cls">{{ ac.text }}</span>
+              </ng-container>
+              <ng-template #actionDash>—</ng-template>
+            </td>
+            <td>{{ pos.data.status }}</td>
+            <td class="code">{{ pos.data.bought_at || pos.data.created_at_utc || '' }}</td>
+            <td>
+              <ng-container *ngIf="pos.data.status === 'open'">
+                <button
+                  type="button"
+                  class="btn-exit"
+                  (click)="requestExit(pos)"
+                >
+                  Exit…
+                </button>
+                <button type="button" class="btn-monitor-toggle" (click)="toggleMonitor(pos)">
+                  Monitor
+                </button>
+                <button type="button" class="btn-history-toggle" (click)="toggleHistory(pos)">
+                  History
+                </button>
+                <button
+                  type="button"
+                  class="btn-check-now"
+                  [disabled]="checkDisabled(pos.data.ticker || '')"
+                  (click)="checkNow(pos.data.ticker || '')"
+                >
+                  {{ checkLabel(pos.data.ticker || '') }}
+                </button>
+              </ng-container>
+              <ng-container *ngIf="pos.data.status !== 'open'">
+                <button type="button" class="btn-monitor-toggle" (click)="toggleMonitor(pos)">
+                  Monitor
+                </button>
+                <button type="button" class="btn-history-toggle" (click)="toggleHistory(pos)">
+                  History
+                </button>
+              </ng-container>
+            </td>
+          </tr>
+          <tr class="pos-monitor-expand" [hidden]="expandedMonitorId() !== pos.id">
+            <td colspan="13" class="pos-monitor-expand-cell">
+              <div class="pos-monitor-expand-inner">
+                <span class="dash-muted" *ngIf="checksErr()[pos.id]">{{ checksErr()[pos.id] }}</span>
+                <span class="dash-muted" *ngIf="!checksErr()[pos.id] && checksMap()[pos.id] === undefined">
+                  Loading checks…
+                </span>
+                <span
+                  class="dash-muted"
+                  *ngIf="!checksErr()[pos.id] && checksMap()[pos.id]?.length === 0"
+                >
+                  No monitor checks yet for {{ pos.data.ticker }}.
+                </span>
+                <table class="monitor-mini-table" *ngIf="checksMap()[pos.id]?.length">
+                  <thead>
+                    <tr>
+                      <th>timestamp</th>
+                      <th>action</th>
+                      <th>conf</th>
+                      <th>spot</th>
+                      <th>P/L %</th>
+                      <th>days</th>
+                      <th>ATR est</th>
+                      <th>reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr *ngFor="let c of checksMap()[pos.id]">
+                      <td class="code">{{ (c.ts_utc || '').toString().slice(0, 19).replace('T', ' ') }}</td>
+                      <td>
+                        <span [class]="tagClass(c.tag || c.alert_kind || '')">{{
+                          c.tag || c.alert_kind || ''
+                        }}</span>
+                      </td>
+                      <td>{{ c.confidence != null ? c.confidence : '—' }}</td>
+                      <td>{{ c.last_spot != null ? (+c.last_spot! | number: '1.0-3') : '—' }}</td>
+                      <td>
+                        <ng-container *ngIf="checkPnl(c) as cp; else dashPnl">
+                          <span [class]="cp.cls">{{ cp.text }}</span>
+                        </ng-container>
+                        <ng-template #dashPnl>—</ng-template>
+                      </td>
+                      <td>{{ c.days_held != null ? c.days_held + 'd' : '—' }}</td>
+                      <td>{{ c.atr_hold_est != null ? c.atr_hold_est + 'd' : '—' }}</td>
+                      <td>{{ c.alert_summary }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </td>
+          </tr>
+          <tr class="pos-history-expand" [hidden]="expandedHistoryId() !== pos.id">
+            <td colspan="13" class="pos-history-expand-cell">
+              <div class="pos-history-expand-inner">
+                <app-price-history-chart
+                  [ticker]="pos.data.ticker || ''"
+                  [entryPrice]="+(pos.data.entry_price ?? 0)"
+                  [buyDateStr]="pos.data.bought_at || pos.data.created_at_utc || ''"
+                />
+              </div>
+            </td>
+          </tr>
+        </ng-container>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="empty-state" *ngIf="!guestMode() && !positionsLoading() && tableFilteredEmpty()">
+    All rows are hidden because <strong>Hide closed</strong> is on. Turn it off to see closed positions.
+  </p>
+
+  <p
+    class="empty-state"
+    id="positions-hint"
+    *ngIf="!guestMode() && !positionsLoading() && (!showTable() || loadError())"
+  >
+    {{ hintText() }}
+  </p>
+</section>

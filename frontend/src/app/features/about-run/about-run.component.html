@@ -1,0 +1,20 @@
+<section class="panel about-panel active" aria-label="About bot run">
+  <h2>About · Bot run (scan)</h2>
+  <article class="about-doc">
+    <p>
+      The trading bot scans US stocks on <strong>daily candles</strong> for breakout-momentum setups (1–7 day swing ideas), logs to SQLite, and can post to Slack. It does <strong>not</strong> place orders.
+    </p>
+    <ul>
+      <li><strong>Signal-only</strong>: BUY / WAIT / SELL-style guidance with confidence.</li>
+      <li><strong>Manual execution</strong>: you decide whether to trade.</li>
+      <li>Outputs: colored terminal logs, <code>./data/signals.db</code>, optional Slack.</li>
+    </ul>
+    <p>With Firestore enabled, BUY payloads are archived to the <code>signals</code> collection (shown on the Signals page).</p>
+    <h3>Run locally</h3>
+    <pre><code>./run.sh</code></pre>
+    <p>
+      Ensure <code>config.yaml</code>, universe source (Firestore discovery or static list), and optional <code>.env</code> for Slack / API keys. See repo <code>README.md</code> and <code>docs/bot-logic-and-strategy.md</code>.
+    </p>
+  </article>
+  <p><a routerLink="/about">← About index</a></p>
+</section>

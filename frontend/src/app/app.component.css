@@ -1,0 +1,21 @@
+.router-nav-loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  z-index: 10000;
+  box-shadow: 0 1px 8px rgba(59, 130, 246, 0.45);
+  background: linear-gradient(90deg, #3b82f6, #93c5fd, #3b82f6);
+  background-size: 200% 100%;
+  animation: router-nav-loading-slide 0.9s linear infinite;
+}
+
+@keyframes router-nav-loading-slide {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}

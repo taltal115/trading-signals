@@ -1,0 +1,280 @@
+<section id="panel-signals" class="panel active" aria-label="Signal runs">
+  <h2>Bot signals (BUY recommendations)</h2>
+  <p class="empty-state" *ngIf="loading()">Loading signals…</p>
+  <p class="empty-state" *ngIf="!loading() && loadError()">{{ loadError() }}</p>
+  <p class="empty-state" *ngIf="!loading() && !loadError() && docs().length === 0">No signal runs yet.</p>
+  <p
+    class="empty-state"
+    *ngIf="!loading() && !loadError() && docs().length > 0 && displayRows().length === 0"
+  >
+    These runs have no BUY rows in <code>signals[]</code> (only WAIT/SELL or an older document shape).
+    Run the bot with BUY output or check Firestore <code>signals</code> documents.
+  </p>
+  <div class="table-wrap" *ngIf="!loading() && !loadError() && docs().length > 0 && displayRows().length > 0">
+    <table class="signals-main-table">
+      <thead>
+        <tr>
+          <th>date</th>
+          <th>ticker</th>
+          <th>signal price</th>
+          <th>live price</th>
+          <th>entry</th>
+          <th>stop</th>
+          <th>target</th>
+          <th>conf</th>
+          <th>details</th>
+          <th>actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <ng-container *ngFor="let row of displayRows()">
+          <tr *ngIf="row.kind === 'sig'" [class.sig-row-new]="isSignalRowNew(row)">
+            <td class="code">{{ row.asofDate }}</td>
+            <td class="code"><strong>{{ row.s['ticker'] || '?' }}</strong></td>
+            <td>{{ fmtUsd(row.s['close']) }}</td>
+            <td class="sig-live-cell">
+              <span class="sig-live-val">{{ liveDisplay(str(row.s['ticker'])) }}</span>
+              <button
+                type="button"
+                class="btn-sig-refresh"
+                (click)="refreshLive(str(row.s['ticker']), $event)"
+              >
+                ↻
+              </button>
+            </td>
+            <td>{{ fmtUsd(row.s['close']) }}</td>
+            <td>{{ fmtUsd(row.s['stop']) }}</td>
+            <td>{{ fmtUsd(row.s['target']) }}</td>
+            <td>
+              <ng-container *ngIf="row.s['confidence'] != null; else noConf">
+                <span [ngClass]="confClass(row.s['confidence'])">{{
+                  confFmt(row.s['confidence'])
+                }}%</span>
+              </ng-container>
+              <ng-template #noConf>—</ng-template>
+            </td>
+            <td class="sig-details-toggle-cell">
+              <button
+                type="button"
+                class="btn-sig-stock-info"
+                [class.is-open]="stockDetailsOpen(row.rowKey)"
+                (click)="toggleStockDetails(row.rowKey, str(row.s['ticker']))"
+              >
+                {{ stockDetailsOpen(row.rowKey) ? 'Hide' : 'Info' }}
+              </button>
+            </td>
+            <td class="sig-actions-cell">
+              <div class="sig-actions-row">
+                <button
+                  type="button"
+                  class="btn-log-buy"
+                  (click)="toggleInline(row.docId, row.s)"
+                >
+                  Log Buy
+                </button>
+                <button
+                  type="button"
+                  class="btn-reeval"
+                  [disabled]="reevalDisabled(str(row.s['ticker']))"
+                  (click)="reeval(str(row.s['ticker']))"
+                >
+                  {{ reevalLabel(str(row.s['ticker'])) }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-ai-eval"
+                  [disabled]="aiEvalDisabled(row.rowKey)"
+                  (click)="aiEval(row.rowKey, str(row.s['ticker']), row.docId)"
+                >
+                  {{ aiEvalLabel(row.rowKey) }}
+                </button>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="row.kind === 'sig' && stockDetailsOpen(row.rowKey)" class="sig-stock-details-tr">
+            <td colspan="10" class="sig-stock-details-cell">
+              <div *ngIf="stockDetailsLoading(row.rowKey)" class="sig-stock-details-status">
+                Loading market data…
+              </div>
+              <p *ngIf="stockDetailsError(row.rowKey) as err" class="sig-stock-details-err">
+                {{ err }}
+              </p>
+              <div *ngIf="stockDetailsData(row.rowKey) as snap" class="sig-stock-details-panel">
+                <div class="sig-stock-details-head">
+                  <strong>{{ snap.name || snap.symbol }}</strong>
+                  <span class="sig-stock-details-ticker code">{{ snap.symbol }}</span>
+                  <a
+                    *ngIf="snap.weburl"
+                    [href]="snap.weburl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="sig-stock-details-link"
+                    >Website</a
+                  >
+                </div>
+                <dl class="sig-stock-details-grid">
+                  <dt>Exchange</dt>
+                  <dd>{{ snap.exchange || '—' }}</dd>
+                  <dt>Country</dt>
+                  <dd>{{ snap.country || '—' }}</dd>
+                  <dt>Industry</dt>
+                  <dd>{{ snap.industry || '—' }}</dd>
+                  <dt>IPO</dt>
+                  <dd>{{ snap.ipo || '—' }}</dd>
+                  <dt>Market cap</dt>
+                  <dd>
+                    {{ fmtMarketCapMillions(snap.marketCapitalizationMillions, snap.currency) }}
+                    <span class="sig-detail-hint">(Finnhub, listing currency)</span>
+                  </dd>
+                  <dt>Shares out.</dt>
+                  <dd>{{ fmtShares(snap.shareOutstanding) }}</dd>
+                  <dt>Last price</dt>
+                  <dd>{{ snap.quote.current != null ? fmtUsd(snap.quote.current) : '—' }}</dd>
+                  <dt>Change</dt>
+                  <dd>
+                    <ng-container *ngIf="snap.quote.change != null; else noChg">
+                      {{ snap.quote.change >= 0 ? '+' : '' }}{{ fmtUsd(snap.quote.change) }}
+                      <span *ngIf="snap.quote.pctChange != null" class="sig-detail-pct">
+                        ({{ snap.quote.pctChange >= 0 ? '+' : '' }}{{ fmtUiDecimal(snap.quote.pctChange) }}%)
+                      </span>
+                    </ng-container>
+                    <ng-template #noChg>—</ng-template>
+                  </dd>
+                  <dt>Open</dt>
+                  <dd>{{ snap.quote.open != null ? fmtUsd(snap.quote.open) : '—' }}</dd>
+                  <dt>Day high</dt>
+                  <dd>{{ snap.quote.high != null ? fmtUsd(snap.quote.high) : '—' }}</dd>
+                  <dt>Day low</dt>
+                  <dd>{{ snap.quote.low != null ? fmtUsd(snap.quote.low) : '—' }}</dd>
+                  <dt>Prev close</dt>
+                  <dd>{{ snap.quote.prevClose != null ? fmtUsd(snap.quote.prevClose) : '—' }}</dd>
+                  <dt>Quote time</dt>
+                  <dd class="code">{{ fmtUnixQuoteUtc(snap.quote.time) }}</dd>
+                </dl>
+                <p class="sig-stock-details-footnote">
+                  Data from Finnhub via your API server. Intraday volume is not included on this plan.
+                </p>
+              </div>
+            </td>
+          </tr>
+          <tr *ngIf="row.kind === 'form'" class="signals-inline-form-tr">
+            <td colspan="10" class="signals-inline-form-cell">
+              <div
+                class="signals-inline-form-slide"
+                [class.is-expanded]="inlineExpanded()"
+              >
+                <div class="signals-inline-form-inner">
+                  <div class="signals-inline-form-card">
+                    <div class="signals-inline-form-toolbar">
+                      <span class="signals-inline-form-title">Log manual fill</span>
+                      <button type="button" class="signals-inline-form-close" (click)="closeInline()">
+                        Hide
+                      </button>
+                    </div>
+                    <form
+                      id="signals-inline-position-form"
+                      [formGroup]="inlineForm"
+                      (ngSubmit)="submitInline()"
+                    >
+                      <div class="form-grid">
+                        <label>
+                          Ticker
+                          <input formControlName="ticker" maxlength="8" placeholder="AAPL" />
+                        </label>
+                        <label>
+                          Entry price
+                          <input
+                            formControlName="entry_price"
+                            type="number"
+                            step="any"
+                            min="0"
+                          />
+                        </label>
+                        <label>
+                          Quantity (optional)
+                          <input formControlName="quantity" type="number" step="any" min="0" />
+                        </label>
+                        <label>
+                          Stop price
+                          <input
+                            formControlName="stop_price"
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="bracket stop"
+                          />
+                        </label>
+                        <label>
+                          Target price
+                          <input
+                            formControlName="target_price"
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="take profit"
+                          />
+                        </label>
+                        <label>
+                          Linked signal doc ID (optional)
+                          <input formControlName="signal_doc_id" placeholder="Firestore document id" />
+                        </label>
+                        <label>
+                          Hold days (optional)
+                          <input
+                            formControlName="hold_days_from_signal"
+                            type="number"
+                            min="1"
+                            max="30"
+                            placeholder="5"
+                          />
+                        </label>
+                        <label>
+                          Signal close price
+                          <input
+                            formControlName="signal_close_price"
+                            type="number"
+                            step="any"
+                            min="0"
+                            placeholder="market close at signal"
+                          />
+                        </label>
+                        <label>
+                          Buy date/time
+                          <input formControlName="bought_at" type="datetime-local" />
+                        </label>
+                      </div>
+                      <div class="bracket-sync-row">
+                        <button
+                          type="button"
+                          class="btn-sync-bracket"
+                          [disabled]="guestMode() || bracketSyncDisabled()"
+                          (click)="syncBracket()"
+                        >
+                          Update SL/TP from signal %
+                        </button>
+                        <span class="bracket-sync-hint" aria-live="polite">{{ bracketHint() }}</span>
+                      </div>
+                      <label class="signals-inline-notes-label">
+                        Notes
+                        <textarea
+                          formControlName="notes"
+                          placeholder="Bracket type, broker, etc."
+                        ></textarea>
+                      </label>
+                      <div class="form-actions">
+                        <button type="submit" [disabled]="guestMode() || inlineSaving()">
+                          Save open position
+                        </button>
+                      </div>
+                      <p class="signals-inline-form-status">{{ inlineStatus() }}</p>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </ng-container>
+      </tbody>
+    </table>
+  </div>
+</section>
