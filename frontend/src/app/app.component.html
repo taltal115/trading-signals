@@ -1,0 +1,12 @@
+<div id="app-boot-screen" class="app-boot-screen" [hidden]="bootHidden" aria-live="polite">
+  <div class="app-boot-inner">
+    <span class="spinner-ring app-boot-spinner" aria-hidden="true"></span>
+    <p>Loading…</p>
+  </div>
+</div>
+
+@if (navLoading()) {
+  <div class="router-nav-loading" aria-busy="true" aria-label="Loading page"></div>
+}
+
+<router-outlet />

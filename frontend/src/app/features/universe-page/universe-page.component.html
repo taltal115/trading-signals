@@ -1,0 +1,65 @@
+<section id="panel-universe" class="panel active" aria-label="Universe history">
+  <h2>Universe snapshots</h2>
+  @if (loading()) {
+    <p class="empty-state" id="universe-hint">Loading…</p>
+  } @else if (error()) {
+    <p class="empty-state" id="universe-hint">{{ error() }}</p>
+  } @else if (docs().length === 0) {
+    <p class="empty-state" id="universe-hint">No universe documents yet.</p>
+  } @else {
+    <div class="table-wrap" id="universe-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>asof_date</th>
+            <th>ts_utc</th>
+            <th>source</th>
+            <th># symbols</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="universe-body">
+          @for (d of docs(); track d.id) {
+            <tr class="universe-row" [class.is-open]="expandedId() === d.id" (click)="toggleRow(d.id)">
+              <td class="code">{{ d.asof_date || d.id }}</td>
+              <td class="code">{{ d.ts_utc || '' }}</td>
+              <td>{{ d.source || '' }}</td>
+              <td>{{ d.symbols.length }}</td>
+              <td class="col-expand" aria-hidden="true">▾</td>
+            </tr>
+            @if (expandedId() === d.id) {
+              <tr class="universe-expand">
+                <td colspan="5">
+                  <div class="universe-symbols-panel">
+                    <table>
+                      <caption>{{ d.symbols.length }} symbols · {{ d.asof_date || d.id }}</caption>
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Symbol</th>
+                          <th>Name</th>
+                          <th>Sector</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (sym of d.symbols; track $index; let idx = $index) {
+                          @let det = d.symbol_details?.[sym] || {};
+                          <tr>
+                            <td>{{ idx + 1 }}</td>
+                            <td class="code"><strong>{{ sym }}</strong></td>
+                            <td>{{ det.name || '' }}</td>
+                            <td><span class="sector-tag">{{ det.sector || '' }}</span></td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

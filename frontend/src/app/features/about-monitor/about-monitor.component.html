@@ -1,0 +1,16 @@
+<section class="panel about-panel active" aria-label="About monitor">
+  <h2>About · Position monitor</h2>
+  <article class="about-doc">
+    <p>
+      <code>scripts/monitor_open_positions.py</code> reads <code>my_positions</code> with <code>status == open</code>, fetches a <strong>daily</strong> last price (Yahoo / Stooq), evaluates stops, targets, and hold windows, logs WAIT/SELL-style lines, updates <code>last_alert_*</code> on each document, and optionally posts to Slack when the alert <strong>kind</strong> changes (deduped).
+    </p>
+    <ul>
+      <li>Workflow: <code>.github/workflows/position-monitor.yml</code></li>
+      <li>Secrets: Firestore JSON, optional Slack, optional <code>MONITOR_OWNER_UID</code>.</li>
+      <li>Indicative only — not real-time execution.</li>
+    </ul>
+    <h3>Local</h3>
+    <pre><code>PYTHONPATH=./src python scripts/monitor_open_positions.py --config config.yaml</code></pre>
+  </article>
+  <p><a routerLink="/about">← About index</a></p>
+</section>

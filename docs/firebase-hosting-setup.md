@@ -2,30 +2,36 @@
 
 Signal-only: the **web UI** and **position monitor** do not execute trades.
 
+## Architecture
+
+- **Angular** (static): Universe, Signals, Positions, Monitor, About — all data via **`HttpClient`** to the **Nest API** ([`backend/`](../backend/)). See [`docs/backend-api.md`](backend-api.md).
+- **Nest** uses **firebase-admin**; the browser does **not** bundle the Firebase Web SDK for Auth/Firestore.
+- **Firestore** still stores `universe`, `signals`, and `my_positions`; Python jobs and the API write with Admin credentials.
+
 ## 1. Firebase Console
 
 1. Enable **Firestore** (Native mode) if not already.
-2. Enable **Authentication** → **Sign-in method** → **Google** (and add a support email if prompted).
-3. **Authorized domains** must include your Hosting domain (e.g. `*.web.app`, `*.firebaseapp.com`) and any custom domain you use. On **`localhost` / `127.0.0.1`**, **Google sign-in is disabled**: `/login` and `/logout` redirect to **`/dashboard`**, the Sign-in link is hidden, and the dashboard is **read-only** for Universe & Signals (`web/app.js`). **`my_positions`** needs the deployed URL with Google sign-in.
-4. **`my_positions`** in [`firestore.rules`](../firestore.rules) is restricted to **Google** sign-in and a single allowlisted email (`taltal115@gmail.com`). If you change the email, update both `firestore.rules` and `allowedSignInEmails` in [`web/firebase-config.js`](../web/firebase-config.js).
+2. **Authentication** with Google is still used **on the server** (OAuth): the Nest app validates Google accounts and resolves Firebase UIDs with Admin. You still need a Google OAuth client and (for production sign-in) consistent allowlists.
+3. **Authorized domains** in Firebase remain relevant if you use other Firebase features; for the dashboard, also configure the **Google Cloud OAuth consent screen** and redirect URIs (see backend doc).
+4. **`my_positions`** in [`firestore.rules`](../firestore.rules) may still reflect legacy client access. Once traffic is API-only, you can deny direct client reads/writes and rely on Admin SDK from Nest/Python.
 
-## 2. Web app config
+## 2. Angular environment
 
-1. Project settings → Your apps → Web → register app → copy the `firebaseConfig` object.
-2. Paste into [`web/firebase-config.js`](../web/firebase-config.js) (or copy from [`web/firebase-config.example.js`](../web/firebase-config.example.js)).
-3. Set **`allowedSignInEmails`** to the same list you enforce in `firestore.rules` (client signs out unauthorized accounts before they rely on server errors).
-4. **`authDomain`** in `firebase-config.js` should stay the value from the Firebase console (usually `YOUR_PROJECT_ID.firebaseapp.com`). That is correct even when users open the app at **`YOUR_PROJECT_ID.web.app`** — both are authorized Hosting domains by default.
+Edit [`frontend/src/environments/environment.ts`](../frontend/src/environments/environment.ts) (and production overrides in [`environment.prod.ts`](../frontend/src/environments/environment.prod.ts)):
 
-**If sign-in looks “stuck” (spinner / never leaving `/login`):**
+- **`apiBaseUrl`**: `''` when the SPA is served from the same origin as `/api`, or the full API origin if cross-origin.
+- **`devAuthBypass`**: `true` only on localhost in the default `environment.ts` — skips shell redirect to `/login` while you use `AUTH_BYPASS_LOCAL` on the API.
+- **`allowedSignInEmails`** / **`allowedAuthUids`**: should match the Nest env vars `ALLOWED_SIGN_IN_EMAILS` and `ALLOWED_AUTH_UIDS` for consistent gating in the UI.
 
-- Ensure **Authentication → Settings → Authorized domains** lists both `your-project.firebaseapp.com` and `your-project.web.app` (and any custom domain). Add missing entries, redeploy is not required for that change.
-- The app uses **`signInWithRedirect`** only. Bootstrap order is **`getRedirectResult` → `authStateReady` → sync user into the shell → `onAuthStateChanged`**, so redirect completion is not racing the UI. A full-page **“Loading…”** overlay hides the fact that both the login card and main shell start hidden until auth finishes.
-- Hosting sends **`Cross-Origin-Opener-Policy: same-origin-allow-popups`** (see [`firebase.json`](../firebase.json)) so strict default COOP does not break any auth-helper popups the SDK may open briefly.
-- Third-party cookie / IT policies can still block auth in some browsers; try another browser or network rule.
+There is **no** `firebase` web config object in the Angular bundle for runtime.
 
-The API key is **public**; access control is enforced with [`firestore.rules`](../firestore.rules). **`universe` and `signals` are world-readable** so the dashboard can load without sign-in; **`my_positions`** is only readable/writable by the allowlisted Google account. Tighten `universe` / `signals` rules to `request.auth != null` if you want everything behind login.
+**If sign-in looks “stuck”:**
 
-## 3. Deploy rules, indexes, and Hosting
+- Confirm `GET /api/auth/me` returns a user after OAuth (cookie `signals.sid`, `withCredentials: true`).
+- Check CORS: `FRONTEND_URL` on the server must match the SPA origin; in dev, `ng serve` uses [`proxy.conf.json`](../frontend/proxy.conf.json) so the browser only talks to `:4200`.
+- Google OAuth redirect URI must match how you load the app (e.g. `http://localhost:4200/api/auth/google/callback` with the dev proxy).
+
+## 3. Build the Angular app, deploy rules, indexes, and Hosting
 
 Install the [Firebase CLI](https://firebase.google.com/docs/cli) and log in:
 
@@ -36,34 +42,35 @@ firebase login
 
 Set the correct project in [`.firebaserc`](../.firebaserc) (`default` project id).
 
+Build the dashboard (from repo root):
+
+```bash
+cd frontend
+npm ci
+npx ng build
+cd ..
+```
+
+`frontend/.npmrc` sets **`cache=.npm-cache`** so installs use a repo-local cache. That avoids **`EACCES`** on `~/.npm` when an old npm run left **root-owned** files there.
+
+[`firebase.json`](../firebase.json) **`hosting.public`** points at **`frontend/dist/trading-signals-web/browser`** (Angular application builder output).
+
 ```bash
 firebase deploy --only firestore:rules,firestore:indexes
 firebase deploy --only hosting
 ```
 
-If the UI shows **Missing or insufficient permissions** for Universe or Signals, the rules in this repo are not deployed to the **same** project as `web/firebase-config.js` — run `firebase deploy --only firestore:rules` from this repo (check `.firebaserc` default project id).
+Deploy or run the **Nest API** separately and point your reverse proxy or `apiBaseUrl` at it ([`docs/backend-api.md`](backend-api.md)). For **Cloud Run + Hosting** (same-origin `/api`), follow [`docs/deploy-api-cloud-run.md`](deploy-api-cloud-run.md).
 
-For **My positions** (client SDK):
-
-1. **Firestore rules** (see [`firestore.rules`](../firestore.rules)): any **signed-in** user may only read/write documents where **`owner_uid == request.auth.uid`**. Queries must filter **`owner_uid`** with the current user (the dashboard does this). There is **no email check in rules** (JWT `email` was unreliable after redirect).
-2. **Who may use the app** is still limited in **`web/firebase-config.js`** via `allowedSignInEmails` / optional `allowedAuthUids` (client signs out others). Tighten **Firebase Authentication** (e.g. authorized domains / providers) for your project if you need stronger gatekeeping.
-3. **`permission-denied`**: deploy rules to the **same** project as `firebase-config.js` (`firebase deploy --only firestore:rules`) and confirm **Firestore → Rules** in the console matches this repo.
-
-On **`localhost` / `127.0.0.1`**, the web app **never shows Google login**: `/login` and `/logout` redirect to **`/dashboard`**, and the Sign-in control is hidden (read-only Universe & Signals).
-
-Server scripts use the **Admin** SDK and **ignore** these rules.
-
-Index builds can take a few minutes. The dashboard queries use `orderBy("ts_utc")`; if the console shows a link to create an index, open it.
-
-**URL routes:** The dashboard uses **`/universe`**, **`/signals`**, and **`/positions`** (History API). [`firebase.json`](../firebase.json) rewrites unknown paths to `index.html` so refreshes and deep links work on Hosting. Plain `python3 -m http.server` does **not** serve those paths on reload; use **`firebase serve`** from the repo for local deep-link testing, or open the app at `/` and navigate only via in-app tabs.
+If the UI shows permission errors against Firestore **from the browser**, ensure you are not still using a legacy client SDK build; current builds only call `/api/...`.
 
 ## 4. Collections
 
-| Collection         | Writer              | Purpose                                      |
-| ------------------ | ------------------- | -------------------------------------------- |
-| `universe`         | Admin (discovery)   | Daily symbol snapshot                        |
-| `signals`          | Admin (signals bot) | BUY run payloads                             |
-| `my_positions`     | Allowlisted user    | Manual fills / brackets; exit price + P/L    |
+| Collection     | Writer            | Purpose                                   |
+| -------------- | ----------------- | ----------------------------------------- |
+| `universe`     | Admin (discovery) | Daily symbol snapshot                     |
+| `signals`      | Admin (signals bot) | BUY run payloads                        |
+| `my_positions` | API + allowlisted user context | Manual fills; exit price + P/L |
 
 ## 5. Position monitor (GitHub Actions)
 

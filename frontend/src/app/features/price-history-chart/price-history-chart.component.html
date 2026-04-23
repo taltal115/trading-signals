@@ -1,0 +1,17 @@
+<span class="dash-muted" *ngIf="errorMsg">{{ errorMsg }}</span>
+<div class="history-chart-wrap" *ngIf="!errorMsg">
+  <canvas #canvasEl class="history-chart-canvas"></canvas>
+  <div
+    #tipEl
+    class="chart-tooltip"
+    [hidden]="!tipVisible"
+    [style.left.px]="tipX"
+    [style.top.px]="tipY"
+  >
+    <div class="tip-date">{{ tipDate }}</div>
+    <div class="tip-price">{{ tipPrice }}</div>
+    <div class="tip-pnl" [class.tip-profit]="tipPnlClass === 'tip-profit'" [class.tip-loss]="tipPnlClass === 'tip-loss'">
+      {{ tipPnl }}
+    </div>
+  </div>
+</div>

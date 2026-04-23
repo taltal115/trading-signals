@@ -1,0 +1,62 @@
+<section id="panel-monitor" class="panel active" aria-label="Monitor checks">
+  <h2>Monitor checks</h2>
+  @if (!(authSvc.allowedUser$ | async)) {
+    <p id="monitor-gate" class="positions-gate">
+      @if (env.devAuthBypass) {
+        Local dev: no session yet — run Nest with AUTH_BYPASS_LOCAL so /api/auth/me returns a user.
+      } @else {
+        Sign in with Google to view monitor data.
+      }
+    </p>
+  } @else if (loading()) {
+    <p class="empty-state" id="monitor-hint">Loading monitor checks…</p>
+  } @else if (loadError()) {
+    <p class="empty-state" id="monitor-hint">Monitor error: {{ loadError() }}</p>
+  } @else if (rows().length === 0) {
+    <p class="empty-state" id="monitor-hint">No monitor checks yet. The monitor job writes data here.</p>
+  } @else {
+    <div class="table-wrap" id="monitor-table-wrap">
+      <table class="monitor-table">
+        <thead>
+          <tr>
+            <th>ticker</th>
+            <th>action</th>
+            <th>confidence</th>
+            <th>spot</th>
+            <th>P/L %</th>
+            <th>days held</th>
+            <th>ATR est</th>
+            <th>reason</th>
+            <th>timestamp</th>
+          </tr>
+        </thead>
+        <tbody id="monitor-body">
+          @for (r of rows(); track r.id) {
+            @let c = r.data;
+            @let tag = c['tag'] ?? c['alert_kind'] ?? '';
+            @let tagCls = tag === 'SELL' ? 'tag-sell' : 'tag-wait';
+            <tr>
+              <td class="code"><strong>{{ c['ticker'] }}</strong></td>
+              <td><span [class]="tagCls">{{ tag }}</span></td>
+              <td>{{ c['confidence'] != null ? (+c['confidence']! | number: '1.0-3') : '—' }}</td>
+              <td>{{ c['last_spot'] != null ? (+c['last_spot']! | number: '1.0-3') : '—' }}</td>
+              <td>
+                @if (c['pnl_pct'] != null) {
+                  @let pv = +c['pnl_pct']!;
+                  @let pCls = pv > 0.0001 ? 'pnl-profit' : pv < -0.0001 ? 'pnl-loss' : 'pnl-flat';
+                  <span [class]="pCls">{{ pv > 0 ? '+' : '' }}{{ pv | number: '1.0-3' }}%</span>
+                } @else {
+                  —
+                }
+              </td>
+              <td>{{ c['days_held'] != null ? c['days_held'] + 'd' : '—' }}</td>
+              <td>{{ c['atr_hold_est'] != null ? c['atr_hold_est'] + 'd' : '—' }}</td>
+              <td>{{ c['alert_summary'] }}</td>
+              <td class="code">{{ (c['ts_utc'] || '').toString().slice(0, 19).replace('T', ' ') }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

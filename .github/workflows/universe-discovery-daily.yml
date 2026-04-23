@@ -4,8 +4,11 @@ name: Daily universe discovery
 
 on:
   schedule:
-    # Weekdays 21:30 UTC (~ after US cash equity close; adjust for DST / preference)
-    - cron: "30 21 * * 1-5"
+    # Mon–Fri 12:00 UTC ≈ 15:00 Israel Daylight Time (IDT, UTC+3, typically late Mar–late Oct),
+    # i.e. before US cash open (~09:30 ET ≈ 16:30 Israel in this season).
+    # During Israel Standard Time (IST, UTC+2), 12:00 UTC = 14:00 in Israel; switch this line
+    # to `0 13 * * 1-5` from ~late Oct–late Mar for ~15:00 IST. GitHub cron is UTC-only.
+    - cron: "0 12 * * 1-5"
   workflow_dispatch:
 
 permissions:

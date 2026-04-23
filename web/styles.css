@@ -251,6 +251,45 @@ body.nav-drawer-open {
   background: var(--bg);
 }
 
+/* Signals: new-row count badge (sidebar) */
+.sidebar-nav-link.nav-link-signals {
+  padding-right: 1.6rem;
+}
+
+.nav-signals-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: #f85149;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.15rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.app-layout.sidebar-collapsed .sidebar-nav-link.nav-link-signals {
+  padding-right: 0.35rem;
+}
+
+.app-layout.sidebar-collapsed .nav-signals-badge {
+  top: 4px;
+  right: 4px;
+  min-width: 0.95rem;
+  height: 0.95rem;
+  font-size: 0.55rem;
+  line-height: 0.95rem;
+  padding: 0 3px;
+}
+
 .app-layout.sidebar-collapsed .sidebar-nav-link {
   justify-content: center;
   padding: 0.45rem 0.35rem;
@@ -1111,6 +1150,15 @@ button.btn-log-buy:hover {
   background: rgba(63, 185, 80, 0.28);
 }
 
+/* Latest-run signal rows not yet opened with Log Buy */
+.signals-main-table tbody tr.sig-row-new > td {
+  background: rgba(63, 185, 80, 0.16);
+}
+
+.signals-main-table tbody tr.sig-row-new:hover > td {
+  background: rgba(63, 185, 80, 0.24);
+}
+
 .sig-actions-cell {
   white-space: nowrap;
 }
@@ -1149,6 +1197,114 @@ button.btn-log-buy:hover {
   border-color: var(--accent);
 }
 
+.sig-details-toggle-cell {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+button.btn-sig-stock-info {
+  padding: 0.28rem 0.5rem;
+  font-size: 0.72rem;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+button.btn-sig-stock-info:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(61, 214, 198, 0.08);
+}
+
+button.btn-sig-stock-info.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(61, 214, 198, 0.12);
+}
+
+tr.sig-stock-details-tr > td.sig-stock-details-cell {
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.sig-stock-details-status,
+.sig-stock-details-err {
+  margin: 0;
+  padding: 0.65rem 1rem;
+  font-size: 0.82rem;
+}
+
+.sig-stock-details-err {
+  color: var(--sell);
+}
+
+.sig-stock-details-panel {
+  padding: 0.75rem 1rem 1rem;
+}
+
+.sig-stock-details-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
+  font-size: 0.9rem;
+}
+
+.sig-stock-details-ticker {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.sig-stock-details-link {
+  font-size: 0.78rem;
+  color: var(--accent);
+}
+
+.sig-stock-details-grid {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, auto) 1fr;
+  gap: 0.35rem 1rem;
+  margin: 0;
+  font-size: 0.78rem;
+  max-width: 42rem;
+}
+
+.sig-stock-details-grid dt {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.sig-stock-details-grid dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sig-detail-hint {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 0.25rem;
+}
+
+.sig-detail-pct {
+  color: var(--muted);
+  margin-left: 0.25rem;
+}
+
+.sig-stock-details-footnote {
+  margin: 0.75rem 0 0;
+  font-size: 0.68rem;
+  color: var(--muted);
+  max-width: 40rem;
+}
+
 .btn-sig-refresh:disabled {
   opacity: 0.5;
   cursor: default;
@@ -1171,6 +1327,27 @@ button.btn-reeval:hover {
 }
 
 button.btn-reeval:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+button.btn-ai-eval {
+  padding: 0.28rem 0.55rem;
+  font-size: 0.72rem;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: 5px;
+  border: 1px solid var(--wait);
+  background: rgba(210, 153, 34, 0.12);
+  color: var(--wait);
+  cursor: pointer;
+}
+
+button.btn-ai-eval:hover {
+  background: rgba(210, 153, 34, 0.22);
+}
+
+button.btn-ai-eval:disabled {
   opacity: 0.6;
   cursor: default;
 }
@@ -1848,6 +2025,41 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
 }
 
 .positions-table th[data-sort].sort-desc::after {
+  border-top-color: var(--accent);
+  opacity: 1;
+}
+
+.reporting-table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 1.1rem;
+}
+
+.reporting-table th[data-sort]:hover {
+  color: var(--text);
+  background: rgba(61, 214, 198, 0.06);
+}
+
+.reporting-table th[data-sort]::after {
+  content: "";
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--muted);
+  opacity: 0.4;
+}
+
+.reporting-table th[data-sort].sort-asc::after {
+  border-top-color: transparent;
+  border-bottom-color: var(--accent);
+  opacity: 1;
+  transform: translateY(-70%);
+}
+
+.reporting-table th[data-sort].sort-desc::after {
   border-top-color: var(--accent);
   opacity: 1;
 }

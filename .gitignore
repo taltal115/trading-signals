@@ -4,6 +4,42 @@ __pycache__/
 .env
 data/*.db
 
+# Firebase / GCP service account keys (never commit; rotate any key that was ever committed)
+*-firebase-adminsdk-*.json
+**/firebase-adminsdk*.json
+
 # Logs
 logs/
 
+# --- Node / TypeScript builds (monorepo) ---
+# Use **/ so nested tool folders (and monorepo subprojects) never surface as untracked.
+**/node_modules/
+node_modules/
+dist/
+**/dist/
+
+# Generated source maps (hand-written .js under web/ etc. stay tracked)
+*.js.map
+*.css.map
+*.mjs.map
+
+*.tsbuildinfo
+
+# --- Package & tool caches (never commit; recreated by npm / npx) ---
+**/.npm-cache/
+.npm-cache/
+**/npm-cache/
+npm-cache/
+**/_cacache/
+.npm/
+**/.cache/
+
+# Firebase CLI local deploy cache (hosting previews, etc.)
+.firebase/
+
+# Angular CLI
+**/.angular/
+
+# Tests
+coverage/
+.nyc_output/

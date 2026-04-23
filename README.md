@@ -5,6 +5,8 @@ This project scans US stocks on **daily candles** for **breakout-momentum** setu
 ### Docs
 - Bot logic + strategy: `docs/bot-logic-and-strategy.md`
 - Firebase Hosting + dashboard + position monitor: `docs/firebase-hosting-setup.md`
+- Angular dashboard architecture: `docs/frontend-angular-architecture.md`
+- UI parity checklist (vanilla → Angular): `docs/frontend-vanilla-parity-checklist.md`
 
 ### What this is (and isn’t)
 - **Signal-only**: generates BUY / WAIT / SELL guidance with confidence.
@@ -78,7 +80,7 @@ You can schedule it separately (e.g., pre-market), then run `./run.sh` after it 
 
 ### Scheduled discovery (GitHub Actions)
 
-Workflow [`.github/workflows/universe-discovery-daily.yml`](.github/workflows/universe-discovery-daily.yml) runs **weekdays** and writes the top **500** names to Firestore (`--limit 500`, `--max-calls 400`). It restores and saves **`universe-discovery-state`** artifacts so Finnhub **batch rotation** (`data/universe_state.json`) survives clean runners.
+Workflow [`.github/workflows/universe-discovery-daily.yml`](.github/workflows/universe-discovery-daily.yml) runs **Monday–Friday** on a **UTC cron** aimed at **~15:00 Israel** during daylight saving (see the workflow comment for IST winter adjustment). It runs `update_universe_finnhub.py` with `--max-calls 2000` and restores/saves **`universe-discovery-state`** artifacts so Finnhub **batch rotation** (`data/universe_state.json`) survives clean runners.
 
 **Secrets:** `FINNHUB_API_KEY` and **`GOOGLE_APPLICATION_CREDENTIALS`** (full service account JSON as the secret value). Use **Actions → Daily universe discovery → Run workflow** to run manually.
 

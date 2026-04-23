@@ -4,9 +4,18 @@
     "indexes": "firestore.indexes.json"
   },
   "hosting": {
-    "public": "web",
+    "public": "frontend/dist/trading-signals-web/browser",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "trading-signals-api",
+          "region": "us-central1"
+        }
+      },
+      { "source": "**", "destination": "/index.html" }
+    ],
     "headers": [
       {
         "source": "**/*.js",

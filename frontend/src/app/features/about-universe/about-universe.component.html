@@ -1,0 +1,16 @@
+<section class="panel about-panel active" aria-label="About universe">
+  <h2>About · Universe discovery</h2>
+  <article class="about-doc">
+    <p>
+      Discovery builds a dynamic universe from Finnhub symbols plus your strategy filters, then writes one document per day to Firestore: <code>universe/&#123;asof_date&#125;</code> with <code>symbols</code>, <code>ts_utc</code>, and <code>source</code>.
+    </p>
+    <ul>
+      <li>Requires <code>FINNHUB_API_KEY</code> and Firestore credentials.</li>
+      <li>Scheduled via GitHub Actions: <code>.github/workflows/universe-discovery-daily.yml</code> (weekdays), with artifact rotation state.</li>
+      <li>The main scan loads that universe via <code>read_universe_for_date</code> (today or latest fallback).</li>
+    </ul>
+    <h3>Local discovery</h3>
+    <pre><code>./run.sh discovery --max-calls 400 --limit 500</code></pre>
+  </article>
+  <p><a routerLink="/about">← About index</a></p>
+</section>

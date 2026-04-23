@@ -1,0 +1,17 @@
+<section class="panel about-panel active" aria-label="About">
+  <h2>About</h2>
+  <p class="about-intro">
+    This project is signal-only: no auto-trading. Summaries below mirror the main docs for the three operational areas.
+  </p>
+  <ul class="about-toc">
+    <li>
+      <a routerLink="/about/run">Bot run (scan)</a> — hourly/daily momentum scan, Slack, Firestore signals.
+    </li>
+    <li>
+      <a routerLink="/about/universe">Universe discovery</a> — Finnhub → filters → Firestore <code>universe/&#123;asof_date&#125;</code>.
+    </li>
+    <li>
+      <a routerLink="/about/monitor">Position monitor</a> — GitHub Action, open positions, bracket alerts.
+    </li>
+  </ul>
+</section>
