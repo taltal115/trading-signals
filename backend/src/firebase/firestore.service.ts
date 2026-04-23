@@ -1,12 +1,14 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import {
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   OnModuleInit,
+  ServiceUnavailableException,
 } from '@nestjs/common';
-import { isAbsolute, join, resolve } from 'path';
+import { isAbsolute, resolve } from 'path';
 import * as admin from 'firebase-admin';
 import type { DocumentData } from 'firebase-admin/firestore';
 
@@ -39,17 +41,24 @@ function toPlainDoc(data: DocumentData | undefined): DocumentData {
   return toPlainFirestoreValue(data) as DocumentData;
 }
 
-/** Resolve relative GOOGLE_APPLICATION_CREDENTIALS from cwd and repo root (parent of backend/). */
+/**
+ * Resolve relative GOOGLE_APPLICATION_CREDENTIALS by walking up from cwd (e.g. backend/ → repo root).
+ * ADC lazy-loads the file on first RPC; if the path stays relative, Node resolves it against cwd and breaks.
+ */
 function resolveGoogleApplicationCredentialsPath(): void {
   const raw = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
   if (!raw || isAbsolute(raw)) return;
-  const cwd = process.cwd();
-  const candidates = [join(cwd, raw), join(cwd, '..', raw)];
-  for (const c of candidates) {
-    if (existsSync(c)) {
-      process.env.GOOGLE_APPLICATION_CREDENTIALS = resolve(c);
+  const rel = raw.replace(/^\.\//, '');
+  let dir = resolve(process.cwd());
+  for (let i = 0; i < 12; i++) {
+    const candidate = resolve(dir, rel);
+    if (existsSync(candidate)) {
+      process.env.GOOGLE_APPLICATION_CREDENTIALS = candidate;
       return;
     }
+    const parent = resolve(dir, '..');
+    if (parent === dir) break;
+    dir = parent;
   }
 }
 
@@ -63,15 +72,38 @@ export class FirestoreService implements OnModuleInit {
       this.db = admin.firestore();
       return;
     }
+    // Inline JSON wins if set — a broken value here overrides the file and yields UNAUTHENTICATED.
     const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
     if (json) {
       const cred = JSON.parse(json) as admin.ServiceAccount;
       admin.initializeApp({ credential: admin.credential.cert(cred) });
-      this.log.log('Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON');
+      const pid =
+        (cred as { project_id?: string }).project_id ?? cred.projectId ?? '?';
+      this.log.log(
+        `Firebase Admin initialized from FIREBASE_SERVICE_ACCOUNT_JSON (project_id=${pid})`,
+      );
     } else {
       resolveGoogleApplicationCredentialsPath();
-      admin.initializeApp({ credential: admin.credential.applicationDefault() });
-      this.log.log('Firebase Admin initialized from application default credentials');
+      const gac = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+      if (gac && !isAbsolute(gac)) {
+        this.log.warn(
+          `GOOGLE_APPLICATION_CREDENTIALS "${gac}" not found (searched cwd and parent dirs from ${resolve(process.cwd())}). ` +
+            'Firestore will error until the JSON exists or you set an absolute path / FIREBASE_SERVICE_ACCOUNT_JSON.',
+        );
+      }
+      const credPath = gac && isAbsolute(gac) && existsSync(gac) ? gac : null;
+      if (credPath) {
+        const cred = JSON.parse(readFileSync(credPath, 'utf8')) as admin.ServiceAccount;
+        admin.initializeApp({ credential: admin.credential.cert(cred) });
+        const pid =
+          (cred as { project_id?: string }).project_id ?? cred.projectId ?? '?';
+        this.log.log(
+          `Firebase Admin initialized from GOOGLE_APPLICATION_CREDENTIALS (project_id=${pid})`,
+        );
+      } else {
+        admin.initializeApp({ credential: admin.credential.applicationDefault() });
+        this.log.log('Firebase Admin initialized from application default credentials');
+      }
     }
     this.db = admin.firestore();
   }
@@ -84,32 +116,91 @@ export class FirestoreService implements OnModuleInit {
     return admin.auth();
   }
 
+  private handleFirestoreListError(
+    op: string,
+    e: unknown,
+    indexMessage?: string,
+  ): never {
+    const msg = e instanceof Error ? e.message : String(e);
+    const code = (e as { code?: number }).code;
+    this.log.error(`${op} failed: ${msg}`);
+    const lower = msg.toLowerCase();
+    if (code === 9 || lower.includes('index')) {
+      throw new ServiceUnavailableException(
+        indexMessage ||
+          `Firestore needs an index for this query (${op}). ` +
+            'From repo root run: firebase deploy --only firestore:indexes',
+      );
+    }
+    if (code === 16 || lower.includes('unauthenticated')) {
+      throw new InternalServerErrorException(
+        'Firestore UNAUTHENTICATED: Google rejected this service account (often invalid_grant / Invalid JWT Signature). ' +
+          'Create a new key: Firebase console → Project settings → Service accounts → Generate new private key, replace the JSON file, delete old keys. ' +
+          'If FIREBASE_SERVICE_ACCOUNT_JSON is set in .env, remove it or fix it — it overrides GOOGLE_APPLICATION_CREDENTIALS.',
+      );
+    }
+    if (code === 7 || lower.includes('permission')) {
+      throw new InternalServerErrorException(
+        'Firestore permission denied — check GOOGLE_APPLICATION_CREDENTIALS / FIREBASE_SERVICE_ACCOUNT_JSON for this project.',
+      );
+    }
+    if (
+      lower.includes('enoent') ||
+      (lower.includes('does not exist') &&
+        (lower.includes('.json') || lower.includes('credential'))) ||
+      (lower.includes('lstat') && lower.includes('firebase-adminsdk'))
+    ) {
+      throw new InternalServerErrorException(
+        'Firebase Admin service account file is missing or GOOGLE_APPLICATION_CREDENTIALS points to the wrong path. ' +
+          'Use an absolute path, put the JSON in the repo root next to .env, or set FIREBASE_SERVICE_ACCOUNT_JSON.',
+      );
+    }
+    throw new InternalServerErrorException('Firestore query failed');
+  }
+
   async listUniverse(limitN: number): Promise<{ id: string; data: DocumentData }[]> {
-    const snap = await this.db
-      .collection('universe')
-      .orderBy('ts_utc', 'desc')
-      .limit(limitN)
-      .get();
-    return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    try {
+      const snap = await this.db
+        .collection('universe')
+        .orderBy('ts_utc', 'desc')
+        .limit(limitN)
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    } catch (e) {
+      this.handleFirestoreListError('listUniverse', e);
+    }
   }
 
   async listSignals(limitN: number): Promise<{ id: string; data: DocumentData }[]> {
-    const snap = await this.db
-      .collection('signals')
-      .orderBy('ts_utc', 'desc')
-      .limit(limitN)
-      .get();
-    return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    try {
+      const snap = await this.db
+        .collection('signals')
+        .orderBy('ts_utc', 'desc')
+        .limit(limitN)
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    } catch (e) {
+      this.handleFirestoreListError('listSignals', e);
+    }
   }
 
   async listPositions(ownerUid: string): Promise<{ id: string; data: DocumentData }[]> {
-    const snap = await this.db
-      .collection('my_positions')
-      .where('owner_uid', '==', ownerUid)
-      .orderBy('created_at_utc', 'desc')
-      .limit(60)
-      .get();
-    return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    try {
+      const snap = await this.db
+        .collection('my_positions')
+        .where('owner_uid', '==', ownerUid)
+        .orderBy('created_at_utc', 'desc')
+        .limit(60)
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    } catch (e) {
+      this.handleFirestoreListError(
+        'listPositions',
+        e,
+        'Firestore needs the composite index for my_positions (owner_uid + created_at_utc). ' +
+          'From repo root run: firebase deploy --only firestore:indexes',
+      );
+    }
   }
 
   /** Most recent open row matching ticker and linked signal doc (in-memory filter on listPositions). */
@@ -175,26 +266,34 @@ export class FirestoreService implements OnModuleInit {
     ownerUid: string,
     posId: string
   ): Promise<{ id: string; data: DocumentData }[]> {
-    const snap = await this.db
-      .collection('my_positions')
-      .doc(posId)
-      .collection('checks')
-      .where('owner_uid', '==', ownerUid)
-      .orderBy('ts_utc', 'desc')
-      .limit(20)
-      .get();
-    return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    try {
+      const snap = await this.db
+        .collection('my_positions')
+        .doc(posId)
+        .collection('checks')
+        .where('owner_uid', '==', ownerUid)
+        .orderBy('ts_utc', 'desc')
+        .limit(20)
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    } catch (e) {
+      this.handleFirestoreListError('listPositionChecks', e);
+    }
   }
 
   async listMonitorChecks(
     ownerUid: string
   ): Promise<{ id: string; data: DocumentData }[]> {
-    const snap = await this.db
-      .collectionGroup('checks')
-      .where('owner_uid', '==', ownerUid)
-      .orderBy('ts_utc', 'desc')
-      .limit(100)
-      .get();
-    return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    try {
+      const snap = await this.db
+        .collectionGroup('checks')
+        .where('owner_uid', '==', ownerUid)
+        .orderBy('ts_utc', 'desc')
+        .limit(100)
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    } catch (e) {
+      this.handleFirestoreListError('listMonitorChecks', e);
+    }
   }
 }

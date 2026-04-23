@@ -22,6 +22,17 @@ export class AuthService {
     );
   }
 
+  /** Non-empty if OAuth env is incomplete (for clearer 503s than "not configured"). */
+  googleOAuthMissingEnvDescription(): string | null {
+    const id = this.config.get<string>('googleClientId')?.trim();
+    const secret = this.config.get<string>('googleClientSecret')?.trim();
+    const missing: string[] = [];
+    if (!id) missing.push('GOOGLE_CLIENT_ID');
+    if (!secret) missing.push('GOOGLE_CLIENT_SECRET');
+    if (missing.length === 0) return null;
+    return `Set ${missing.join(' and ')} on this process (e.g. Cloud Run → Variables & secrets). Callback URL changes do not replace these.`;
+  }
+
   getBypassUser(): SessionUser | null {
     const bypass =
       this.config.get<boolean>('authBypassLocal') === true &&
@@ -62,8 +73,16 @@ export class AuthService {
     let userRecord;
     try {
       userRecord = await this.firestore.auth().getUserByEmail(email);
-    } catch {
-      throw new UnauthorizedException('Firebase user not found for this email');
+    } catch (e: unknown) {
+      const code = (e as { code?: string }).code;
+      const msg = e instanceof Error ? e.message : String(e);
+      this.log.warn(`getUserByEmail(${email}) failed: ${code || 'no-code'} ${msg}`);
+      if (code === 'auth/user-not-found') {
+        throw new UnauthorizedException('Firebase user not found for this email');
+      }
+      throw new UnauthorizedException(
+        'Firebase Auth admin denied — grant the Cloud Run runtime service account role roles/firebaseauth.admin on this GCP project (or fix FIREBASE_SERVICE_ACCOUNT_JSON / ADC project).',
+      );
     }
 
     if (allowedUids.length > 0 && allowedUids.includes(userRecord.uid)) {

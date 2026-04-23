@@ -9,8 +9,15 @@ import { MonitorStoreService } from '../../core/monitor-store.service';
 import { FormsModule } from '@angular/forms';
 import { formatApiErr } from '../../core/api-errors';
 import { environment } from '../../../environments/environment';
-import { ExitDialogService } from '../../core/exit-dialog.service';
+import { ExitDialogService, type ExitDialogPayload } from '../../core/exit-dialog.service';
 import { SignalsNewBadgeService } from '../../core/signals-new-badge.service';
+import {
+  effectiveQuantity,
+  fmtSignedUsd,
+  fmtUiDecimal,
+  quantityWasInferred,
+  type PositionData,
+} from '../../core/positions-logic';
 
 const SIDEBAR_COLLAPSED_KEY = 'signals-sidebar-collapsed';
 
@@ -41,8 +48,16 @@ export class AppShellComponent implements OnInit, OnDestroy {
   exitDocId: string | null = null;
   exitTicker = '';
   exitEntry = 0;
+  exitQuantity: number | null = null;
   exitPrice = '';
   exitNotes = '';
+  readonly exitSaving = signal(false);
+  readonly exitResultSummary = signal<{
+    ticker: string;
+    pnlUsd: number;
+    pnlPct: number | null;
+    quantityInferred: boolean;
+  } | null>(null);
 
   ngOnInit(): void {
     if (typeof localStorage !== 'undefined') {
@@ -81,9 +96,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
       });
     }
 
-    this.exitSub = this.exitDialogSvc.openRequest$.subscribe((p) =>
-      this.openExitDialog(p.docId, p.ticker, p.entry)
-    );
+    this.exitSub = this.exitDialogSvc.openRequest$.subscribe((p) => this.openExitDialog(p));
 
     this.mq?.addEventListener('change', () => {
       if (!this.isMobile()) this.mobileOpen.set(false);
@@ -122,10 +135,12 @@ export class AppShellComponent implements OnInit, OnDestroy {
     await this.authSvc.signOutApp();
   }
 
-  private openExitDialog(docId: string, ticker: string, entry: number): void {
-    this.exitDocId = docId;
-    this.exitTicker = ticker;
-    this.exitEntry = entry;
+  private openExitDialog(p: ExitDialogPayload): void {
+    this.exitSaving.set(false);
+    this.exitDocId = p.docId;
+    this.exitTicker = p.ticker;
+    this.exitEntry = p.entry;
+    this.exitQuantity = p.quantity ?? null;
     this.exitPrice = '';
     this.exitNotes = '';
     queueMicrotask(() =>
@@ -135,6 +150,37 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   closeExitDialog(): void {
     (document.getElementById('exit-dialog') as HTMLDialogElement | null)?.close();
+  }
+
+  onExitDialogCancel(ev: Event): void {
+    if (this.exitSaving()) {
+      ev.preventDefault();
+    }
+  }
+
+  closeExitResultDialog(): void {
+    (document.getElementById('exit-result-dialog') as HTMLDialogElement | null)?.close();
+  }
+
+  onExitResultDialogClosed(): void {
+    this.exitResultSummary.set(null);
+  }
+
+  protected exitResultPnlClass(pnlPct: number | null): string {
+    if (pnlPct == null || !Number.isFinite(pnlPct)) return 'pnl-flat';
+    if (pnlPct > 0.0001) return 'pnl-profit';
+    if (pnlPct < -0.0001) return 'pnl-loss';
+    return 'pnl-flat';
+  }
+
+  protected fmtExitSignedUsd(n: number): string {
+    return fmtSignedUsd(n);
+  }
+
+  protected fmtExitPct(pnlPct: number | null): string {
+    if (pnlPct == null || !Number.isFinite(pnlPct)) return '—';
+    const sign = pnlPct > 0 ? '+' : '';
+    return sign + fmtUiDecimal(pnlPct) + '%';
   }
 
   async submitExit(): Promise<void> {
@@ -149,8 +195,14 @@ export class AppShellComponent implements OnInit, OnDestroy {
     }
     const entry = this.exitEntry;
     const pnl_pct = entry > 0 ? ((price - entry) / entry) * 100 : null;
+    const qtyData = { quantity: this.exitQuantity } as PositionData;
+    const qty = effectiveQuantity(qtyData);
+    const pnlUsd = (price - entry) * qty;
+    const summaryTicker = this.exitTicker;
+    const quantityInferred = quantityWasInferred(qtyData);
     const ts = new Date().toISOString();
     const base = environment.apiBaseUrl;
+    this.exitSaving.set(true);
     try {
       await firstValueFrom(
         this.http.patch<{ ok: boolean }>(`${base}/api/positions/${this.exitDocId}`, {
@@ -164,10 +216,21 @@ export class AppShellComponent implements OnInit, OnDestroy {
       );
       this.closeExitDialog();
       this.exitDocId = null;
+      this.exitResultSummary.set({
+        ticker: summaryTicker,
+        pnlUsd,
+        pnlPct: pnl_pct,
+        quantityInferred,
+      });
       this.positionsStore.refetch();
       this.exitDialogSvc.exitSaved$.next();
+      setTimeout(() => {
+        (document.getElementById('exit-result-dialog') as HTMLDialogElement | null)?.showModal();
+      }, 0);
     } catch (err) {
       alert('Could not save exit: ' + formatApiErr(err));
+    } finally {
+      this.exitSaving.set(false);
     }
   }
 

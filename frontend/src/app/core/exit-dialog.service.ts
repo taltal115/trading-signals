@@ -5,6 +5,8 @@ export interface ExitDialogPayload {
   docId: string;
   ticker: string;
   entry: number;
+  /** Shares for USD P&L; omitted or invalid uses implicit 1 (see `effectiveQuantity` in positions-logic). */
+  quantity?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })

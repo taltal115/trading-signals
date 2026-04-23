@@ -17,7 +17,7 @@ Signal-only: the **web UI** and **position monitor** do not execute trades.
 
 ## 2. Angular environment
 
-Edit [`frontend/src/environments/environment.ts`](../frontend/src/environments/environment.ts) (and production overrides in [`environment.prod.ts`](../frontend/src/environments/environment.prod.ts)):
+Edit [`frontend/src/environments/environment.ts`](../frontend/src/environments/environment.ts) for local dev. **Production** builds use [`environment.prod.ts`](../frontend/src/environments/environment.prod.ts) via `fileReplacements` in [`angular.json`](../frontend/angular.json) (`devAuthBypass: false`, same `apiBaseUrl` rules):
 
 - **`apiBaseUrl`**: `''` when the SPA is served from the same origin as `/api`, or the full API origin if cross-origin.
 - **`devAuthBypass`**: `true` only on localhost in the default `environment.ts` — skips shell redirect to `/login` while you use `AUTH_BYPASS_LOCAL` on the API.

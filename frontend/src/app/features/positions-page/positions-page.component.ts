@@ -377,6 +377,7 @@ export class PositionsPageComponent {
       docId: pos.id,
       ticker: pos.data.ticker || '',
       entry: Number(pos.data.entry_price ?? 0),
+      quantity: pos.data.quantity,
     });
   }
 

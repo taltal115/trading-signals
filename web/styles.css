@@ -1525,6 +1525,42 @@ button.btn-exit:hover {
   margin: 0 0 0.85rem;
 }
 
+.exit-dialog .exit-dialog-spinner {
+  margin: 0.75rem 0 0;
+}
+
+.exit-result-dialog .exit-result-body {
+  padding: 1.15rem;
+}
+
+.exit-result-metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.65rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.exit-result-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.exit-result-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.exit-result-footnote {
+  margin-top: 0.85rem;
+  margin-bottom: 0;
+  font-size: 0.8rem;
+}
+
 .exit-dialog .dialog-actions {
   display: flex;
   gap: 0.5rem;
@@ -1543,6 +1579,11 @@ button.btn-exit:hover {
   font-family: inherit;
 }
 
+.exit-dialog .dialog-actions button.primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .exit-dialog .dialog-actions button.secondary {
   padding: 0.5rem 0.9rem;
   border-radius: var(--radius);
@@ -1551,6 +1592,11 @@ button.btn-exit:hover {
   color: var(--muted);
   cursor: pointer;
   font-family: inherit;
+}
+
+.exit-dialog .dialog-actions button.secondary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .pnl-profit {

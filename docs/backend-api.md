@@ -82,6 +82,22 @@ For real Google sign-in locally, set `AUTH_BYPASS_LOCAL=false`, provide `GOOGLE_
 - `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**).
 - `POST /api/github/workflows/bot-scan` — body `{ "ticker": "AAPL" }`; dispatches `trading-bot-scan.yml` (**Re-eval**). Both require session + `GITHUB_PERSONAL_TOKEN` on the server.
 
+## Google OAuth troubleshooting (`401 invalid_client` / “OAuth client was not found”)
+
+Google returns this when **`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` on the Nest process do not match** a valid **OAuth 2.0 Client ID** (type **Web application**) in [Google Cloud Console → APIs & Services → Credentials](https://console.cloud.google.com/apis/credentials) for the **same GCP project** you use for Firebase (`trading-goals`).
+
+Checklist:
+
+1. **Cloud Run / server env:** Open the Cloud Run service → **Variables & secrets** and confirm `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no extra spaces/quotes; secret must be the client’s **secret**, not the JSON file).
+2. **Client exists:** In Credentials, open that client — it must not be deleted. If unsure, create a new **Web client** and paste the new ID + secret into Cloud Run, then redeploy.
+3. **Authorized redirect URIs** (must match how users reach `/api/auth/google/callback`):
+   - **Hosting + `/api` rewrite to Cloud Run:** `https://trading-goals.web.app/api/auth/google/callback` (and `https://trading-goals.firebaseapp.com/...` if you use that host), plus any custom domain.
+   - **Local dev with proxy:** `http://localhost:4200/api/auth/google/callback`
+4. **`GOOGLE_CALLBACK_URL` on Nest** must be exactly that same URI (scheme + host + path). If unset, it defaults to `{FRONTEND_URL}/api/auth/google/callback` — so **`FRONTEND_URL` must be the SPA origin** (e.g. `https://trading-goals.web.app`), not the Cloud Run `run.app` URL, when using Hosting rewrites.
+5. **OAuth consent screen:** For accounts outside a test user list, the app may need to be **In production** or the signing-in user added as a **test user** (while in Testing).
+6. **`.env` formatting:** Do not wrap `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in quotes unless the whole value is quoted; stray characters break Google’s client lookup (`invalid_client`). Nest loads **`backend/.env` first**, then **repo-root `.env`** (later file wins on duplicate keys). After `cd backend`, run the API so both paths resolve; check startup log: `Google OAuth client_id loaded` vs `GOOGLE_CLIENT_ID is empty`.
+7. **`GET /api/positions` returns 500:** Often **Firestore composite index** missing. Deploy [`firestore.indexes.json`](../firestore.indexes.json): `firebase deploy --only firestore:indexes`, wait until indexes show **Enabled** in console, retry.
+
 ## Production deployment
 
 **Recommended (Firebase + Firestore in one project):** deploy the API to **Cloud Run** and use **Firebase Hosting** rewrites so `/api/**` hits Cloud Run while the SPA stays on the same origin. Step-by-step: [`docs/deploy-api-cloud-run.md`](deploy-api-cloud-run.md).
