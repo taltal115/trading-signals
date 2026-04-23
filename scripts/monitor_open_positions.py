@@ -21,7 +21,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from signals_bot.config import AppConfig, load_config
-from signals_bot.notifiers.slack import SECTOR_PALETTE, sector_color
+from signals_bot.notifiers.slack import SECTOR_PALETTE, normalize_slack_bot_token, normalize_slack_channel, sector_color
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.storage.firestore import get_firestore_client
@@ -422,8 +422,8 @@ def _build_wait_attachment(
 
 def _slack_post_blockkit(*, text: str, attachments: list[dict]) -> None:
     load_dotenv(override=False)
-    token = os.getenv("SLACK_BOT_TOKEN")
-    channel = os.getenv("SLACK_CHANNEL")
+    token = normalize_slack_bot_token(os.getenv("SLACK_BOT_TOKEN"))
+    channel = normalize_slack_channel(os.getenv("SLACK_CHANNEL"))
     if not token or not channel:
         print("WARN: SLACK_BOT_TOKEN or SLACK_CHANNEL missing; skip Slack.")
         return

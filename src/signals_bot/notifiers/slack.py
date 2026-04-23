@@ -11,6 +11,28 @@ from slack_sdk.errors import SlackApiError
 
 from signals_bot.strategy.breakout import Signal
 
+def normalize_slack_bot_token(raw: str | None) -> str | None:
+    """Strip common .env / copy-paste pollution so Slack accepts the token."""
+    if raw is None:
+        return None
+    t = raw.strip().removeprefix("\ufeff")
+    if len(t) >= 2 and t[0] == t[-1] and t[0] in "'\"":
+        t = t[1:-1].strip()
+    if t.lower().startswith("bearer "):
+        t = t[7:].strip()
+    return t or None
+
+
+def normalize_slack_channel(raw: str | None) -> str | None:
+    """Strip quotes / BOM from channel id or name."""
+    if raw is None:
+        return None
+    c = raw.strip().removeprefix("\ufeff")
+    if len(c) >= 2 and c[0] == c[-1] and c[0] in "'\"":
+        c = c[1:-1].strip()
+    return c or None
+
+
 SECTOR_PALETTE = [
     "#2eb886",
     "#36a2eb",
@@ -106,7 +128,7 @@ class SlackNotifier:
     def from_env_and_config(*, channel: str) -> "SlackNotifier":
         load_dotenv(override=False)
 
-        token = os.getenv("SLACK_BOT_TOKEN")
+        token = normalize_slack_bot_token(os.getenv("SLACK_BOT_TOKEN"))
         if not token:
             raise ValueError("Missing SLACK_BOT_TOKEN in environment/.env")
         if not token.startswith("xoxb-"):
@@ -115,8 +137,8 @@ class SlackNotifier:
                 "Your token type is not allowed for chat.postMessage."
             )
 
-        env_channel = os.getenv("SLACK_CHANNEL")
-        resolved_channel = env_channel or channel
+        env_channel = normalize_slack_channel(os.getenv("SLACK_CHANNEL"))
+        resolved_channel = env_channel or normalize_slack_channel(channel)
         if not resolved_channel or resolved_channel == "YOUR_CHANNEL_ID":
             raise ValueError("Missing Slack channel (set slack.channel in YAML or SLACK_CHANNEL in .env)")
 
