@@ -1,4 +1,4 @@
-# Manual AI evaluation: context + OpenAI JSON + blended score → Firestore (position or signals doc).
+# Manual AI evaluation: context + OpenAI JSON + blended score → Firestore (nested under signals[] on run doc; optional my_positions.ai_evaluation).
 name: AI stock evaluation
 
 on:
@@ -8,10 +8,10 @@ on:
         description: "Ticker symbol"
         required: true
       signal_doc_id:
-        description: "Firestore signals document id"
+        description: "Firestore run document id (signals_new or legacy signals; same id shown on the Signals page)"
         required: true
       position_id:
-        description: "my_positions document id (empty = write only to signals.ai_evaluations)"
+        description: "my_positions document id (empty = only merge into run doc signals[]; if set, also updates position.ai_evaluation)"
         required: false
         default: ""
       owner_uid:

@@ -25,9 +25,9 @@ def _resolve_repo_path(path_str: str) -> Path:
         p = REPO_ROOT / p
     return p.resolve()
 
-from .context import build_context
+from .context import build_context, build_provider_status_dict
 from .features import build_features_strategy_and_placeholders, render_user_prompt
-from .firestore_write import build_payload, read_candidate_score, write_evaluation
+from .firestore_write import build_ai_evaluation_record, read_candidate_score, write_evaluation
 from .llm import call_openai_json, normalize_verdict
 from .prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 from .score import compute_total_score
@@ -62,7 +62,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Path to config.yaml (default: config.yaml at repo root)",
     )
     p.add_argument("--ticker", required=True, help="Ticker symbol")
-    p.add_argument("--signal-doc-id", required=True, help="Firestore signals document id")
+    p.add_argument(
+        "--signal-doc-id",
+        required=True,
+        help="Firestore run document id (signals_new or legacy signals collection)",
+    )
     p.add_argument("--position-id", default="", help="Firestore my_positions document id (optional)")
     p.add_argument("--owner-uid", default="", help="Firebase auth uid owning the position (optional)")
     p.add_argument("--theme", default="", help="Theme label for the prompt")
@@ -159,7 +163,9 @@ def main(argv: list[str] | None = None) -> int:
         print(user_msg, flush=True)
         print("========== END DEBUG PROMPTS ==========", flush=True)
 
-    raw_verdict, llm_source = call_openai_json(system=SYSTEM_PROMPT, user=user_msg)
+    raw_verdict, llm_source, raw_response_text = call_openai_json(
+        system=SYSTEM_PROMPT, user=user_msg
+    )
     verdict = normalize_verdict(raw_verdict)
     conviction = float(verdict["conviction"])
 
@@ -170,14 +176,30 @@ def main(argv: list[str] | None = None) -> int:
         conviction=conviction,
     )
 
-    payload = build_payload(
+    provider_status = build_provider_status_dict(
+        ctx, candidate_from_firestore=candidate_from_firestore
+    )
+    scores: dict[str, Any] = {
+        "candidate_score": float(candidate_score),
+        "total": float(total),
+        "breakdown": {k: float(v) for k, v in breakdown.items()},
+        "conviction": float(conviction),
+        "best_strategy": str(best_strategy),
+        "strategy_score": float(strat_score),
+    }
+    verify_snapshot = {"errors": list(verr), "warnings": list(vwarn)}
+    payload = build_ai_evaluation_record(
         ticker=ticker,
         signal_doc_id=signal_doc_id,
-        total=total,
-        conviction=conviction,
-        verdict=verdict,
-        breakdown=breakdown,
-        source=llm_source,
+        provider_status=provider_status,
+        scores=scores,
+        prompt={"system": SYSTEM_PROMPT, "user": user_msg},
+        llm={
+            "source": llm_source,
+            "raw_response": raw_response_text,
+            "verdict": verdict,
+        },
+        verify=verify_snapshot,
     )
 
     ai_pts = float(breakdown.get("ai_component", 0.0))

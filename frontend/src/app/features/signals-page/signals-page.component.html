@@ -8,7 +8,7 @@
     *ngIf="!loading() && !loadError() && docs().length > 0 && displayRows().length === 0"
   >
     These runs have no BUY rows in <code>signals[]</code> (only WAIT/SELL or an older document shape).
-    Run the bot with BUY output or check Firestore <code>signals</code> documents.
+    Run the bot with BUY output or check Firestore <code>signals_new</code> (or legacy <code>signals</code>) run documents.
   </p>
   <div class="table-wrap" *ngIf="!loading() && !loadError() && docs().length > 0 && displayRows().length > 0">
     <table class="signals-main-table">
@@ -216,7 +216,7 @@
                         </label>
                         <label>
                           Linked signal doc ID (optional)
-                          <input formControlName="signal_doc_id" placeholder="Firestore document id" />
+                          <input formControlName="signal_doc_id" placeholder="signals_new run document id" />
                         </label>
                         <label>
                           Hold days (optional)

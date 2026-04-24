@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import os
 
-from .context import EvalContext
-
-MIN_HISTORY_ROWS = 20
+from .context import EvalContext, MIN_HISTORY_ROWS
 
 
 def verify_eval_context(

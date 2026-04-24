@@ -1,0 +1,10 @@
+.universe-symbols-panel table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.universe-symbols-panel table thead th:nth-child(4),
+.universe-symbols-panel table thead th:nth-child(5),
+.universe-symbols-panel table thead th:nth-child(8) {
+  text-align: right;
+}

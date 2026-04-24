@@ -36,11 +36,14 @@ def _stub_verdict() -> dict[str, Any]:
     }
 
 
-def call_openai_json(*, system: str, user: str, model: str | None = None) -> tuple[dict[str, Any], str]:
-    """Returns (parsed_json, source) where source is 'openai' or 'stub'."""
+def call_openai_json(
+    *, system: str, user: str, model: str | None = None
+) -> tuple[dict[str, Any], str, str]:
+    """Returns (parsed_json, source, raw_response_text) where source is 'openai' or 'stub'."""
     api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
     if not api_key:
-        return _stub_verdict(), "stub"
+        stub = _stub_verdict()
+        return stub, "stub", json.dumps(stub, ensure_ascii=False)
 
     base = (os.getenv("OPENAI_BASE_URL") or DEFAULT_BASE).rstrip("/")
     m = model or os.getenv("OPENAI_MODEL") or DEFAULT_MODEL
@@ -63,7 +66,7 @@ def call_openai_json(*, system: str, user: str, model: str | None = None) -> tup
     data = resp.json()
     content = data["choices"][0]["message"]["content"]
     parsed = json.loads(content)
-    return parsed, "openai"
+    return parsed, "openai", content if isinstance(content, str) else str(content)
 
 
 def normalize_verdict(raw: dict[str, Any]) -> dict[str, Any]:

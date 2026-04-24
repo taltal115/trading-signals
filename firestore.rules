@@ -12,6 +12,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Same shape as ``signals``; deterministic doc ids (date_time). Written by server (Admin SDK) only.
+    match /signals_new/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // my_positions: any signed-in user may only access rows they own (owner_uid == auth.uid).
     // Who may sign in (Google allowlist) is enforced in the web app + Firebase Auth settings, not duplicated here —
     // the JWT "email" claim is unreliable in rules right after redirect.

@@ -8,6 +8,7 @@ import {
   OnModuleInit,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { isAbsolute, resolve } from 'path';
 import * as admin from 'firebase-admin';
 import type { DocumentData } from 'firebase-admin/firestore';
@@ -66,6 +67,8 @@ function resolveGoogleApplicationCredentialsPath(): void {
 export class FirestoreService implements OnModuleInit {
   private readonly log = new Logger(FirestoreService.name);
   private db!: admin.firestore.Firestore;
+
+  constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
     if (admin.apps.length > 0) {
@@ -172,9 +175,11 @@ export class FirestoreService implements OnModuleInit {
   }
 
   async listSignals(limitN: number): Promise<{ id: string; data: DocumentData }[]> {
+    const coll =
+      this.config.get<string>('firestoreSignalsCollection')?.trim() || 'signals_new';
     try {
       const snap = await this.db
-        .collection('signals')
+        .collection(coll)
         .orderBy('ts_utc', 'desc')
         .limit(limitN)
         .get();

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -11,6 +12,10 @@ from google.cloud import firestore
 from google.oauth2 import service_account
 
 from signals_bot.strategy.breakout import Signal
+
+# Legacy auto-id collection (unchanged). New runs are also copied here with deterministic IDs.
+SIGNALS_COLLECTION_LEGACY = "signals"
+SIGNALS_COLLECTION_NEW = "signals_new"
 
 
 def _normalize_universe_symbols(symbols: Iterable[str]) -> list[str]:
@@ -79,6 +84,41 @@ def _pct_from_close(level: float | None, base: float | None) -> float | None:
     if level is None or base is None or base == 0:
         return None
     return ((level - base) / base) * 100.0
+
+
+def _parse_ts_utc_iso(ts_utc: str) -> datetime:
+    """Parse Firestore ts_utc (ISO-8601) to UTC aware datetime."""
+    raw = (ts_utc or "").strip()
+    if not raw:
+        return datetime.now(timezone.utc)
+    try:
+        tnorm = raw.replace("Z", "+00:00") if raw.endswith("Z") else raw
+        dt = datetime.fromisoformat(tnorm)
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc)
+        return dt.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return datetime.now(timezone.utc)
+
+
+def signals_new_document_id(*, asof_date: str, ts_utc: str, run_id: str) -> str:
+    """Sortable, human-readable UTC id (lexicographic order == chronological).
+
+    Format: ``YYYY-MM-DDTHH-MM-SS.ffffffZ`` — ISO-8601-style: date, ``T``, zero-padded
+    clock with dashes (not colons, for fewer tooling issues), dot + 6-digit microseconds,
+    trailing ``Z``. Date prefers ``asof_date`` when ``YYYY-MM-DD``; time from ``ts_utc``.
+
+    ``run_id`` is kept for API compatibility. Migration adds ``_dupN`` on collision.
+    """
+    del run_id
+    dt = _parse_ts_utc_iso(ts_utc)
+    asof = (asof_date or "").strip()
+    if asof and re.fullmatch(r"\d{4}-\d{2}-\d{2}", asof):
+        date_part = asof
+    else:
+        date_part = dt.strftime("%Y-%m-%d")
+    clock = dt.strftime("%H-%M-%S")
+    return f"{date_part}T{clock}.{dt.microsecond:06d}Z"
 
 
 def write_universe_snapshot(
@@ -175,7 +215,7 @@ def write_buy_signals(
     signals: Iterable[Signal],
     run_id: str,
     asof_date: str,
-    collection: str = "signals",
+    collection: str = SIGNALS_COLLECTION_LEGACY,
 ) -> None:
     buys = [s for s in signals if s.action == "BUY"]
     if not buys:
@@ -213,3 +253,5 @@ def write_buy_signals(
 
     db = _build_client()
     db.collection(collection).add(doc)
+    new_id = signals_new_document_id(asof_date=asof_date, ts_utc=str(doc["ts_utc"]), run_id=run_id)
+    db.collection(SIGNALS_COLLECTION_NEW).document(new_id).set(doc)

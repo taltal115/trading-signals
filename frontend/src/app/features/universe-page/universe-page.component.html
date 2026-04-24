@@ -38,7 +38,11 @@
                           <th>#</th>
                           <th>Symbol</th>
                           <th>Name</th>
+                          <th>Conf</th>
+                          <th>Score</th>
                           <th>Sector</th>
+                          <th>Country</th>
+                          <th>Market cap</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -48,7 +52,11 @@
                             <td>{{ idx + 1 }}</td>
                             <td class="code"><strong>{{ sym }}</strong></td>
                             <td>{{ det.name || '' }}</td>
+                            <td class="num">{{ fmtConfidence(det.confidence) }}</td>
+                            <td class="num">{{ fmtUniverseScore(det.score) }}</td>
                             <td><span class="sector-tag">{{ det.sector || '' }}</span></td>
+                            <td>{{ det.country || '' }}</td>
+                            <td class="num">{{ fmtMarketCapMillions(det.market_cap) }}</td>
                           </tr>
                         }
                       </tbody>

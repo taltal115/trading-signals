@@ -1,4 +1,4 @@
-/** Firestore `signals` collection document shape (subset). */
+/** Firestore signal run document shape (`signals_new` or legacy `signals`; subset). */
 export interface SignalDoc {
   asof_date?: string;
   signals?: Record<string, unknown>[];
