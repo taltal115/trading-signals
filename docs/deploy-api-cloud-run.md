@@ -78,8 +78,57 @@ Set production configuration on the service (example — use Secret Manager for 
 | `GOOGLE_CALLBACK_URL` | **`{FRONTEND_URL}/api/auth/google/callback`** when using Hosting `/api` rewrite |
 | `ALLOWED_SIGN_IN_EMAILS` / `ALLOWED_AUTH_UIDS` | Same allowlists as the Angular env |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Full service account JSON (Secret Manager → env), **or** rely on the Cloud Run service account with IAM roles for Firestore (see below) |
-| `FINNHUB_API_KEY` / others | As in [`.env.example`](../.env.example) |
-| `GITHUB_PERSONAL_TOKEN` | For workflow dispatch buttons |
+| `FINNHUB_API_KEY` | **Required** for `/api/market/quote` and `/api/market/stock-snapshot`. Same key as local `.env`. |
+| `TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY` | **Strongly recommended** for `/api/market/candles` (dashboard charts): Finnhub **free** plans usually return **403** on `stock/candle`, so the API uses Twelve Data / Alpha Vantage first when these are set. |
+| `GITHUB_PERSONAL_TOKEN` | **Required** for `POST /api/github/workflows/*` (AI eval, bot scan, position monitor). Not bundled in the frontend. |
+
+### Market data (`503` “FINNHUB_API_KEY is not set on the API server”)
+
+The Nest **Market** module reads **`FINNHUB_API_KEY`** from the environment (see [`.env.example`](../.env.example)). **Local `.env` is not used on Cloud Run** unless you copy those variables onto the service.
+
+1. Cloud Run → **trading-signals-api** (or your `CLOUD_RUN_SERVICE`) → **Edit & deploy new revision** → **Variables & secrets**.
+2. Add **`FINNHUB_API_KEY`** with your Finnhub token (or use Secret Manager and reference it).
+3. Prefer **`--update-env-vars`** so you do not remove existing OAuth/session vars:
+
+```bash
+gcloud run services update trading-signals-api --region us-central1 \
+  --update-env-vars "FINNHUB_API_KEY=your_token_here"
+```
+
+If **`MARKET_DATA_ENABLED=false`**, all `/api/market/*` routes return 503 with a different message (feature off).
+
+### Daily candles (`503` Finnhub plan / “Configure TWELVE_DATA…”)
+
+**Quotes** use Finnhub; **daily OHLC candles** try **Twelve Data** first, then **Alpha Vantage**, then Finnhub. On many **free** Finnhub tiers, **`stock/candle` returns 403**; the service then opens a short cooldown and returns 503 unless Twelve Data or Alpha Vantage is configured.
+
+Set at least one of these on **Cloud Run** (same values as local `.env`):
+
+```bash
+gcloud run services update trading-signals-api --region us-central1 \
+  --update-env-vars "TWELVE_DATA_API_KEY=your_key"
+# and/or
+gcloud run services update trading-signals-api --region us-central1 \
+  --update-env-vars "ALPHA_VANTAGE_API_KEY=your_key"
+```
+
+Nest also accepts `ALPHAVANTAGE_API_KEY` (no underscore) for compatibility with Python env files.
+
+### GitHub workflow buttons (`503` “workflow dispatch is not configured”)
+
+If the UI calls `https://<your-host>/api/github/workflows/ai-stock-eval` (or `bot-scan` / `position-monitor`) and the API returns **503** with a message about `GITHUB_PERSONAL_TOKEN`, the Cloud Run service does not have that variable set.
+
+1. Create a **GitHub PAT** that can dispatch Actions on this repo:
+   - **Classic:** `repo` (or scoped to this repo) + **`workflow`** scope.
+   - **Fine-grained:** repository access to `trading-signals`, permissions **Actions: Read and write**.
+2. On Cloud Run → your service → **Variables & secrets** → add **`GITHUB_PERSONAL_TOKEN`** (prefer **Secret Manager** reference for the value).
+3. Use **`--update-env-vars`** (or the console) so you do **not** wipe existing OAuth/Firestore vars:
+
+```bash
+gcloud run services update trading-signals-api --region us-central1 \
+  --update-env-vars "GITHUB_PERSONAL_TOKEN=ghp_xxxxxxxx"
+```
+
+Avoid pasting the PAT in shell history on shared machines; use the console or a secret.
 
 Example (inline env — prefer secrets for production):
 

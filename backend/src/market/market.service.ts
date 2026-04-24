@@ -50,6 +50,12 @@ type FinnhubQuoteJson = {
   t?: number;
 };
 
+const FINNHUB_KEY_MISSING_MSG =
+  'FINNHUB_API_KEY is not set on the API server. Set it on Cloud Run (service → Variables & secrets), e.g. gcloud run services update … --update-env-vars=FINNHUB_API_KEY=…. See docs/deploy-api-cloud-run.md.';
+
+const FINNHUB_CANDLES_BLOCKED_MSG =
+  'Daily candles: Finnhub free tier blocks stock/candle (403). Set TWELVE_DATA_API_KEY and/or ALPHA_VANTAGE_API_KEY on Cloud Run (same as local .env). Charts use those providers first. See docs/deploy-api-cloud-run.md.';
+
 @Injectable()
 export class MarketService implements OnModuleInit {
   private readonly logger = new Logger(MarketService.name);
@@ -159,7 +165,7 @@ export class MarketService implements OnModuleInit {
       .toUpperCase();
     if (!sym) throw new BadRequestException('Missing symbol');
     if (!this.finnhubKey) {
-      throw new ServiceUnavailableException('FINNHUB_API_KEY is not set on the API server');
+      throw new ServiceUnavailableException(FINNHUB_KEY_MISSING_MSG);
     }
 
     return this.runFinnhubExclusive(async () => {
@@ -178,7 +184,7 @@ export class MarketService implements OnModuleInit {
       .toUpperCase();
     if (!sym) throw new BadRequestException('Missing symbol');
     if (!this.finnhubKey) {
-      throw new ServiceUnavailableException('FINNHUB_API_KEY is not set on the API server');
+      throw new ServiceUnavailableException(FINNHUB_KEY_MISSING_MSG);
     }
 
     return this.runFinnhubExclusive(async () => {
@@ -322,14 +328,12 @@ export class MarketService implements OnModuleInit {
   }
 
   private finnhubCandlesCircuitError(): ServiceUnavailableException {
-    return new ServiceUnavailableException(
-      'Daily candles unavailable on current Finnhub plan (stock/candle). Configure TWELVE_DATA_API_KEY or ALPHA_VANTAGE_API_KEY on the API server.'
-    );
+    return new ServiceUnavailableException(FINNHUB_CANDLES_BLOCKED_MSG);
   }
 
   private async candlesFinnhub(symbol: string, days: number): Promise<DailyCandlesDto> {
     if (!this.finnhubKey) {
-      throw new ServiceUnavailableException('FINNHUB_API_KEY is not set on the API server');
+      throw new ServiceUnavailableException(FINNHUB_KEY_MISSING_MSG);
     }
     if (Date.now() < this.finnhubCandlesCircuitOpenUntil) {
       throw this.finnhubCandlesCircuitError();

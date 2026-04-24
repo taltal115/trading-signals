@@ -47,7 +47,38 @@ jobs:
             exit 1
           fi
 
-      - name: Run AI evaluation
+      - name: Verify evaluation context (history, Finnhub, Firestore score)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+        run: |
+          POS_ARG=""
+          if [ -n "${{ github.event.inputs.position_id }}" ]; then
+            POS_ARG="--position-id ${{ github.event.inputs.position_id }}"
+          fi
+          OWN_ARG=""
+          if [ -n "${{ github.event.inputs.owner_uid }}" ]; then
+            OWN_ARG="--owner-uid ${{ github.event.inputs.owner_uid }}"
+          fi
+          PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \
+            --config config.yaml \
+            --ticker "${{ github.event.inputs.ticker }}" \
+            --signal-doc-id "${{ github.event.inputs.signal_doc_id }}" \
+            --verify-only \
+            --github-verify-annotations \
+            $POS_ARG \
+            $OWN_ARG
+
+      - name: Check OpenAI API key secret
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::error::Set repository secret OPENAI_API_KEY. Without it the job would run source=stub (no real LLM). See .env.example."
+            exit 1
+          fi
+
+      - name: Run AI evaluation (prints prompts, then OpenAI + Firestore write)
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
@@ -65,5 +96,6 @@ jobs:
             --config config.yaml \
             --ticker "${{ github.event.inputs.ticker }}" \
             --signal-doc-id "${{ github.event.inputs.signal_doc_id }}" \
+            --debug-prompt \
             $POS_ARG \
             $OWN_ARG

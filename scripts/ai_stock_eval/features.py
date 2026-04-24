@@ -286,6 +286,7 @@ def build_features_strategy_and_placeholders(
     strat_score = float(sig.score) if sig is not None else 0.0
     strategy_results: dict[str, dict[str, Any]] = {"breakout_momentum": {"score": strat_score}}
     best_strategy = "breakout_momentum"
+    strategy_score_display = _fmt2(strat_score * 100.0)
 
     q = ctx.quote
     price = q.price if q.price is not None and math.isfinite(q.price) else last_close
@@ -339,7 +340,7 @@ def build_features_strategy_and_placeholders(
         "relative_volume": _fmt2(rel_vol),
         "technical_score": _fmt2(weight_feats["technical_score"]),
         "deterministic_score": _fmt2(weight_feats["price_strength_display"]),
-        "strategy_score": "0.0",
+        "strategy_score": strategy_score_display,
         "best_strategy": best_strategy,
         "headlines": headlines_block,
         "events": ctx.events_text,
