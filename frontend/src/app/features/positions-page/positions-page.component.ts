@@ -30,6 +30,7 @@ import {
   rowPnlClass,
   getFilteredPositions,
   sortPositionsData,
+  exitViaLabel,
   calculatePnlForPosition,
   fmtMoneyInput,
   BracketPct,
@@ -534,4 +535,5 @@ export class PositionsPageComponent {
   }
 
   protected readonly formatNum = formatNum;
+  protected readonly exitViaLabel = exitViaLabel;
 }

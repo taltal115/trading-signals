@@ -441,6 +441,16 @@ def _slack_post_blockkit(*, text: str, attachments: list[dict]) -> None:
 EXIT_KINDS = {"STOP_HIT", "TARGET_HIT", "DURATION_DUE"}
 NOTIFY_KINDS = EXIT_KINDS | {"STOP_NEAR", "TARGET_NEAR", "HOLD_REVIEW"}
 
+# Close Firestore row when spot crosses bracket (aligns with TP / SL orders); not time-based DURATION_DUE.
+AUTO_CLOSE_KINDS = frozenset({"TARGET_HIT", "STOP_HIT"})
+
+
+def _truthy_env(name: str, *, default: bool = True) -> bool:
+    v = (os.getenv(name) or "").strip().lower()
+    if not v:
+        return default
+    return v in ("1", "true", "yes", "on")
+
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Monitor open manual positions; log + optional Slack (signal-only).")
@@ -452,6 +462,11 @@ def main() -> int:
     )
     p.add_argument("--dry-run", action="store_true", help="Do not write Firestore dedupe fields or Slack.")
     p.add_argument("--no-slack", action="store_true", help="Never post Slack.")
+    p.add_argument(
+        "--no-auto-close",
+        action="store_true",
+        help="Do not set status=closed when TARGET_HIT/STOP_HIT (only update last_alert + checks).",
+    )
     p.add_argument("--ticker", default="", help="Single ticker to check (default: all open positions).")
     args = p.parse_args()
 
@@ -474,6 +489,7 @@ def main() -> int:
     }
     order = [x for x in cfg.data.provider_order if x in providers] or ["yahoo", "stooq"]
     today = datetime.now(cfg.tz()).date()
+    auto_close_enabled = _truthy_env("MONITOR_AUTO_CLOSE", default=True) and not args.no_auto_close
 
     q = db.collection("my_positions").where(filter=FieldFilter("status", "==", "open"))
     owner_uid = (args.owner_uid or "").strip()
@@ -513,18 +529,47 @@ def main() -> int:
         pnl_pct = _compute_pnl_pct(data.get("entry_price"), last_close)
         days_held = _compute_days_held(data.get("created_at_utc"))
 
+        prev_status = str(data.get("status") or "open").strip().lower()
+        auto_close = (
+            auto_close_enabled
+            and not args.dry_run
+            and prev_status == "open"
+            and alert.kind in AUTO_CLOSE_KINDS
+            and last_close is not None
+        )
+
         if not args.dry_run:
             ref = db.collection("my_positions").document(snap.id)
-            ref.set(
-                {
-                    "updated_at_utc": ts,
-                    "last_alert_kind": alert.kind,
-                    "last_alert_summary": alert.message,
-                    "last_alert_ts_utc": ts,
-                    "last_spot": last_close,
-                },
-                merge=True,
-            )
+            patch: dict[str, Any] = {
+                "updated_at_utc": ts,
+                "last_alert_kind": alert.kind,
+                "last_alert_summary": alert.message,
+                "last_alert_ts_utc": ts,
+                "last_spot": last_close,
+            }
+            if auto_close:
+                lc = float(last_close)
+                pnl_rounded = round(pnl_pct, 4) if pnl_pct is not None else None
+                patch.update(
+                    {
+                        "status": "closed",
+                        "exit_price": lc,
+                        "exit_at_utc": ts,
+                        "closed_at_utc": ts,
+                        "pnl_pct": pnl_rounded,
+                        "exit_notes": (
+                            f"Auto-closed by position monitor ({alert.kind.replace('_', ' ')}). "
+                            f"Spot ${lc:.2f} vs stored bracket — confirm broker fill (SL/TP)."
+                        ),
+                        "exit_origin": "position_monitor",
+                        "monitor_close_kind": alert.kind,
+                    }
+                )
+                print(
+                    f"  AUTO_CLOSE my_positions/{snap.id} {ticker} kind={alert.kind} "
+                    f"spot={lc:.2f} pnl_pct={pnl_rounded}"
+                )
+            ref.set(patch, merge=True)
             print(f"  updated my_positions/{snap.id} fields")
 
             pos_owner = data.get("owner_uid") or owner_uid or None
@@ -540,6 +585,8 @@ def main() -> int:
                 "pnl_pct": round(pnl_pct, 2) if pnl_pct is not None else None,
                 "days_held": days_held,
             }
+            if auto_close:
+                check_data["auto_closed_position"] = True
             if atr14 is not None:
                 check_data["atr14"] = round(atr14, 4)
             if alert.atr_hold_est is not None:

@@ -77,6 +77,9 @@ export class PositionsController {
       exit_notes?: string | null;
       pnl_pct?: number | null;
       closed_at_utc?: string;
+      /** `user` when closing from the dashboard; omit for legacy rows. */
+      exit_origin?: string | null;
+      monitor_close_kind?: string | null;
     }
   ) {
     const uid = req.sessionUser!.uid;
@@ -87,6 +90,8 @@ export class PositionsController {
     if (body.exit_notes !== undefined) patch['exit_notes'] = body.exit_notes;
     if (body.pnl_pct !== undefined) patch['pnl_pct'] = body.pnl_pct;
     if (body.closed_at_utc != null) patch['closed_at_utc'] = body.closed_at_utc;
+    if (body.exit_origin !== undefined) patch['exit_origin'] = body.exit_origin;
+    if (body.monitor_close_kind !== undefined) patch['monitor_close_kind'] = body.monitor_close_kind;
     await this.firestore.updatePosition(uid, id, patch);
     return { ok: true };
   }

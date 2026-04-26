@@ -46,6 +46,8 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_CHANNEL: "#trading-signals"
           MONITOR_OWNER_UID: ${{ secrets.MONITOR_OWNER_UID }}
+          # When true (default), marks my_positions closed on TARGET_HIT / STOP_HIT at monitor spot (confirm broker fill).
+          MONITOR_AUTO_CLOSE: "true"
         run: |
           TICKER_ARG=""
           if [ -n "${{ github.event.inputs.ticker }}" ]; then

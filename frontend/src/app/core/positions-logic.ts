@@ -25,6 +25,10 @@ export interface PositionData {
   signal_close_price?: number | null;
   notes?: string | null;
   exit_notes?: string | null;
+  /** `user` = manual exit in UI; `position_monitor` = auto-closed when monitor saw TARGET_HIT/STOP_HIT. */
+  exit_origin?: string | null;
+  /** When exit_origin is position_monitor: TARGET_HIT or STOP_HIT. */
+  monitor_close_kind?: string | null;
 }
 
 export interface PositionRow {
@@ -187,6 +191,19 @@ export function calculateDailyPnl(
   return { pnlValue: dailyPnl, pnlPct: dailyPct };
 }
 
+/** Table label for how a closed position was exited (manual vs position monitor). */
+export function exitViaLabel(d: PositionData): string {
+  const o = String(d.exit_origin || '').toLowerCase();
+  if (o === 'position_monitor') {
+    const k = String(d.monitor_close_kind || '');
+    if (k === 'TARGET_HIT') return 'Monitor · target';
+    if (k === 'STOP_HIT') return 'Monitor · stop';
+    return 'Monitor';
+  }
+  if (d.status === 'closed') return 'Manual';
+  return '—';
+}
+
 export function getFilteredPositions(positions: PositionRow[], hideClosed: boolean): PositionRow[] {
   if (!hideClosed) return positions;
   return positions.filter((p) => p.data.status === 'open');
@@ -204,6 +221,10 @@ export function sortPositionsData(positions: PositionRow[], key: string, dir: 'a
     if (key === 'pnl_pct') {
       aVal = calculatePnlForPosition(a.data, livePrices).pnlPct;
       bVal = calculatePnlForPosition(b.data, livePrices).pnlPct;
+    }
+    if (key === 'exit_via') {
+      aVal = exitViaLabel(a.data);
+      bVal = exitViaLabel(b.data);
     }
 
     if (aVal == null) aVal = '';

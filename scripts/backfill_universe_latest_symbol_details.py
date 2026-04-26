@@ -5,9 +5,17 @@ and refreshes ``name`` when empty — matching ``scripts/update_universe_finnhub
 
 Requires ``FINNHUB_API_KEY`` and ``GOOGLE_APPLICATION_CREDENTIALS`` (same as other scripts).
 
+**Free-tier limits:** Finnhub caps calls per minute and per day. If you see ``429 API limit reached``:
+
+- Wait until the quota resets (often next minute + daily cap midnight UTC — check your Finnhub dashboard).
+- Re-run the same command: it only fetches rows still missing ``country`` / ``sector`` / ``market_cap``.
+- Pace requests: ``--delay-seconds 1.2`` (or higher) and optionally ``--max-symbols 40`` per run.
+- Paid Finnhub plan, or split work across days.
+
 Usage::
 
   PYTHONPATH=./src python scripts/backfill_universe_latest_symbol_details.py --dry-run
+  PYTHONPATH=./src python scripts/backfill_universe_latest_symbol_details.py --delay-seconds 1.2 --max-symbols 50
   PYTHONPATH=./src python scripts/backfill_universe_latest_symbol_details.py
 """
 
@@ -76,6 +84,11 @@ def _merge_profile(entry: dict[str, Any], profile: dict[str, Any] | None) -> dic
     return out
 
 
+def _is_finnhub_rate_limit(exc: BaseException) -> bool:
+    s = str(exc).lower()
+    return "429" in s or "api limit" in s or "rate limit" in s or "too many requests" in s
+
+
 def main() -> int:
     p = argparse.ArgumentParser(
         description="Backfill Finnhub profile fields on the most recent universe snapshot."
@@ -99,7 +112,32 @@ def main() -> int:
         "--sleep-every",
         type=int,
         default=30,
-        help="Sleep 1s after this many Finnhub calls (rate limit; 0 = never).",
+        help="Extra: sleep 1s after this many Finnhub calls (0 = never). Use --delay-seconds for steady pacing.",
+    )
+    p.add_argument(
+        "--delay-seconds",
+        type=float,
+        default=0.0,
+        help="Sleep this long after each successful profile call (0 = no delay). "
+        "Use ~1.0–1.5 on free tier to stay near 60 calls/minute.",
+    )
+    p.add_argument(
+        "--max-symbols",
+        type=int,
+        default=0,
+        help="Cap profile calls this run (0 = no cap). Use with free tier / daily budgets.",
+    )
+    p.add_argument(
+        "--rate-limit-retries",
+        type=int,
+        default=3,
+        help="On HTTP 429, retry this many times per symbol before stopping the run.",
+    )
+    p.add_argument(
+        "--rate-limit-wait",
+        type=float,
+        default=65.0,
+        help="Base seconds to sleep before each 429 retry (multiplied by attempt 1,2,3…).",
     )
     args = p.parse_args()
 
@@ -154,16 +192,44 @@ def main() -> int:
         f"need_profile_backfill={len(to_fetch)} dry_run={args.dry_run}"
     )
 
+    cap = args.max_symbols if args.max_symbols > 0 else len(to_fetch)
+    to_run = to_fetch[:cap]
+    if len(to_run) < len(to_fetch):
+        print(
+            f"Limiting this run to --max-symbols={cap} "
+            f"({len(to_fetch) - len(to_run)} remaining for a later run)."
+        )
+
     client = finnhub.Client(api_key=api_key)
     filled = 0
-    for i, sym in enumerate(to_fetch):
+    hit_rate_limit = False
+    for i, sym in enumerate(to_run):
         entry = dict(details.get(sym) or {})
         before = _needs_profile_backfill(entry)
-        try:
-            profile = client.company_profile2(symbol=sym) or {}
-        except Exception as exc:  # noqa: BLE001
-            print(f"  WARN {sym}: profile error: {exc}")
+        profile: dict[str, Any] | None = None
+        last_exc: Exception | None = None
+        for attempt in range(args.rate_limit_retries + 1):
+            try:
+                profile = client.company_profile2(symbol=sym) or {}
+                last_exc = None
+                break
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                if _is_finnhub_rate_limit(exc) and attempt < args.rate_limit_retries:
+                    wait = args.rate_limit_wait * (attempt + 1)
+                    print(f"  RATE {sym}: {exc}; sleeping {wait:.0f}s (retry {attempt + 1}/{args.rate_limit_retries})…")
+                    time.sleep(wait)
+                    continue
+                if _is_finnhub_rate_limit(exc):
+                    print(f"  STOP {sym}: {exc}", file=sys.stderr)
+                    hit_rate_limit = True
+                else:
+                    print(f"  WARN {sym}: profile error: {exc}")
+                profile = {}
+                break
+        if profile is None:
             profile = {}
+
         merged = _merge_profile(entry, profile if isinstance(profile, dict) else {})
         details[sym] = merged
         if before and not _needs_profile_backfill(merged):
@@ -173,8 +239,21 @@ def main() -> int:
                 f"country={merged.get('country')!r} mc={merged.get('market_cap')}"
             )
         elif before:
-            print(f"  PARTIAL {sym}: still missing fields after profile")
+            if hit_rate_limit and last_exc and _is_finnhub_rate_limit(last_exc):
+                print(f"  PARTIAL {sym}: rate limited before success")
+            else:
+                print(f"  PARTIAL {sym}: still missing fields after profile")
 
+        if hit_rate_limit:
+            print(
+                f"Stopped early due to Finnhub rate limit. "
+                f"Progress for this run is saved if not --dry-run. Re-run later to continue.",
+                file=sys.stderr,
+            )
+            break
+
+        if args.delay_seconds > 0:
+            time.sleep(args.delay_seconds)
         if args.sleep_every > 0 and (i + 1) % args.sleep_every == 0:
             time.sleep(1)
 
@@ -195,6 +274,13 @@ def main() -> int:
         f"Wrote {coll}/{doc_ref.id} symbol_details entries={len(details)} "
         f"rows_fully_filled_from_profile={filled}"
     )
+    if hit_rate_limit:
+        remaining = sum(1 for s in symbols if _needs_profile_backfill(details.get(s)))
+        print(
+            f"Note: ~{remaining} symbols still need profile fields — re-run with same flags after quota resets.",
+            file=sys.stderr,
+        )
+        return 3
     return 0
 
 

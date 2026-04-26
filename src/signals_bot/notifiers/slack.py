@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -10,6 +11,9 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from signals_bot.strategy.breakout import Signal
+
+log = logging.getLogger(__name__)
+
 
 def normalize_slack_bot_token(raw: str | None) -> str | None:
     """Strip common .env / copy-paste pollution so Slack accepts the token."""
@@ -74,7 +78,8 @@ def _pct_from_close(level: float | None, base: float | None) -> float | None:
     return ((level - base) / base) * 100.0
 
 
-def _build_signal_attachment(s: Signal) -> dict | None:
+def _signal_mrkdown_section(s: Signal) -> str | None:
+    """One BUY/SELL card as mrkdwn (for Block Kit section blocks)."""
     if s.action not in {"BUY", "SELL"}:
         return None
 
@@ -86,7 +91,7 @@ def _build_signal_attachment(s: Signal) -> dict | None:
     target_pct = _pct_from_close(target, close)
 
     action_emoji = ":green_circle:" if s.action == "BUY" else ":red_circle:"
-    header = f"{action_emoji} *{s.action}* `{s.ticker}` conf={int(s.confidence)} • Price: ${s.close:,.2f}"
+    header = f"{action_emoji} *{s.action}* `{s.ticker}` conf={int(s.confidence)} • Price: ${close:,.2f}"
 
     hold_days = int(s.max_hold_days) if s.max_hold_days is not None else None
     est_hold = m.get("estimated_hold_days")
@@ -109,14 +114,7 @@ def _build_signal_attachment(s: Signal) -> dict | None:
     lines = [header, hold_line, sl_line, tp_line]
     if sector_line:
         lines.append(sector_line)
-    body = "\n".join(lines)
-
-    return {
-        "color": sector_color(str(sector)),
-        "blocks": [
-            {"type": "section", "text": {"type": "mrkdwn", "text": body}},
-        ],
-    }
+    return "\n".join(lines)
 
 
 @dataclass(frozen=True)
@@ -162,24 +160,32 @@ class SlackNotifier:
         if not actionable:
             return
 
-        attachments = []
-        for s in actionable:
-            att = _build_signal_attachment(s)
-            if att:
-                attachments.append(att)
-
-        if not attachments:
-            return
-
+        # Top-level Block Kit only. Legacy ``attachments`` with nested ``blocks`` triggers
+        # ``invalid_attachments`` / validation errors on many workspaces (see slackapi SDK #1247).
         now = datetime.now(timezone.utc)
         header = f":chart_with_upwards_trend: *Signal scan* — {now.strftime('%Y-%m-%d %H:%M')} UTC"
+        blocks: list[dict] = [{"type": "section", "text": {"type": "mrkdwn", "text": header}}]
+        for s in actionable:
+            body = _signal_mrkdown_section(s)
+            if body:
+                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": body}})
+
+        if len(blocks) < 2:
+            return
 
         try:
             self.client.chat_postMessage(
                 channel=self.channel,
                 text=header,
-                attachments=attachments,
+                blocks=blocks,
+            )
+            log.info(
+                "Slack post ok channel=%s BUY_sections=%d (min_confidence filter already applied)",
+                self.channel,
+                len(blocks) - 1,
             )
         except SlackApiError as e:
-            raise RuntimeError(f"Slack post failed: {e.response.get('error')}") from e
+            err = e.response.get("error") if e.response else None
+            log.error("Slack API error: %s full=%s", err, e.response)
+            raise RuntimeError(f"Slack post failed: {err}") from e
 

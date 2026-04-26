@@ -212,6 +212,8 @@ export class AppShellComponent implements OnInit, OnDestroy {
           exit_notes: this.exitNotes.trim() || null,
           pnl_pct,
           closed_at_utc: ts,
+          exit_origin: 'user',
+          monitor_close_kind: null,
         })
       );
       this.closeExitDialog();

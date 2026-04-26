@@ -74,6 +74,13 @@
     </div>
   </details>
 
+  <p class="positions-monitor-hint dash-muted" *ngIf="!guestMode()">
+    <strong>Position monitor</strong> (GitHub Action + <strong>Check</strong> per row) uses the same SL/TP prices as your
+    open position. When spot hits <strong>target</strong> or <strong>stop</strong>, the monitor can mark the row
+    <strong>closed</strong> automatically — shown as <em>Monitor · target/stop</em> below. Confirm the fill in your broker;
+    this app does not execute orders.
+  </p>
+
   <div class="positions-header-row" *ngIf="!guestMode()">
     <h2>Your positions</h2>
     <label class="ios-switch-label">
@@ -100,6 +107,13 @@
             exit
           </th>
           <th data-sort="pnl_pct" (click)="onSortHeader('pnl_pct')" [ngClass]="thClass('pnl_pct')">P/L %</th>
+          <th
+            data-sort="exit_via"
+            (click)="onSortHeader('exit_via')"
+            [ngClass]="thClass('exit_via')"
+          >
+            closed via
+          </th>
           <th data-sort="stop_price" (click)="onSortHeader('stop_price')" [ngClass]="thClass('stop_price')">
             stop
           </th>
@@ -145,6 +159,10 @@
                 <span [class]="pnl.cls">{{ pnl.text }}</span>
               </ng-container>
               <ng-template #pnlDash>—</ng-template>
+            </td>
+            <td class="exit-via-cell">
+              <span *ngIf="pos.data.status === 'closed'">{{ exitViaLabel(pos.data) }}</span>
+              <span *ngIf="pos.data.status !== 'closed'" class="dash-muted">—</span>
             </td>
             <td>{{ formatNum(pos.data.stop_price) }}</td>
             <td>{{ formatNum(pos.data.target_price) }}</td>
@@ -217,7 +235,7 @@
             </td>
           </tr>
           <tr class="pos-monitor-expand" [hidden]="expandedMonitorId() !== pos.id">
-            <td colspan="13" class="pos-monitor-expand-cell">
+            <td colspan="14" class="pos-monitor-expand-cell">
               <div class="pos-monitor-expand-inner">
                 <span class="dash-muted" *ngIf="checksErr()[pos.id]">{{ checksErr()[pos.id] }}</span>
                 <span class="dash-muted" *ngIf="!checksErr()[pos.id] && checksMap()[pos.id] === undefined">
@@ -268,7 +286,7 @@
             </td>
           </tr>
           <tr class="pos-history-expand" [hidden]="expandedHistoryId() !== pos.id">
-            <td colspan="13" class="pos-history-expand-cell">
+            <td colspan="14" class="pos-history-expand-cell">
               <div class="pos-history-expand-inner">
                 <app-price-history-chart
                   [ticker]="pos.data.ticker || ''"
