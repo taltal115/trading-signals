@@ -187,5 +187,12 @@ class SlackNotifier:
         except SlackApiError as e:
             err = e.response.get("error") if e.response else None
             log.error("Slack API error: %s full=%s", err, e.response)
-            raise RuntimeError(f"Slack post failed: {err}") from e
+            hint = ""
+            if err == "channel_not_found":
+                hint = (
+                    " — Invite the app to the channel (/invite @YourBot) or post to a channel ID "
+                    "(e.g. C09ABCDEF) from channel details. In GitHub Actions set optional secret "
+                    "SLACK_CHANNEL to that ID if #channel-name fails."
+                )
+            raise RuntimeError(f"Slack post failed: {err}{hint}") from e
 

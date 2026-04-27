@@ -46,7 +46,9 @@ jobs:
           FLEX_API_KEY: ${{ secrets.FLEX_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL: "#trading-signals"
+          # Optional. Use channel ID (C…) from Slack → channel details if #name gives channel_not_found.
+          # If unset, bot uses config.yaml slack.channel (default #trading-signals).
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
           TICKER_ARG=""

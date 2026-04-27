@@ -44,7 +44,7 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          SLACK_CHANNEL: "#trading-signals"
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
           MONITOR_OWNER_UID: ${{ secrets.MONITOR_OWNER_UID }}
           # When true (default), marks my_positions closed on TARGET_HIT / STOP_HIT at monitor spot (confirm broker fill).
           MONITOR_AUTO_CLOSE: "true"
