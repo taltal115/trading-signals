@@ -64,6 +64,9 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   readonly docs = signal<{ id: string; data: SignalDoc }[]>([]);
   /** Live price display per ticker (e.g. "$12.34" or "err"). */
   readonly liveByTicker = signal<Record<string, string>>({});
+  /** Last fetched raw price for comparison (e.g. vs signal close in Log Buy form). */
+  readonly livePriceNumByTicker = signal<Record<string, number>>({});
+  readonly inlineLiveRefreshing = signal(false);
   readonly inlineKey = signal<string | null>(null);
   readonly inlineExpanded = signal(false);
   readonly inlineStatus = signal('');
@@ -82,11 +85,14 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     industry: string;
     estimated_hold_days: number | null;
     signal_confidence: number | null;
+    /** Signal row close at time of open (for backend; no longer a form field). */
+    signal_close_price: number | null;
   } = {
     sector: '',
     industry: '',
     estimated_hold_days: null,
     signal_confidence: null,
+    signal_close_price: null,
   };
 
   readonly guestMode = computed(
@@ -114,17 +120,27 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   });
 
   readonly inlineForm = this.fb.group({
-    ticker: ['', [Validators.required, Validators.maxLength(8)]],
     entry_price: [null as number | null, Validators.required],
     quantity: [10 as number | null],
     stop_price: [null as number | null],
     target_price: [null as number | null],
-    signal_doc_id: [''],
     hold_days_from_signal: [null as number | null],
-    signal_close_price: [null as number | null],
-    bought_at: [''],
     notes: [''],
   });
+
+  /** Parse `docId\\tticker` when the inline form is open (set by Log Buy). */
+  private inlineContext(): { docId: string; ticker: string } | null {
+    const k = this.inlineKey();
+    if (!k) return null;
+    const tab = k.indexOf('\t');
+    if (tab < 0) return null;
+    return { docId: k.slice(0, tab).trim(), ticker: k.slice(tab + 1).trim().toUpperCase() };
+  }
+
+  /** Ticker for the open Log Buy form (title + live price). */
+  inlineTicker(): string {
+    return this.inlineContext()?.ticker ?? '';
+  }
 
   ngOnInit(): void {
     const base = environment.apiBaseUrl;
@@ -257,6 +273,38 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     return this.liveByTicker()[k] ?? '—';
   }
 
+  /**
+   * Classes for Log Buy "Live" vs signal row close (recorded signal price).
+   * Reuses global spot-up / spot-down colors.
+   */
+  inlineLiveVsSignalClass(): string {
+    const sym = this.inlineTicker();
+    if (!sym) return '';
+    const disp = this.liveByTicker()[sym];
+    if (disp == null || disp === '' || disp === 'err') return 'signals-inline-live-muted';
+    const sig = this.signalMeta.signal_close_price;
+    if (sig == null || !Number.isFinite(sig)) return '';
+    const liveN = this.livePriceNumByTicker()[sym];
+    if (liveN == null || !Number.isFinite(liveN)) return '';
+    const eps = 1e-6;
+    if (liveN > sig + eps) return 'spot-val spot-up';
+    if (liveN < sig - eps) return 'spot-val spot-down';
+    return 'spot-val';
+  }
+
+  async refreshInlineLive(ev?: Event): Promise<void> {
+    ev?.preventDefault();
+    ev?.stopPropagation();
+    const t = this.inlineTicker();
+    if (!t) return;
+    this.inlineLiveRefreshing.set(true);
+    try {
+      await this.refreshLive(t, ev);
+    } finally {
+      this.inlineLiveRefreshing.set(false);
+    }
+  }
+
   async refreshLive(ticker: string, ev?: Event): Promise<void> {
     ev?.stopPropagation();
     const sym = String(ticker || '').trim().toUpperCase();
@@ -264,11 +312,17 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     try {
       const p = await this.market.fetchLivePrice(sym);
       this.liveByTicker.update((m) => ({ ...m, [sym]: fmtUsd(p) }));
+      this.livePriceNumByTicker.update((m) => ({ ...m, [sym]: p }));
     } catch (e) {
       if (!isProviderQuotaError(e)) {
         console.debug('live price', sym, e);
       }
       this.liveByTicker.update((m) => ({ ...m, [sym]: 'err' }));
+      this.livePriceNumByTicker.update((m) => {
+        const next = { ...m };
+        delete next[sym];
+        return next;
+      });
     }
   }
 
@@ -291,6 +345,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
       'Prefilled from bot signal — edit fields if your fill or bracket differed.'
     );
     queueMicrotask(() => this.inlineExpanded.set(true));
+    void this.refreshLive(ticker);
   }
 
   closeInline(): void {
@@ -301,12 +356,12 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     });
   }
 
-  private fillFromSignal(signalDocId: string, s: Record<string, unknown>): void {
+  private fillFromSignal(_signalDocId: string, s: Record<string, unknown>): void {
     const setNum = (name: keyof typeof this.inlineForm.controls, v: unknown) => {
       const c = this.inlineForm.get(name as string);
       if (!c) return;
-      if (v == null || v === '') c.setValue(name === 'notes' || name === 'signal_doc_id' ? '' : null);
-      else if (name === 'ticker' || name === 'signal_doc_id' || name === 'bought_at' || name === 'notes') {
+      if (v == null || v === '') c.setValue(name === 'notes' ? '' : null);
+      else if (name === 'notes') {
         c.setValue(String(v));
       } else {
         const num = Number(v);
@@ -315,22 +370,17 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     };
 
     this.inlineForm.patchValue({
-      ticker: String(s['ticker'] || '')
-        .trim()
-        .toUpperCase(),
-      signal_doc_id: signalDocId,
       notes: '',
-      bought_at: '',
+      quantity: 10,
     });
     setNum('entry_price', s['close']);
     setNum('stop_price', s['stop']);
     setNum('target_price', s['target']);
     const hd = s['hold_days'];
     this.inlineForm.patchValue({
-      hold_days_from_signal:
-        hd != null && hd !== '' ? Number(hd) : null,
-      signal_close_price: s['close'] != null ? Number(s['close']) : null,
+      hold_days_from_signal: hd != null && hd !== '' ? Number(hd) : null,
     });
+    const closeNum = s['close'] != null ? Number(s['close']) : NaN;
     const confRaw = s['confidence'];
     const confNum = confRaw != null && confRaw !== '' ? Number(confRaw) : NaN;
     this.signalMeta = {
@@ -339,6 +389,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
       estimated_hold_days:
         s['estimated_hold_days'] != null ? Number(s['estimated_hold_days']) : null,
       signal_confidence: Number.isFinite(confNum) ? confNum : null,
+      signal_close_price: Number.isFinite(closeNum) ? closeNum : null,
     };
     this.bracketPct.set(extractBracketPctsFromSignal(s));
   }
@@ -391,40 +442,47 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
       this.inlineStatus.set('Sign in with Google first.');
       return;
     }
+    const ctx = this.inlineContext();
+    if (!ctx?.ticker) {
+      this.inlineStatus.set('Form context missing; reopen Log Buy.');
+      return;
+    }
     this.inlineSaving.set(true);
     try {
       const raw = this.inlineForm.getRawValue();
-      const ticker = String(raw.ticker || '')
-        .trim()
-        .toUpperCase();
+      const ticker = ctx.ticker;
       const entry = Number(raw.entry_price);
-      if (!ticker || !Number.isFinite(entry)) {
-        this.inlineStatus.set('Ticker and entry price required.');
+      if (!Number.isFinite(entry)) {
+        this.inlineStatus.set('Entry price required.');
         return;
       }
       const qtyRaw = raw.quantity;
-      const quantity =
-        qtyRaw == null || !Number.isFinite(Number(qtyRaw)) ? null : Number(qtyRaw);
+      let quantity = 10;
+      if (
+        qtyRaw !== null &&
+        qtyRaw !== undefined &&
+        String(qtyRaw).trim() !== '' &&
+        Number.isFinite(Number(qtyRaw))
+      ) {
+        quantity = Number(qtyRaw);
+      }
       const stop_price =
         raw.stop_price === null || raw.stop_price === undefined ? null : Number(raw.stop_price);
       const target_price =
         raw.target_price === null || raw.target_price === undefined ? null : Number(raw.target_price);
-      const signal_doc_id = String(raw.signal_doc_id || '').trim() || null;
+      const signal_doc_id = ctx.docId || null;
       const holdRaw = raw.hold_days_from_signal;
       const hold_days_from_signal =
         holdRaw === null || holdRaw === undefined ? null : parseInt(String(holdRaw), 10);
-      const sigClose = raw.signal_close_price;
-      const signal_close_price =
-        sigClose === null || sigClose === undefined ? null : Number(sigClose);
-      const bought_at = raw.bought_at
-        ? new Date(String(raw.bought_at)).toISOString()
-        : null;
+      const sci = this.signalMeta.signal_close_price;
+      const signal_close_price = sci != null && Number.isFinite(sci) ? sci : null;
+      const bought_at = new Date().toISOString();
       const notes = String(raw.notes || '').trim() || null;
 
       await this.openPos.save({
         ticker,
         entry_price: entry,
-        quantity: quantity != null && Number.isFinite(quantity) ? quantity : null,
+        quantity,
         stop_price: stop_price != null && Number.isFinite(stop_price) ? stop_price : null,
         target_price: target_price != null && Number.isFinite(target_price) ? target_price : null,
         signal_doc_id,
@@ -433,10 +491,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
           hold_days_from_signal != null && Number.isFinite(hold_days_from_signal)
             ? hold_days_from_signal
             : null,
-        signal_close_price:
-          signal_close_price != null && Number.isFinite(signal_close_price)
-            ? signal_close_price
-            : null,
+        signal_close_price,
         bought_at,
         sector: this.signalMeta.sector || null,
         industry: this.signalMeta.industry || null,
@@ -445,7 +500,14 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
       });
       this.positionsStore.refetch();
       this.inlineStatus.set('Saved to my_positions.');
-      this.inlineForm.reset();
+      this.inlineForm.reset({
+        entry_price: null,
+        quantity: 10,
+        stop_price: null,
+        target_price: null,
+        hold_days_from_signal: null,
+        notes: '',
+      });
       this.bracketPct.set(null);
       this.closeInline();
     } catch (e) {

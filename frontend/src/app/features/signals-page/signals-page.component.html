@@ -166,7 +166,10 @@
                 <div class="signals-inline-form-inner">
                   <div class="signals-inline-form-card">
                     <div class="signals-inline-form-toolbar">
-                      <span class="signals-inline-form-title">Log manual fill</span>
+                      <span class="signals-inline-form-title"
+                        >Log manual fill —
+                        <strong class="signals-inline-form-ticker">{{ inlineTicker() }}</strong></span
+                      >
                       <button type="button" class="signals-inline-form-close" (click)="closeInline()">
                         Hide
                       </button>
@@ -177,22 +180,37 @@
                       (ngSubmit)="submitInline()"
                     >
                       <div class="form-grid">
-                        <label>
-                          Ticker
-                          <input formControlName="ticker" maxlength="8" placeholder="AAPL" />
-                        </label>
-                        <label>
-                          Entry price
-                          <input
-                            formControlName="entry_price"
-                            type="number"
-                            step="any"
-                            min="0"
-                          />
-                        </label>
+                        <div class="signals-inline-entry-live-row">
+                          <label class="signals-inline-entry-compact">
+                            Entry price
+                            <input
+                              formControlName="entry_price"
+                              type="number"
+                              step="any"
+                              min="0"
+                            />
+                          </label>
+                          <div class="signals-inline-live-group" aria-live="polite">
+                            <span class="signals-inline-live-readonly-label">Live</span>
+                            <span
+                              class="signals-inline-live-readonly-val"
+                              [class]="inlineLiveVsSignalClass()"
+                              >{{ liveDisplay(inlineTicker()) }}</span
+                            >
+                            <button
+                              type="button"
+                              class="btn-spot-refresh signals-inline-live-refresh"
+                              [disabled]="inlineLiveRefreshing()"
+                              (click)="refreshInlineLive($event)"
+                              title="Refresh live price"
+                            >
+                              ↻
+                            </button>
+                          </div>
+                        </div>
                         <label>
                           Quantity (optional)
-                          <input formControlName="quantity" type="number" step="any" min="0" />
+                          <input formControlName="quantity" type="number" step="any" min="0" placeholder="10" />
                         </label>
                         <label>
                           Stop price
@@ -215,10 +233,6 @@
                           />
                         </label>
                         <label>
-                          Linked signal doc ID (optional)
-                          <input formControlName="signal_doc_id" placeholder="signals_new run document id" />
-                        </label>
-                        <label>
                           Hold days (optional)
                           <input
                             formControlName="hold_days_from_signal"
@@ -227,20 +241,6 @@
                             max="30"
                             placeholder="5"
                           />
-                        </label>
-                        <label>
-                          Signal close price
-                          <input
-                            formControlName="signal_close_price"
-                            type="number"
-                            step="any"
-                            min="0"
-                            placeholder="market close at signal"
-                          />
-                        </label>
-                        <label>
-                          Buy date/time
-                          <input formControlName="bought_at" type="datetime-local" />
                         </label>
                       </div>
                       <div class="bracket-sync-row">

@@ -1025,6 +1025,63 @@ tr.universe-expand td {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
+.signals-inline-entry-live-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1.25rem;
+  width: 100%;
+}
+
+/* Match width of sibling grid inputs (~minmax(140px, 1fr) first column). */
+label.signals-inline-entry-compact {
+  flex: 0 0 auto;
+  width: clamp(124px, 28vw, 11rem);
+  max-width: 100%;
+}
+
+.signals-inline-entry-live-row > label.signals-inline-entry-compact {
+  flex: 0 0 auto;
+}
+
+.signals-inline-live-readonly-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.signals-inline-live-group {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding-bottom: 0.08rem;
+}
+
+button.signals-inline-live-refresh {
+  flex-shrink: 0;
+}
+
+.signals-inline-live-readonly-val {
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.signals-inline-live-readonly-val.signals-inline-live-muted {
+  color: var(--muted);
+}
+
+.signals-inline-form-ticker {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .signals-inline-form-card label {
   display: flex;
   flex-direction: column;
