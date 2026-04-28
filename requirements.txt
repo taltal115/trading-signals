@@ -11,4 +11,6 @@ playwright>=1.43.0
 ib-insync>=0.9.86
 finnhub-python>=2.4.20  # PyPI name; `import finnhub`
 google-cloud-firestore>=2.16.0
+exchange_calendars>=4.6.0
 
+pytest>=8.0.0

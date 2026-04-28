@@ -1,0 +1,14 @@
+<div
+  class="market-status-card"
+  role="status"
+  [attr.title]="state().headline + ' — ' + state().detail"
+  [attr.aria-label]="state().headline + ': ' + state().detail"
+  [class.market-status-open]="state().isOpen"
+  [class.market-status-closed]="!state().isOpen"
+>
+  <div class="market-status-row">
+    <span class="market-status-indicator" aria-hidden="true"></span>
+    <span class="market-status-headline">{{ state().headline }}</span>
+  </div>
+  <p class="market-status-detail">{{ state().detail }}</p>
+</div>

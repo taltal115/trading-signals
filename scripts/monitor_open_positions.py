@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -31,6 +32,7 @@ from signals_bot.notifiers.slack import (
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.storage.firestore import get_firestore_client
+from signals_bot.trading_calendar import add_ny_sessions, xnys_sessions_between
 
 NEAR_THRESHOLD_PCT = 0.75
 
@@ -116,13 +118,15 @@ def _compute_atr_hold_est(
     return base + math.ceil(est_remaining)
 
 
-def _due_date_str(created_s: str | None, hold_days: int) -> str:
+def _due_date_str(
+    created_s: str | None, hold_days: int, *, market_tz: ZoneInfo
+) -> str:
     if not created_s:
         return ""
     try:
         created_dt = datetime.fromisoformat(created_s.replace("Z", "+00:00"))
-        due = created_dt.date() + timedelta(days=hold_days)
-        return due.strftime("%b %d")
+        due_d = add_ny_sessions(created_dt, hold_days, market_tz)
+        return due_d.strftime("%b %d")
     except ValueError:
         return ""
 
@@ -132,7 +136,8 @@ def _eval_position(
     data: dict[str, Any],
     last_close: float | None,
     atr14: float | None,
-    today: date,
+    now_utc: datetime,
+    market_tz: ZoneInfo,
 ) -> Alert:
     ticker = str(data.get("ticker", ""))
     if last_close is None:
@@ -152,7 +157,7 @@ def _eval_position(
     if isinstance(created_s, str):
         try:
             created_dt = datetime.fromisoformat(created_s.replace("Z", "+00:00"))
-            age_days = (datetime.now(timezone.utc).date() - created_dt.date()).days
+            age_days = xnys_sessions_between(created_dt, now_utc, market_tz)
         except ValueError:
             pass
 
@@ -214,7 +219,7 @@ def _eval_position(
         trigger = "original signal hold" if original_due else "ATR re-estimate"
         hold_ctx = ""
         if isinstance(hold_days, int) and age_days is not None:
-            due_str = _due_date_str(created_s, hold_days)
+            due_str = _due_date_str(created_s, hold_days, market_tz=market_tz)
             hold_ctx = f" Original hold: {hold_days}d (due {due_str})."
         atr_ctx = ""
         if atr_hold_est is not None:
@@ -283,7 +288,7 @@ def _eval_position(
 
     hold_ctx = ""
     if isinstance(hold_days, int) and age_days is not None:
-        due_str = _due_date_str(created_s, hold_days)
+        due_str = _due_date_str(created_s, hold_days, market_tz=market_tz)
         hold_ctx = f" Day {age_days}/{hold_days}"
         if atr_hold_est is not None and atr_hold_est != hold_days:
             hold_ctx += f" (ATR est: {atr_hold_est}d)"
@@ -318,12 +323,14 @@ def _compute_pnl_pct(entry: Any, spot: float | None) -> float | None:
     return ((spot - entry_f) / entry_f) * 100.0
 
 
-def _compute_days_held(created_s: Any) -> int | None:
+def _compute_days_held(
+    created_s: Any, *, now_utc: datetime, market_tz: ZoneInfo
+) -> int | None:
     if not isinstance(created_s, str):
         return None
     try:
         created_dt = datetime.fromisoformat(created_s.replace("Z", "+00:00"))
-        return (datetime.now(timezone.utc).date() - created_dt.date()).days
+        return xnys_sessions_between(created_dt, now_utc, market_tz)
     except ValueError:
         return None
 
@@ -355,12 +362,16 @@ def _build_exit_attachment(
     data: dict[str, Any],
     last_close: float | None,
     reason_trail: list[str],
+    now_utc: datetime,
+    market_tz: ZoneInfo,
 ) -> dict:
     sector = data.get("sector", "")
     entry_f = float(data["entry_price"]) if isinstance(data.get("entry_price"), (int, float)) else None
     pnl_pct = _compute_pnl_pct(data.get("entry_price"), last_close)
     hold_days = data.get("hold_days_from_signal")
-    days_held = _compute_days_held(data.get("created_at_utc"))
+    days_held = _compute_days_held(
+        data.get("created_at_utc"), now_utc=now_utc, market_tz=market_tz
+    )
 
     tag = "SELL" if alert.kind in EXIT_KINDS else "REVIEW"
     action_emoji = ":red_circle:" if tag == "SELL" else ":warning:"
@@ -372,7 +383,9 @@ def _build_exit_attachment(
         lines.append(f"Entry: ${entry_f:.2f} → Spot: ${last_close:.2f} ({pnl_str})")
 
     if days_held is not None and hold_days is not None:
-        due_str = _due_date_str(data.get("created_at_utc"), hold_days)
+        due_str = _due_date_str(
+            data.get("created_at_utc"), hold_days, market_tz=market_tz
+        )
         hold_line = f"Hold: day {days_held} of {hold_days}d"
         if due_str:
             hold_line += f" (was due {due_str})"
@@ -499,7 +512,7 @@ def main() -> int:
         ),
     }
     order = [x for x in cfg.data.provider_order if x in providers] or ["yahoo", "stooq"]
-    today = datetime.now(cfg.tz()).date()
+    market_tz = cfg.tz()
     auto_close_enabled = _truthy_env("MONITOR_AUTO_CLOSE", default=True) and not args.no_auto_close
 
     q = db.collection("my_positions").where(filter=FieldFilter("status", "==", "open"))
@@ -529,16 +542,25 @@ def main() -> int:
             lookback_days=min(cfg.data.lookback_days, 60),
         )
 
-        alert = _eval_position(data=data, last_close=last_close, atr14=atr14, today=today)
+        now_utc = datetime.now(timezone.utc)
+        alert = _eval_position(
+            data=data,
+            last_close=last_close,
+            atr14=atr14,
+            now_utc=now_utc,
+            market_tz=market_tz,
+        )
         prev_kind = data.get("last_alert_kind")
-        ts = datetime.now(timezone.utc).isoformat()
+        ts = now_utc.isoformat()
 
         tag = "SELL" if alert.kind in EXIT_KINDS else "WAIT"
         log_line = f"[{tag}] conf={alert.confidence} :: {alert.message}"
         print(log_line)
 
         pnl_pct = _compute_pnl_pct(data.get("entry_price"), last_close)
-        days_held = _compute_days_held(data.get("created_at_utc"))
+        days_held = _compute_days_held(
+            data.get("created_at_utc"), now_utc=now_utc, market_tz=market_tz
+        )
 
         prev_status = str(data.get("status") or "open").strip().lower()
         auto_close = (
@@ -618,6 +640,8 @@ def main() -> int:
                         data=data,
                         last_close=last_close,
                         reason_trail=trail,
+                        now_utc=now_utc,
+                        market_tz=market_tz,
                     )
                     exit_attachments.append(att)
                 else:

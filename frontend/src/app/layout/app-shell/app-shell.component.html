@@ -112,6 +112,7 @@
       </nav>
 
       <div class="sidebar-footer">
+        <app-market-status-bar />
         @if (authSvc.allowedUser$ | async; as u) {
           <span id="header-user-email" class="sidebar-user-email">{{ authSvc.displayEmail(u) }}</span>
         }

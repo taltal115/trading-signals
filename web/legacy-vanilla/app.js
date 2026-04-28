@@ -569,30 +569,53 @@
     return MOBILE_NAV_MQ.matches;
   }
 
-  function addTradingDays(startDate, tradingDays) {
-    var date = new Date(startDate);
-    var added = 0;
-    while (added < tradingDays) {
-      date.setDate(date.getDate() + 1);
-      var day = date.getDay();
-      if (day !== 0 && day !== 6) {
-        added++;
-      }
+  /** XNYS session counters (parity with Angular + monitor; luxon + nyse-session-set.generated.js). */
+  function nyseCalReady() {
+    try {
+      return (
+        typeof luxon !== "undefined" &&
+        window.NYSE_SESSION_SET instanceof Set &&
+        window.NYSE_SESSION_SET.size > 100
+      );
+    } catch (e) {
+      return false;
     }
-    return date;
+  }
+
+  function _nyIsoOk(iso) {
+    return window.NYSE_SESSION_SET.has(String(iso || "").slice(0, 10));
+  }
+
+  function addTradingDays(startDate, tradingDays) {
+    var n = Number(tradingDays) || 0;
+    if (n <= 0) return new Date(startDate);
+    if (!nyseCalReady()) {
+      throw new Error("NYSE calendar: load luxon + nyse-session-set.generated.js before app.js.");
+    }
+    var DT = luxon.DateTime;
+    var cur = DT.fromJSDate(new Date(startDate)).setZone("America/New_York");
+    var added = 0;
+    while (added < n) {
+      cur = cur.plus({ days: 1 });
+      var iso = cur.toISODate();
+      if (iso && _nyIsoOk(iso)) added++;
+    }
+    return cur.toJSDate();
   }
 
   function countTradingDaysBetween(startDate, endDate) {
-    var start = new Date(startDate);
-    var end = new Date(endDate);
+    if (!nyseCalReady()) {
+      throw new Error("NYSE calendar: load luxon + nyse-session-set.generated.js before app.js.");
+    }
+    var DT = luxon.DateTime;
+    var cur = DT.fromJSDate(new Date(startDate)).setZone("America/New_York");
+    var end = DT.fromJSDate(new Date(endDate)).setZone("America/New_York");
+    if (end <= cur) return 0;
     var count = 0;
-    var current = new Date(start);
-    while (current < end) {
-      current.setDate(current.getDate() + 1);
-      var day = current.getDay();
-      if (day !== 0 && day !== 6) {
-        count++;
-      }
+    while (cur < end) {
+      cur = cur.plus({ days: 1 });
+      var iso = cur.toISODate();
+      if (iso && _nyIsoOk(iso)) count++;
     }
     return count;
   }

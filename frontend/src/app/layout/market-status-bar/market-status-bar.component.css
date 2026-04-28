@@ -1,0 +1,71 @@
+.market-status-card {
+  border-radius: var(--radius, 10px);
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--border, #333);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.market-status-card.market-status-open {
+  border-color: rgba(63, 185, 80, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(63, 185, 80, 0.12);
+}
+
+.market-status-card.market-status-closed {
+  border-color: rgba(248, 81, 73, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(248, 81, 73, 0.1);
+}
+
+.market-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.market-status-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.market-status-open .market-status-indicator {
+  background: #3fb950;
+  box-shadow: 0 0 8px rgba(63, 185, 80, 0.55);
+}
+
+.market-status-closed .market-status-indicator {
+  background: #f85149;
+  box-shadow: 0 0 7px rgba(248, 81, 73, 0.45);
+}
+
+.market-status-headline {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text, #e6edf3);
+  letter-spacing: 0.02em;
+}
+
+.market-status-detail {
+  margin: 0.45rem 0 0;
+  padding-left: 1.35rem;
+  font-size: 0.72rem;
+  line-height: 1.38;
+  color: var(--muted, #9ba3af);
+}
+
+.app-layout.sidebar-collapsed .market-status-detail {
+  display: none;
+}
+
+.app-layout.sidebar-collapsed .market-status-headline {
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.app-layout.sidebar-collapsed .market-status-card {
+  padding: 0.45rem 0.35rem;
+}
+
+.app-layout.sidebar-collapsed .market-status-row {
+  justify-content: center;
+}

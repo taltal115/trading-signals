@@ -1,3 +1,9 @@
+import { DateTime } from 'luxon';
+
+import { isNyseSessionIsoDate } from '../../generated/nyse-session-set.generated';
+
+const NY_TZ = 'America/New_York';
+
 /** Firestore my_positions document shape (subset used by UI). */
 export interface PositionData {
   ticker?: string;
@@ -52,25 +58,41 @@ export function quantityWasInferred(d: PositionData): boolean {
   return !Number.isFinite(q) || q <= 0;
 }
 
+/**
+ * Move forward by `tradingDays` **NYSE sessions** (XNYS; early-close days count as one).
+ * Uses Luxon in `America/New_York` to mirror `scripts/monitor_open_positions.py` + codegen.
+ */
 export function addTradingDays(startDate: Date, tradingDays: number): Date {
-  const date = new Date(startDate);
+  if (tradingDays <= 0) {
+    return new Date(startDate.getTime());
+  }
+  let cur = DateTime.fromJSDate(startDate).setZone(NY_TZ);
   let added = 0;
   while (added < tradingDays) {
-    date.setDate(date.getDate() + 1);
-    const day = date.getDay();
-    if (day !== 0 && day !== 6) added++;
+    cur = cur.plus({ days: 1 });
+    const iso = cur.toISODate();
+    if (iso && isNyseSessionIsoDate(iso)) {
+      added++;
+    }
   }
-  return date;
+  return cur.toJSDate();
 }
 
+/**
+ * Sessions strictly after `startDate` through `endDate` while stepping one NY calendar day per
+ * iteration (matches monitor + generated XNYS calendar data).
+ */
 export function countTradingDaysBetween(startDate: Date, endDate: Date): number {
-  const end = new Date(endDate);
+  if (endDate <= startDate) return 0;
+  let cur = DateTime.fromJSDate(startDate).setZone(NY_TZ);
+  const end = DateTime.fromJSDate(endDate).setZone(NY_TZ);
   let count = 0;
-  const current = new Date(startDate);
-  while (current < end) {
-    current.setDate(current.getDate() + 1);
-    const day = current.getDay();
-    if (day !== 0 && day !== 6) count++;
+  while (cur < end) {
+    cur = cur.plus({ days: 1 });
+    const iso = cur.toISODate();
+    if (iso && isNyseSessionIsoDate(iso)) {
+      count++;
+    }
   }
   return count;
 }

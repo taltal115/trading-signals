@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from signals_bot.config import StrategyConfig
+from signals_bot.trading_calendar import nyse_session_dates_between_exclusive_start
 
 
 SignalAction = Literal["BUY", "WAIT", "SELL"]
@@ -98,11 +99,13 @@ class BreakoutMomentumStrategy:
 
         # Exit logic if we have an open buy.
         if open_buy is not None:
-            age_days = (asof_date - open_buy.buy_asof_date).days
+            age_days = nyse_session_dates_between_exclusive_start(
+                open_buy.buy_asof_date, asof_date
+            )
             stop_hit = open_buy.stop is not None and close <= open_buy.stop
             time_exit = age_days >= self.cfg.max_hold_days
             if stop_hit or time_exit:
-                notes = "stop hit" if stop_hit else f"time exit (age={age_days}d)"
+                notes = "stop hit" if stop_hit else f"time exit (sessions since buy={age_days})"
                 conf = 85 if stop_hit else 70
                 return Signal(
                     ticker=ticker,

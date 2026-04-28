@@ -18,13 +18,21 @@ import {
   quantityWasInferred,
   type PositionData,
 } from '../../core/positions-logic';
+import { MarketStatusBarComponent } from '../market-status-bar/market-status-bar.component';
 
 const SIDEBAR_COLLAPSED_KEY = 'signals-sidebar-collapsed';
 
 @Component({
   selector: 'app-app-shell',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, FormsModule],
+  imports: [
+    CommonModule,
+    RouterOutlet,
+    RouterLink,
+    RouterLinkActive,
+    FormsModule,
+    MarketStatusBarComponent,
+  ],
   templateUrl: './app-shell.component.html',
   styleUrl: './app-shell.component.css',
 })

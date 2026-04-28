@@ -1,0 +1,45 @@
+name: NYSE calendar drift
+
+on:
+  push:
+    paths:
+      - requirements.txt
+      - scripts/generate_nyse_calendar_data.py
+      - src/signals_bot/trading_calendar/**
+      - frontend/src/generated/nyse-session-set.generated.ts
+      - web/legacy-vanilla/nyse-session-set.generated.js
+  pull_request:
+    paths:
+      - requirements.txt
+      - scripts/generate_nyse_calendar_data.py
+      - src/signals_bot/trading_calendar/**
+      - frontend/src/generated/nyse-session-set.generated.ts
+      - web/legacy-vanilla/nyse-session-set.generated.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  codegen-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps + regenerate
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          PYTHONPATH=./src python scripts/generate_nyse_calendar_data.py
+
+      - name: Require no diff in generated NYSE bundles
+        run: |
+          git diff --exit-code -- frontend/src/generated/nyse-session-set.generated.ts web/legacy-vanilla/nyse-session-set.generated.js || {
+            echo "::error::NYSE session codegen changed the generated files — run PYTHONPATH=./src python scripts/generate_nyse_calendar_data.py and commit.";
+            git diff --
+            exit 1;
+          }
