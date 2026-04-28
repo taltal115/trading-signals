@@ -28,7 +28,11 @@ universe:
 
 data:
   lookback_days: 180
-  provider_order: ["stooq", "yahoo"]
+  # Yahoo first: Stooq daily CSV requests now require registering an API key (?apikey=).
+  # Prefer Yahoo for reliability unless you set `stooq_api_key` below or STOOQ_API_KEY in `.env`.
+  provider_order: ["yahoo", "stooq"]
+  # Optional — only if `stooq` is in provider_order (see https://stooq.com/q/d/).
+  # stooq_api_key:
   request_timeout_sec: 20
   # If your network uses SSL interception (corporate proxy), set a CA bundle path.
   # Example: "/path/to/corporate-ca.pem"

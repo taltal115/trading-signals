@@ -8,6 +8,7 @@ import { AuthService } from '../../core/auth.service';
 import { MarketDataService } from '../../core/market-data.service';
 import { GithubWorkflowsService } from '../../core/github-workflows.service';
 import { OpenPositionService } from '../../core/open-position.service';
+import { PositionsStoreService } from '../../core/positions-store.service';
 import { SignalsNewBadgeService } from '../../core/signals-new-badge.service';
 import {
   BracketPct,
@@ -52,6 +53,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   private readonly market = inject(MarketDataService);
   private readonly github = inject(GithubWorkflowsService);
   private readonly openPos = inject(OpenPositionService);
+  private readonly positionsStore = inject(PositionsStoreService);
   private readonly signalsNew = inject(SignalsNewBadgeService);
 
   private sub: Subscription | null = null;
@@ -441,6 +443,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
         estimated_hold_days: this.signalMeta.estimated_hold_days,
         notes,
       });
+      this.positionsStore.refetch();
       this.inlineStatus.set('Saved to my_positions.');
       this.inlineForm.reset();
       this.bracketPct.set(null);

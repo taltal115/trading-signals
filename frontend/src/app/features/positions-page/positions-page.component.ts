@@ -226,6 +226,8 @@ export class PositionsPageComponent {
     arrow: string;
     showRefresh: boolean;
     stale: string;
+    /** Unrealized P/L % vs entry when position is open (spot vs entry). */
+    pnlPart: { cls: string; text: string } | null;
   } {
     const d = pos.data;
     const ticker = (d.ticker || '').toUpperCase();
@@ -257,7 +259,28 @@ export class PositionsPageComponent {
           : d.last_alert_ts_utc
             ? String(d.last_alert_ts_utc).slice(0, 16).replace('T', ' ')
             : '';
-      return { hasVal: true, valCls, valText: fmtUiDecimal(spotF), arrow, showRefresh, stale };
+
+      let pnlPart: { cls: string; text: string } | null = null;
+      if (d.status === 'open' && entryF != null && Number.isFinite(entryF) && entryF > 0) {
+        const pnlPct = ((spotF - entryF) / entryF) * 100;
+        const sign = pnlPct > 0 ? '+' : '';
+        const pctCls =
+          pnlPct > 0.0001 ? 'pnl-profit' : pnlPct < -0.0001 ? 'pnl-loss' : 'pnl-flat';
+        pnlPart = {
+          cls: pctCls + ' spot-pnl-pct',
+          text: ` (${sign}${fmtUiDecimal(pnlPct)}%)`,
+        };
+      }
+
+      return {
+        hasVal: true,
+        valCls,
+        valText: fmtUiDecimal(spotF),
+        arrow,
+        showRefresh,
+        stale,
+        pnlPart,
+      };
     }
 
     if (d.status === 'open') {
@@ -268,9 +291,18 @@ export class PositionsPageComponent {
         arrow: '',
         showRefresh: true,
         stale: '',
+        pnlPart: null,
       };
     }
-    return { hasVal: false, valCls: '', valText: '—', arrow: '', showRefresh: false, stale: '' };
+    return {
+      hasVal: false,
+      valCls: '',
+      valText: '—',
+      arrow: '',
+      showRefresh: false,
+      stale: '',
+      pnlPart: null,
+    };
   }
 
   async onSpotRefresh(pos: PositionRow): Promise<void> {
@@ -508,6 +540,7 @@ export class PositionsPageComponent {
         estimated_hold_days: null,
         notes,
       });
+      this.positionsStore.refetch();
       this.manualStatus.set('Saved to my_positions.');
       this.manualForm.reset();
       this.manualBracketPct.set(null);

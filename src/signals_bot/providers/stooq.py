@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from io import StringIO
 import re
+from urllib.parse import urlencode
 
 import pandas as pd
 import requests
@@ -10,20 +11,60 @@ from requests.exceptions import RequestException, SSLError
 from signals_bot.providers.base import MarketDataProvider
 
 
+def _stooq_daily_csv_urls(stooq_symbol: str, api_key: str | None) -> tuple[str, str]:
+    params: dict[str, str] = {"s": stooq_symbol, "i": "d"}
+    if api_key:
+        params["apikey"] = api_key
+    q = urlencode(params)
+    return (
+        f"https://stooq.com/q/d/l/?{q}",
+        f"http://stooq.com/q/d/l/?{q}",
+    )
+
+
+def _parse_stooq_csv_response(text: str) -> pd.DataFrame:
+    """Parse Stooq daily CSV or raise ValueError with a clear message."""
+    body = text.lstrip("\ufeff").strip()
+    lt = body.lower()
+    if "get your apikey" in lt:
+        raise ValueError(
+            "stooq returned the API-key page instead of CSV (no ?apikey= on request); "
+            "set data.stooq_api_key in config or STOOQ_API_KEY in the environment"
+        )
+    if lt.startswith("<!doctype html") or lt.startswith("<html"):
+        raise ValueError("stooq returned HTML instead of CSV")
+    first = next((ln.strip() for ln in body.splitlines() if ln.strip()), "")
+    if not first.lower().startswith("date,"):
+        raise ValueError(f"unexpected stooq CSV header: {first[:120]!r}")
+
+    df = pd.read_csv(StringIO(body), on_bad_lines="skip")
+    return df
+
+
 class StooqProvider(MarketDataProvider):
     """
     Free daily OHLCV via Stooq CSV endpoint.
 
     Notes:
     - Stooq uses symbols like `aapl.us`.
+    - Daily download may require registering an API key at https://stooq.com/q/d/
+      and passing it via config `data.stooq_api_key` or env `STOOQ_API_KEY`.
     - Some tickers (e.g., with dots) may not map cleanly.
     """
 
-    def __init__(self, *, timeout_sec: int = 20, ssl_verify: bool = True, ca_bundle_path: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        timeout_sec: int = 20,
+        ssl_verify: bool = True,
+        ca_bundle_path: str | None = None,
+        api_key: str | None = None,
+    ) -> None:
         self._timeout_sec = timeout_sec
         self._cache: dict[tuple[str, int], pd.DataFrame] = {}
         self._ssl_verify = ssl_verify
         self._ca_bundle_path = ca_bundle_path
+        self._api_key = api_key.strip() if isinstance(api_key, str) and api_key.strip() else None
 
     @staticmethod
     def _to_stooq_symbol(symbol: str) -> str:
@@ -38,8 +79,7 @@ class StooqProvider(MarketDataProvider):
             return self._cache[cache_key].copy()
 
         stooq_symbol = self._to_stooq_symbol(symbol)
-        url_https = f"https://stooq.com/q/d/l/?s={stooq_symbol}&i=d"
-        url_http = f"http://stooq.com/q/d/l/?s={stooq_symbol}&i=d"
+        url_https, url_http = _stooq_daily_csv_urls(stooq_symbol, self._api_key)
 
         verify = self._ca_bundle_path if self._ca_bundle_path else self._ssl_verify
 
@@ -62,7 +102,7 @@ class StooqProvider(MarketDataProvider):
                 resp = requests.get(url_https, timeout=self._timeout_sec, verify=False)
             resp.raise_for_status()
 
-        df = pd.read_csv(StringIO(resp.text))
+        df = _parse_stooq_csv_response(resp.text)
         if df is None or df.empty:
             raise ValueError("empty dataframe from stooq")
 
@@ -94,4 +134,3 @@ class StooqProvider(MarketDataProvider):
         df = df.tail(lookback_days + 10)
         self._cache[cache_key] = df.copy()
         return df
-

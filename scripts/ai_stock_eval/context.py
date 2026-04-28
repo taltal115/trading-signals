@@ -59,6 +59,7 @@ def _build_providers(cfg: AppConfig) -> dict[str, Any]:
             ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix()
             if cfg.data.ca_bundle_path
             else None,
+            api_key=cfg.data.stooq_api_key,
         ),
     }
 

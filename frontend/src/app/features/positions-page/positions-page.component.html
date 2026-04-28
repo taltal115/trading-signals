@@ -176,7 +176,10 @@
             <td class="spot-cell">
               <ng-container *ngIf="spotBlock(pos) as sp">
                 <div class="spot-wrap" *ngIf="sp.hasVal || sp.showRefresh">
-                  <span *ngIf="sp.hasVal" [class]="sp.valCls">{{ sp.valText }}{{ sp.arrow }}</span>
+                  <span *ngIf="sp.hasVal" [class]="sp.valCls">
+                    {{ sp.valText }}{{ sp.arrow
+                    }}<span *ngIf="sp.pnlPart" [class]="sp.pnlPart.cls">{{ sp.pnlPart.text }}</span>
+                  </span>
                   <ng-container *ngIf="!sp.hasVal">{{ sp.valText }}</ng-container>
                   <button
                     *ngIf="sp.showRefresh"

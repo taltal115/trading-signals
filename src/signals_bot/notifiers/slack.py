@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Iterable
 
@@ -35,6 +36,115 @@ def normalize_slack_channel(raw: str | None) -> str | None:
     if len(c) >= 2 and c[0] == c[-1] and c[0] in "'\"":
         c = c[1:-1].strip()
     return c or None
+
+
+def _looks_like_slack_conversation_id(channel: str) -> bool:
+    """True if value looks like a channel id (public C… or private/shared G…) not a bare name."""
+    s = channel.strip().upper()
+    if len(s) < 9:
+        return False
+    # Slack IDs are alphanumeric starting with C, G (groups), occasionally other prefices.
+    if s[0] not in ("C", "G"):
+        return False
+    tail = s[1:]
+    return bool(re.fullmatch(r"[A-Z0-9]+", tail))
+
+
+def try_conversations_join(client: WebClient, channel_id: str) -> None:
+    """Join a public/shared channel before posting when the bot is not yet a member."""
+    try:
+        client.conversations_join(channel=channel_id)
+        log.debug("Slack conversations.join ok channel=%s", channel_id)
+    except SlackApiError as e:
+        err = e.response.get("error") if e.response else ""
+        # Common benign cases when Slack returns an error-shaped response for redundant join attempts.
+        if err in ("already_in_channel",):
+            return
+        # Some workspaces restrict join — still attempt chat.postMessage.
+        log.debug("Slack conversations.join skipped channel=%s error=%s", channel_id, err)
+
+
+def resolve_slack_post_channel(client: WebClient, configured: str) -> str:
+    """
+    Return a channel value suitable for chat.postMessage.
+
+    - Conversations IDs (starting with C or G…) are joined if needed then returned verbatim.
+    - Names with or without # are mapped to IDs via conversations.list when possible
+      (requires ``conversations:read`` — add it under Slack app OAuth scopes if resolution fails).
+
+    Fallback: normalized original string (#name or bare name).
+    """
+
+    raw = normalize_slack_channel(configured)
+    if not raw or raw == "YOUR_CHANNEL_ID":
+        raise ValueError("Missing Slack channel (set slack.channel in YAML or SLACK_CHANNEL in .env)")
+
+    if _looks_like_slack_conversation_id(raw):
+        cid = raw.strip()
+        try_conversations_join(client, cid)
+        return cid
+
+    name = raw.lstrip("#").strip().lower()
+    if not name:
+        raise ValueError("Invalid Slack channel name")
+
+    cid = _find_public_or_private_channel_id_by_name(client, name)
+    if cid:
+        log.info(
+            "Slack: resolved channel name %s to conversation id %s",
+            repr(configured.strip()),
+            cid,
+        )
+        try_conversations_join(client, cid)
+        return cid
+
+    log.warning(
+        "Slack: channel name %r was not matched via conversations.list. "
+        "Invite the bot to the channel (/invite …), add Bot scope **channels:read** "
+        "(or **conversations:read**) and reinstall the app so names resolve, "
+        "or set SLACK_CHANNEL to the channel ID from Slack "
+        "(channel header → ⋮ → Copy channel ID, or archives URL …/archives/C…). "
+        "Retrying post with configured value as-is.",
+        configured.strip(),
+    )
+    return raw
+
+
+def _find_public_or_private_channel_id_by_name(client: WebClient, name_lc: str) -> str | None:
+    desired = name_lc.strip().lower()
+    cursor: str | None = None
+    pages = 0
+    try:
+        while pages < 40:
+            kwargs: dict = {
+                "types": "public_channel,private_channel",
+                "exclude_archived": True,
+                "limit": 500,
+            }
+            if cursor:
+                kwargs["cursor"] = cursor
+            resp = client.conversations_list(**kwargs)
+            if not resp.get("ok"):
+                log.warning("Slack conversations.list ok=false error=%s", resp.get("error"))
+                return None
+            for ch in resp.get("channels") or []:
+                if isinstance(ch, dict) and (ch.get("name") or "").lower() == desired:
+                    cid = ch.get("id")
+                    return str(cid).strip() if cid else None
+            meta = resp.get("response_metadata") or {}
+            nxt = (meta.get("next_cursor") or "").strip()
+            if not nxt:
+                break
+            cursor = nxt
+            pages += 1
+    except SlackApiError as e:
+        err = e.response.get("error") if e.response else str(e)
+        log.warning(
+            "Slack conversations.list failed (%s). Add Bot scope channels:read (or conversations:read).",
+            err,
+        )
+        return None
+    return None
 
 
 SECTOR_PALETTE = [
@@ -117,10 +227,17 @@ def _signal_mrkdown_section(s: Signal) -> str | None:
     return "\n".join(lines)
 
 
-@dataclass(frozen=True)
+@dataclass
 class SlackNotifier:
     client: WebClient
     channel: str
+    _post_channel_cache: str | None = field(default=None, repr=False)
+
+    def _effective_post_channel(self) -> str:
+        if self._post_channel_cache is not None:
+            return self._post_channel_cache
+        self._post_channel_cache = resolve_slack_post_channel(self.client, self.channel)
+        return self._post_channel_cache
 
     @staticmethod
     def from_env_and_config(*, channel: str) -> "SlackNotifier":
@@ -173,15 +290,16 @@ class SlackNotifier:
         if len(blocks) < 2:
             return
 
+        post_ch = self._effective_post_channel()
         try:
             self.client.chat_postMessage(
-                channel=self.channel,
+                channel=post_ch,
                 text=header,
                 blocks=blocks,
             )
             log.info(
                 "Slack post ok channel=%s BUY_sections=%d (min_confidence filter already applied)",
-                self.channel,
+                post_ch,
                 len(blocks) - 1,
             )
         except SlackApiError as e:
@@ -190,9 +308,9 @@ class SlackNotifier:
             hint = ""
             if err == "channel_not_found":
                 hint = (
-                    " — Invite the app to the channel (/invite @YourBot) or post to a channel ID "
-                    "(e.g. C09ABCDEF) from channel details. In GitHub Actions set optional secret "
-                    "SLACK_CHANNEL to that ID if #channel-name fails."
+                    " — Invite @YourBot into the channel (/invite …), set SLACK_CHANNEL to the Channel ID "
+                    "(C…) from Slack, and grant the app Bot scopes: channels:read (list names), channels:join "
+                    "(join public channels), then reinstall the workspace app."
                 )
             raise RuntimeError(f"Slack post failed: {err}{hint}") from e
 

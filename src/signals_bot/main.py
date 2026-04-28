@@ -54,6 +54,7 @@ def main() -> int:
             timeout_sec=cfg.data.request_timeout_sec,
             ssl_verify=cfg.data.ssl_verify,
             ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
+            api_key=cfg.data.stooq_api_key,
         ),
     }
 

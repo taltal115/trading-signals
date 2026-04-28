@@ -21,7 +21,13 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from signals_bot.config import AppConfig, load_config
-from signals_bot.notifiers.slack import SECTOR_PALETTE, normalize_slack_bot_token, normalize_slack_channel, sector_color
+from signals_bot.notifiers.slack import (
+    SECTOR_PALETTE,
+    normalize_slack_bot_token,
+    normalize_slack_channel,
+    resolve_slack_post_channel,
+    sector_color,
+)
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.storage.firestore import get_firestore_client
@@ -432,10 +438,14 @@ def _slack_post_blockkit(*, text: str, attachments: list[dict]) -> None:
         return
     client = WebClient(token=token)
     try:
-        client.chat_postMessage(channel=channel, text=text, attachments=attachments)
-    except SlackApiError as e:
-        err = e.response.get("error") if e.response else str(e)
-        print(f"WARN: Slack failed: {err}")
+        post_ch = resolve_slack_post_channel(client, channel)
+        client.chat_postMessage(channel=post_ch, text=text, attachments=attachments)
+    except (SlackApiError, ValueError) as e:
+        if isinstance(e, SlackApiError):
+            err_msg = e.response.get("error") if e.response else str(e)
+        else:
+            err_msg = str(e)
+        print(f"WARN: Slack failed: {err_msg}")
 
 
 EXIT_KINDS = {"STOP_HIT", "TARGET_HIT", "DURATION_DUE"}
@@ -485,6 +495,7 @@ def main() -> int:
             timeout_sec=cfg.data.request_timeout_sec,
             ssl_verify=cfg.data.ssl_verify,
             ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
+            api_key=cfg.data.stooq_api_key,
         ),
     }
     order = [x for x in cfg.data.provider_order if x in providers] or ["yahoo", "stooq"]

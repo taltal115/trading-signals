@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -58,6 +59,9 @@ class DataConfig:
     request_timeout_sec: int = 20
     ca_bundle_path: str | None = None
     ssl_verify: bool = True
+    # Optional: Stooq daily CSV requires an api key (register at https://stooq.com/q/d/).
+    # Env STOOQ_API_KEY overrides YAML when set (local `.env`; do not commit secrets).
+    stooq_api_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -223,6 +227,13 @@ def load_config(config_path: Path) -> AppConfig:
     logging_raw = raw.get("logging", {}) or {}
 
     data_provider_order = data_raw.get("provider_order") or ["yahoo", "stooq"]
+    _raw_stooq = data_raw.get("stooq_api_key")
+    stooq_api_key_yaml = (
+        str(_raw_stooq).strip() if _raw_stooq not in (None, "") else ""
+    )
+    _stooq_env = os.environ.get("STOOQ_API_KEY", "").strip()
+    # Prefer env (local secret) over YAML value.
+    stooq_api_key_resolved = _stooq_env if _stooq_env else (stooq_api_key_yaml or None)
 
     strategy_weights = _coerce_weights(strategy_raw.get("weights"))
     strategy_cfg = StrategyConfig(
@@ -264,6 +275,7 @@ def load_config(config_path: Path) -> AppConfig:
             request_timeout_sec=int(data_raw.get("request_timeout_sec", 20)),
             ca_bundle_path=data_raw.get("ca_bundle_path"),
             ssl_verify=bool(data_raw.get("ssl_verify", True)),
+            stooq_api_key=stooq_api_key_resolved,
         ),
         strategy=strategy_cfg,
         sqlite=SqliteConfig(

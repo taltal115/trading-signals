@@ -21,7 +21,11 @@ def _invalid_auth_hint() -> str:
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
-from signals_bot.notifiers.slack import normalize_slack_bot_token, normalize_slack_channel
+from signals_bot.notifiers.slack import (
+    normalize_slack_bot_token,
+    normalize_slack_channel,
+    resolve_slack_post_channel,
+)
 
 
 def main() -> int:
@@ -85,7 +89,8 @@ def main() -> int:
         return 2
 
     try:
-        client.chat_postMessage(channel=channel, text=args.text)
+        post_ch = resolve_slack_post_channel(client, channel)
+        client.chat_postMessage(channel=post_ch, text=args.text)
     except SlackApiError as e:
         err = e.response.get("error") if e.response is not None else str(e)
         print(f"ERROR: Slack API call failed: {err}", file=sys.stderr)
