@@ -175,8 +175,9 @@ export class FirestoreService implements OnModuleInit {
   }
 
   async listSignals(limitN: number): Promise<{ id: string; data: DocumentData }[]> {
-    const coll =
-      this.config.get<string>('firestoreSignalsCollection')?.trim() || 'signals_new';
+    // Canonical bot run collection only (do not gate on env — a stale FIRESTORE_SIGNALS_COLLECTION
+    // silently yields an empty Signals page.)
+    const coll = 'signals';
     try {
       const snap = await this.db
         .collection(coll)

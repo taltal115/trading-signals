@@ -9,7 +9,7 @@
       <li><strong>Manual execution</strong>: you decide whether to trade.</li>
       <li>Outputs: colored terminal logs, <code>./data/signals.db</code>, optional Slack.</li>
     </ul>
-    <p>With Firestore enabled, BUY payloads are archived to <code>signals</code> (legacy auto-id) and <code>signals_new</code> (sortable ids); the dashboard reads <code>signals_new</code> by default.</p>
+    <p>With Firestore enabled, BUY payloads are archived to <code>signals</code> (deterministic sortable ids). Older auto-id runs may remain under <code>signals_old</code>.</p>
     <h3>Run locally</h3>
     <pre><code>./run.sh</code></pre>
     <p>

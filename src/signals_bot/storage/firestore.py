@@ -13,9 +13,10 @@ from google.oauth2 import service_account
 
 from signals_bot.strategy.breakout import Signal
 
-# Legacy auto-id collection (unchanged). New runs are also copied here with deterministic IDs.
-SIGNALS_COLLECTION_LEGACY = "signals"
-SIGNALS_COLLECTION_NEW = "signals_new"
+# Canonical bot/dashboard collection (deterministic run document ids).
+SIGNALS_COLLECTION = "signals"
+# Archived legacy auto-id runs (Firestore ``signals`` renamed to ``signals_old``).
+SIGNALS_COLLECTION_LEGACY_ARCHIVE = "signals_old"
 
 
 def _normalize_universe_symbols(symbols: Iterable[str]) -> list[str]:
@@ -101,7 +102,7 @@ def _parse_ts_utc_iso(ts_utc: str) -> datetime:
         return datetime.now(timezone.utc)
 
 
-def signals_new_document_id(*, asof_date: str, ts_utc: str, run_id: str) -> str:
+def signals_run_document_id(*, asof_date: str, ts_utc: str, run_id: str) -> str:
     """Sortable, human-readable UTC id (lexicographic order == chronological).
 
     Format: ``YYYY-MM-DDTHH-MM-SS.ffffffZ`` — ISO-8601-style: date, ``T``, zero-padded
@@ -215,7 +216,6 @@ def write_buy_signals(
     signals: Iterable[Signal],
     run_id: str,
     asof_date: str,
-    collection: str = SIGNALS_COLLECTION_LEGACY,
 ) -> None:
     buys = [s for s in signals if s.action == "BUY"]
     if not buys:
@@ -252,6 +252,5 @@ def write_buy_signals(
     }
 
     db = _build_client()
-    db.collection(collection).add(doc)
-    new_id = signals_new_document_id(asof_date=asof_date, ts_utc=str(doc["ts_utc"]), run_id=run_id)
-    db.collection(SIGNALS_COLLECTION_NEW).document(new_id).set(doc)
+    new_id = signals_run_document_id(asof_date=asof_date, ts_utc=str(doc["ts_utc"]), run_id=run_id)
+    db.collection(SIGNALS_COLLECTION).document(new_id).set(doc)

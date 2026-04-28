@@ -69,6 +69,4 @@ export default () => ({
   ).trim(),
   githubRepoOwner: (process.env.GITHUB_REPO_OWNER || 'taltal115').trim(),
   githubRepoName: (process.env.GITHUB_REPO_NAME || 'trading-signals').trim(),
-  /** Firestore collection for bot signal runs (default signals_new). Set FIRESTORE_SIGNALS_COLLECTION=signals to use legacy. */
-  firestoreSignalsCollection: (process.env.FIRESTORE_SIGNALS_COLLECTION || 'signals_new').trim(),
 });

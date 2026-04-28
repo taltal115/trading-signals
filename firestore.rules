@@ -7,13 +7,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Canonical signal runs (deterministic doc ids; written by server Admin SDK only).
     match /signals/{docId} {
       allow read: if true;
       allow write: if false;
     }
 
-    // Same shape as ``signals``; deterministic doc ids (date_time). Written by server (Admin SDK) only.
-    match /signals_new/{docId} {
+    // Archived legacy auto-id runs (pre-rename ``signals`` → ``signals_old``).
+    match /signals_old/{docId} {
       allow read: if true;
       allow write: if false;
     }

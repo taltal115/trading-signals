@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument(
         "--signal-doc-id",
         required=True,
-        help="Firestore run document id (signals_new or legacy signals collection)",
+        help="Firestore run document id in signals collection",
     )
     p.add_argument("--position-id", default="", help="Firestore my_positions document id (optional)")
     p.add_argument("--owner-uid", default="", help="Firebase auth uid owning the position (optional)")

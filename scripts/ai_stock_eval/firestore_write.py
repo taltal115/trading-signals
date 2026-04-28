@@ -7,41 +7,28 @@ from typing import Any
 
 from google.cloud import firestore
 
-from signals_bot.storage.firestore import (
-    SIGNALS_COLLECTION_LEGACY,
-    SIGNALS_COLLECTION_NEW,
-    get_firestore_client,
-)
+from signals_bot.storage.firestore import SIGNALS_COLLECTION, get_firestore_client
 
 
-def resolve_signals_run_ref(
-    db: firestore.Client,
-    doc_id: str,
-) -> tuple[firestore.DocumentReference, str]:
-    """Return (ref, collection_id). Prefer ``signals_new``, then legacy ``signals``."""
+def resolve_signals_run_ref(db: firestore.Client, doc_id: str) -> firestore.DocumentReference:
+    """Return the run document ref in ``signals``."""
     did = doc_id.strip()
-    for coll in (SIGNALS_COLLECTION_NEW, SIGNALS_COLLECTION_LEGACY):
-        ref = db.collection(coll).document(did)
-        if ref.get().exists:
-            return ref, coll
-    raise RuntimeError(
-        f"No signals run document for id={doc_id!r} "
-        f"(checked {SIGNALS_COLLECTION_NEW!r}, {SIGNALS_COLLECTION_LEGACY!r})"
-    )
+    ref = db.collection(SIGNALS_COLLECTION).document(did)
+    if not ref.get().exists:
+        raise RuntimeError(
+            f"No signals run document for id={doc_id!r} in collection {SIGNALS_COLLECTION!r}"
+        )
+    return ref
 
 
 def read_candidate_score(db: firestore.Client, signal_doc_id: str, ticker: str) -> float:
     """Return signal row `score` (0–1) * 100 for candidate_score, or 0.0."""
     sym = ticker.strip().upper()
     did = signal_doc_id.strip()
-    data: dict[str, Any] | None = None
-    for coll in (SIGNALS_COLLECTION_NEW, SIGNALS_COLLECTION_LEGACY):
-        snap = db.collection(coll).document(did).get()
-        if snap.exists:
-            data = snap.to_dict() or {}
-            break
-    if data is None:
+    snap = db.collection(SIGNALS_COLLECTION).document(did).get()
+    if not snap.exists:
         return 0.0
+    data = snap.to_dict() or {}
     arr = data.get("signals")
     if not isinstance(arr, list):
         return 0.0
@@ -106,7 +93,7 @@ def write_evaluation(
     payload: dict[str, Any],
 ) -> None:
     db = get_firestore_client()
-    run_ref, _coll = resolve_signals_run_ref(db, signal_doc_id)
+    run_ref = resolve_signals_run_ref(db, signal_doc_id)
 
     if position_id and owner_uid:
         pref = db.collection("my_positions").document(position_id)

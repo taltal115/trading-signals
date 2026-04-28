@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""Copy Firestore ``signals`` → ``signals_new`` with deterministic document IDs (date_time format).
+"""Copy Firestore legacy archive ``signals_old`` → canonical ``signals`` with deterministic IDs.
 
-Does not delete or modify ``signals``. Safe to re-run: overwrites same ``signals_new`` doc id
-if source data unchanged (same id).
+Typically run once after archiving legacy ``signals`` under ``signals_old`` and
+consolidating canonical deterministic runs under ``signals``. Use this script if rows
+remain only under ``signals_old`` and need ids regenerated instead of preserved.
 
-ID format: ``YYYY-MM-DDTHH-MM-SS.ffffffZ`` (UTC, lexicographic sort = time order) — see
-``signals_new_document_id`` in firestore.py.
+Does not delete ``signals_old``. Safe to re-run: overwrites same ``signals`` doc id.
+
+ID format: ``YYYY-MM-DDTHH-MM-SS.ffffffZ`` — see ``signals_run_document_id`` in firestore.py.
 
 Usage (repo root, .env with GOOGLE_APPLICATION_CREDENTIALS):
 
-  PYTHONPATH=./src python scripts/migrate_signals_to_signals_new.py --dry-run
-  PYTHONPATH=./src python scripts/migrate_signals_to_signals_new.py
+  PYTHONPATH=./src python scripts/migrate_signals_old_to_signals.py --dry-run
+  PYTHONPATH=./src python scripts/migrate_signals_old_to_signals.py
 """
 
 from __future__ import annotations
@@ -25,25 +27,25 @@ sys.path.insert(0, str(ROOT / "src"))
 from dotenv import load_dotenv
 
 from signals_bot.storage.firestore import (  # noqa: E402
-    SIGNALS_COLLECTION_LEGACY,
-    SIGNALS_COLLECTION_NEW,
+    SIGNALS_COLLECTION,
+    SIGNALS_COLLECTION_LEGACY_ARCHIVE,
     get_firestore_client,
-    signals_new_document_id,
+    signals_run_document_id,
 )
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Copy signals → signals_new with deterministic IDs.")
+    p = argparse.ArgumentParser(description="Copy signals_old → signals with deterministic IDs.")
     p.add_argument("--dry-run", action="store_true", help="Print planned writes only.")
     p.add_argument(
         "--source",
-        default=SIGNALS_COLLECTION_LEGACY,
-        help=f"Source collection (default: {SIGNALS_COLLECTION_LEGACY})",
+        default=SIGNALS_COLLECTION_LEGACY_ARCHIVE,
+        help=f"Source collection (default: {SIGNALS_COLLECTION_LEGACY_ARCHIVE})",
     )
     p.add_argument(
         "--dest",
-        default=SIGNALS_COLLECTION_NEW,
-        help=f"Destination collection (default: {SIGNALS_COLLECTION_NEW})",
+        default=SIGNALS_COLLECTION,
+        help=f"Destination collection (default: {SIGNALS_COLLECTION})",
     )
     args = p.parse_args()
 
@@ -57,7 +59,7 @@ def main() -> int:
         rid = str(data.get("run_id") or snap.id)
         ts = str(data.get("ts_utc") or "")
         asof = str(data.get("asof_date") or "")
-        base = signals_new_document_id(asof_date=asof, ts_utc=ts, run_id=rid)
+        base = signals_run_document_id(asof_date=asof, ts_utc=ts, run_id=rid)
         nid = base
         k = 0
         while nid in used:

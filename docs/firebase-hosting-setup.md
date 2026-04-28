@@ -6,7 +6,9 @@ Signal-only: the **web UI** and **position monitor** do not execute trades.
 
 - **Angular** (static): Universe, Signals, Positions, Monitor, About — all data via **`HttpClient`** to the **Nest API** ([`backend/`](../backend/)). See [`docs/backend-api.md`](backend-api.md).
 - **Nest** uses **firebase-admin**; the browser does **not** bundle the Firebase Web SDK for Auth/Firestore.
-- **Firestore** still stores `universe`, `signals`, and `my_positions`; Python jobs and the API write with Admin credentials.
+- **Firestore** still stores `universe`, **`signals`** (canonical bot runs), optional **`signals_old`** (legacy archive), and `my_positions`; Python jobs and the API write with Admin credentials.
+
+Firestore has no bulk “rename collection” API. To align with that layout, copy or export/import documents (e.g. archive the former auto-id `signals` rows into `signals_old`, then copy deterministic canonical run documents into `signals`, and remove empty superseded collections). Deploy [`firestore.rules`](../firestore.rules) after the data move. Step-by-step scripts: [`docs/firestore-collection-migration.md`](firestore-collection-migration.md). One-off copy from `signals_old` → `signals` with regenerated deterministic ids (not same doc ids): [`scripts/migrate_signals_old_to_signals.py`](../scripts/migrate_signals_old_to_signals.py).
 
 ## 1. Firebase Console
 
