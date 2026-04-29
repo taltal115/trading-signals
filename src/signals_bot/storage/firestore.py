@@ -17,6 +17,12 @@ from signals_bot.strategy.breakout import Signal
 SIGNALS_COLLECTION = "signals"
 # Archived legacy auto-id runs (Firestore ``signals`` renamed to ``signals_old``).
 SIGNALS_COLLECTION_LEGACY_ARCHIVE = "signals_old"
+# Canonical open positions collection (Firestore; deterministic doc ids).
+MY_POSITIONS_COLLECTION = "my_positions"
+# Archived legacy auto-id rows (Firestore ``my_positions`` renamed to ``my_positions_old``).
+MY_POSITIONS_COLLECTION_LEGACY_ARCHIVE = "my_positions_old"
+# Staging collection for deterministic ids before renaming collections in Firebase.
+MY_POSITIONS_STAGING_COLLECTION = "my_positions_new"
 
 
 def _normalize_universe_symbols(symbols: Iterable[str]) -> list[str]:
@@ -85,6 +91,21 @@ def _pct_from_close(level: float | None, base: float | None) -> float | None:
     if level is None or base is None or base == 0:
         return None
     return ((level - base) / base) * 100.0
+
+
+def utc_datetime_lex_id(dt: datetime) -> str:
+    """Deterministic lex-sortable Firestore doc id suffix (aligned with signals run ids).
+
+    Format ``YYYY-MM-DDTHH-MM-SS.ffffffZ`` — full UTC datetime from ``dt``.
+    Used for migrations (e.g. position rows keyed by ``created_at_utc``).
+    """
+    if dt.tzinfo is None:
+        dt_u = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt_u = dt.astimezone(timezone.utc)
+    date_part = dt_u.strftime("%Y-%m-%d")
+    clock = dt_u.strftime("%H-%M-%S")
+    return f"{date_part}T{clock}.{dt_u.microsecond:06d}Z"
 
 
 def _parse_ts_utc_iso(ts_utc: str) -> datetime:

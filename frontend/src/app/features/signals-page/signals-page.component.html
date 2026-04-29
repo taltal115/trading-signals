@@ -1,5 +1,18 @@
 <section id="panel-signals" class="panel active" aria-label="Signal runs">
   <h2>Bot signals (BUY recommendations)</h2>
+  <div
+    class="signals-toolbar"
+    *ngIf="!loading() && !loadError() && docs().length > 0"
+  >
+    <button
+      type="button"
+      class="btn-clear-signals-notifications"
+      *ngIf="signalsBadge.count() > 0"
+      (click)="clearSignalNotifications()"
+    >
+      Clear notifications ({{ signalsBadge.count() }})
+    </button>
+  </div>
   <p class="empty-state" *ngIf="loading()">Loading signals…</p>
   <p class="empty-state" *ngIf="!loading() && loadError()">{{ loadError() }}</p>
   <p class="empty-state" *ngIf="!loading() && !loadError() && docs().length === 0">No signal runs yet.</p>
@@ -28,9 +41,26 @@
       </thead>
       <tbody>
         <ng-container *ngFor="let row of displayRows()">
-          <tr *ngIf="row.kind === 'sig'" [class.sig-row-new]="isSignalRowNew(row)">
+          <tr
+            *ngIf="row.kind === 'sig'"
+            [class.sig-row-new]="isSignalRowNew(row)"
+            [class.sig-row-older]="row.role === 'older'"
+          >
             <td class="code">{{ row.asofDate }}</td>
-            <td class="code"><strong>{{ row.s['ticker'] || '?' }}</strong></td>
+            <td class="code sig-ticker-col">
+              <strong>{{ row.s['ticker'] || '?' }}</strong>
+              <span *ngIf="row.role === 'primary' && row.olderCount > 0" class="sig-dup-meta">
+                · {{ row.olderCount }} older signal{{ row.olderCount === 1 ? '' : 's' }}
+                <button
+                  type="button"
+                  class="btn-toggle-sig-older"
+                  [attr.aria-expanded]="olderSignalsExpanded(row.groupKey)"
+                  (click)="toggleOlderSignals(row.groupKey, $event)"
+                >
+                  {{ olderSignalsExpanded(row.groupKey) ? 'Hide' : 'Show' }}
+                </button>
+              </span>
+            </td>
             <td>{{ fmtUsd(row.s['close']) }}</td>
             <td class="sig-live-cell">
               <span class="sig-live-val">{{ liveDisplay(str(row.s['ticker'])) }}</span>
@@ -57,10 +87,10 @@
               <button
                 type="button"
                 class="btn-sig-stock-info"
-                [class.is-open]="stockDetailsOpen(row.rowKey)"
-                (click)="toggleStockDetails(row.rowKey, str(row.s['ticker']))"
+                [class.is-open]="stockDetailsOpen(row.instanceKey)"
+                (click)="toggleStockDetails(row.instanceKey, str(row.s['ticker']))"
               >
-                {{ stockDetailsOpen(row.rowKey) ? 'Hide' : 'Info' }}
+                {{ stockDetailsOpen(row.instanceKey) ? 'Hide' : 'Info' }}
               </button>
             </td>
             <td class="sig-actions-cell">
@@ -68,7 +98,7 @@
                 <button
                   type="button"
                   class="btn-log-buy"
-                  (click)="toggleInline(row.docId, row.s)"
+                  (click)="toggleInline(row.docId, row.signalIndex)"
                 >
                   Log Buy
                 </button>
@@ -83,23 +113,27 @@
                 <button
                   type="button"
                   class="btn-ai-eval"
-                  [disabled]="aiEvalDisabled(row.rowKey)"
-                  (click)="aiEval(row.rowKey, str(row.s['ticker']), row.docId)"
+                  [disabled]="aiEvalDisabled(row.instanceKey)"
+                  (click)="aiEval(row.instanceKey, str(row.s['ticker']), row.docId)"
                 >
-                  {{ aiEvalLabel(row.rowKey) }}
+                  {{ aiEvalLabel(row.instanceKey) }}
                 </button>
               </div>
             </td>
           </tr>
-          <tr *ngIf="row.kind === 'sig' && stockDetailsOpen(row.rowKey)" class="sig-stock-details-tr">
+          <tr
+            *ngIf="row.kind === 'sig' && stockDetailsOpen(row.instanceKey)"
+            class="sig-stock-details-tr"
+            [class.sig-stock-details-for-older]="row.role === 'older'"
+          >
             <td colspan="10" class="sig-stock-details-cell">
-              <div *ngIf="stockDetailsLoading(row.rowKey)" class="sig-stock-details-status">
+              <div *ngIf="stockDetailsLoading(row.instanceKey)" class="sig-stock-details-status">
                 Loading market data…
               </div>
-              <p *ngIf="stockDetailsError(row.rowKey) as err" class="sig-stock-details-err">
+              <p *ngIf="stockDetailsError(row.instanceKey) as err" class="sig-stock-details-err">
                 {{ err }}
               </p>
-              <div *ngIf="stockDetailsData(row.rowKey) as snap" class="sig-stock-details-panel">
+              <div *ngIf="stockDetailsData(row.instanceKey) as snap" class="sig-stock-details-panel">
                 <div class="sig-stock-details-head">
                   <strong>{{ snap.name || snap.symbol }}</strong>
                   <span class="sig-stock-details-ticker code">{{ snap.symbol }}</span>

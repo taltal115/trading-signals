@@ -4,7 +4,7 @@ import { map } from 'rxjs';
 import { PositionsStoreService } from '../../core/positions-store.service';
 import { AuthService } from '../../core/auth.service';
 import { environment } from '../../../environments/environment';
-import type { PositionRow } from '../../core/positions-logic';
+import { positionIsOpen, type PositionRow } from '../../core/positions-logic';
 @Component({
   selector: 'app-dashboard',
   standalone: true,
@@ -17,7 +17,7 @@ export class DashboardComponent {
   readonly authSvc = inject(AuthService);
 
   readonly openPositions$ = this.positionsStore.rows$.pipe(
-    map((rows) => rows.filter((r) => r.data.status === 'open'))
+    map((rows) => rows.filter((r) => positionIsOpen(r.data)))
   );
 
   readonly env = environment;

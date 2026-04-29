@@ -31,7 +31,7 @@ from signals_bot.notifiers.slack import (
 )
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
-from signals_bot.storage.firestore import get_firestore_client
+from signals_bot.storage.firestore import MY_POSITIONS_COLLECTION, get_firestore_client
 from signals_bot.trading_calendar import add_ny_sessions, xnys_sessions_between
 
 NEAR_THRESHOLD_PCT = 0.75
@@ -515,7 +515,7 @@ def main() -> int:
     market_tz = cfg.tz()
     auto_close_enabled = _truthy_env("MONITOR_AUTO_CLOSE", default=True) and not args.no_auto_close
 
-    q = db.collection("my_positions").where(filter=FieldFilter("status", "==", "open"))
+    q = db.collection(MY_POSITIONS_COLLECTION).where(filter=FieldFilter("status", "==", "open"))
     owner_uid = (args.owner_uid or "").strip()
     if owner_uid:
         q = q.where(filter=FieldFilter("owner_uid", "==", owner_uid))
@@ -572,7 +572,7 @@ def main() -> int:
         )
 
         if not args.dry_run:
-            ref = db.collection("my_positions").document(snap.id)
+            ref = db.collection(MY_POSITIONS_COLLECTION).document(snap.id)
             patch: dict[str, Any] = {
                 "updated_at_utc": ts,
                 "last_alert_kind": alert.kind,
@@ -599,11 +599,11 @@ def main() -> int:
                     }
                 )
                 print(
-                    f"  AUTO_CLOSE my_positions/{snap.id} {ticker} kind={alert.kind} "
+                    f"  AUTO_CLOSE {MY_POSITIONS_COLLECTION}/{snap.id} {ticker} kind={alert.kind} "
                     f"spot={lc:.2f} pnl_pct={pnl_rounded}"
                 )
             ref.set(patch, merge=True)
-            print(f"  updated my_positions/{snap.id} fields")
+            print(f"  updated {MY_POSITIONS_COLLECTION}/{snap.id} fields")
 
             pos_owner = data.get("owner_uid") or owner_uid or None
             check_data: dict[str, Any] = {
@@ -626,7 +626,9 @@ def main() -> int:
                 check_data["atr_hold_est"] = alert.atr_hold_est
             try:
                 _, check_ref = ref.collection("checks").add(check_data)
-                print(f"  wrote check → my_positions/{snap.id}/checks/{check_ref.id}  owner_uid={pos_owner}")
+                print(
+                    f"  wrote check → {MY_POSITIONS_COLLECTION}/{snap.id}/checks/{check_ref.id}  owner_uid={pos_owner}"
+                )
             except Exception as exc:
                 print(f"  ERROR writing check for {snap.id}: {exc}")
 

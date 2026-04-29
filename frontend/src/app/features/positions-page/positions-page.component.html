@@ -149,7 +149,7 @@
             <td>{{ formatNum(pos.data.entry_price) }}</td>
             <td>
               {{
-                pos.data.status === 'closed' && pos.data.exit_price != null
+                uiClosed(pos.data) && pos.data.exit_price != null
                   ? formatNum(pos.data.exit_price)
                   : '—'
               }}
@@ -161,8 +161,8 @@
               <ng-template #pnlDash>—</ng-template>
             </td>
             <td class="exit-via-cell">
-              <span *ngIf="pos.data.status === 'closed'">{{ exitViaLabel(pos.data) }}</span>
-              <span *ngIf="pos.data.status !== 'closed'" class="dash-muted">—</span>
+              <span *ngIf="uiClosed(pos.data)">{{ exitViaLabel(pos.data) }}</span>
+              <span *ngIf="!uiClosed(pos.data)" class="dash-muted">—</span>
             </td>
             <td>{{ formatNum(pos.data.stop_price) }}</td>
             <td>{{ formatNum(pos.data.target_price) }}</td>
@@ -201,10 +201,10 @@
               </ng-container>
               <ng-template #actionDash>—</ng-template>
             </td>
-            <td>{{ pos.data.status }}</td>
+            <td>{{ statusCell(pos.data) }}</td>
             <td class="code">{{ pos.data.bought_at || pos.data.created_at_utc || '' }}</td>
             <td>
-              <ng-container *ngIf="pos.data.status === 'open'">
+              <ng-container *ngIf="uiOpen(pos.data)">
                 <button
                   type="button"
                   class="btn-exit"
@@ -227,7 +227,7 @@
                   {{ checkLabel(pos.data.ticker || '') }}
                 </button>
               </ng-container>
-              <ng-container *ngIf="pos.data.status !== 'open'">
+              <ng-container *ngIf="!uiOpen(pos.data)">
                 <button type="button" class="btn-monitor-toggle" (click)="toggleMonitor(pos)">
                   Monitor
                 </button>

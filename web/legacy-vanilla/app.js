@@ -34,6 +34,40 @@
   const auth = firebase.auth();
   const db = firebase.firestore();
 
+  /** Lex-sortable ids: same algorithm as Nest `utcDatetimeLexId` / Python `utc_datetime_lex_id`. */
+  function utcDatetimeLexId(d) {
+    var y = d.getUTCFullYear();
+    var mo = String(d.getUTCMonth() + 1).padStart(2, "0");
+    var day = String(d.getUTCDate()).padStart(2, "0");
+    var datePart = y + "-" + mo + "-" + day;
+    var hh = String(d.getUTCHours()).padStart(2, "0");
+    var mi = String(d.getUTCMinutes()).padStart(2, "0");
+    var ss = String(d.getUTCSeconds()).padStart(2, "0");
+    var clock = hh + "-" + mi + "-" + ss;
+    var ms = d.getUTCMilliseconds();
+    var frac = String(ms).padStart(3, "0") + "000";
+    return datePart + "T" + clock + "." + frac + "Z";
+  }
+
+  /** Write canonical `my_positions` with deterministic document id (+ `_dupN` on collision). */
+  async function writeMyPositionDeterministic(coll, payload) {
+    var raw = payload.created_at_utc;
+    var anchor =
+      typeof raw === "string" && raw.trim() && Number.isFinite(new Date(raw.trim()).getTime())
+        ? new Date(raw.trim())
+        : new Date();
+    var baseId = utcDatetimeLexId(anchor);
+    for (var dup = 0; dup < 512; dup++) {
+      var docId = dup === 0 ? baseId : baseId + "_dup" + dup;
+      var ref = coll.doc(docId);
+      var snap = await ref.get();
+      if (snap.exists) continue;
+      await ref.set(payload);
+      return docId;
+    }
+    throw new Error("Could not allocate my_positions document id.");
+  }
+
   if (typeof auth.authStateReady !== "function") {
     auth.authStateReady = function polyfillAuthStateReady() {
       return new Promise(function (resolve) {
@@ -1822,7 +1856,7 @@
     };
 
     try {
-      await db.collection(COL_MY_POSITIONS).add(payload);
+      await writeMyPositionDeterministic(db.collection(COL_MY_POSITIONS), payload);
       statusEl.textContent = "Saved to my_positions.";
       form.reset();
       form._bracketPct = null;

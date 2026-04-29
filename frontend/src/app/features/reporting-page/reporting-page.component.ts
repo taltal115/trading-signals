@@ -12,6 +12,8 @@ import {
   fmtSignedUsd,
   fmtUiDecimal,
   formatNum,
+  positionIsOpen,
+  positionIsClosed,
   quantityWasInferred,
 } from '../../core/positions-logic';
 import { formatApiErr } from '../../core/api-errors';
@@ -83,6 +85,8 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
 
   readonly pdfExporting = signal(false);
 
+  readonly uiClosed = positionIsClosed;
+
   readonly summary = computed(() => {
     const rows = this.allRows();
     let open = 0;
@@ -90,8 +94,8 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
     let linked = 0;
     const idx = this.signalIndex();
     for (const r of rows) {
-      if (r.data.status === 'open') open++;
-      else if (r.data.status === 'closed') closed++;
+      if (positionIsOpen(r.data)) open++;
+      else if (positionIsClosed(r.data)) closed++;
       if (findSignalRowForPosition(r, idx)) linked++;
     }
     return { total: rows.length, open, closed, linked, unlinked: rows.length - linked };
@@ -104,7 +108,10 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
     const out = this.outcomeFilter();
     const hasDate = !!(from || to);
     return this.allRows().filter((pos) => {
-      if (st !== 'all' && pos.data.status !== st) return false;
+      if (st !== 'all') {
+        if (st === 'open' && !positionIsOpen(pos.data)) return false;
+        if (st === 'closed' && !positionIsClosed(pos.data)) return false;
+      }
       const pnl = this.pnlPctNumber(pos);
       if (out === 'winners') {
         if (pnl == null || pnl <= 0.0001) return false;
@@ -203,7 +210,9 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
   }
 
   private sortFilteredByStatus(status: 'open' | 'closed'): PositionRow[] {
-    const rows = this.filteredRows().filter((r) => r.data.status === status);
+    const rows = this.filteredRows().filter((r) =>
+      status === 'open' ? positionIsOpen(r.data) : positionIsClosed(r.data)
+    );
     const key = this.sortKey();
     const dir = this.sortDir();
     rows.sort((a, b) =>
@@ -459,7 +468,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
 
   plPctText(pos: PositionRow): string {
     const d = pos.data;
-    if (d.status === 'closed') {
+    if (positionIsClosed(d)) {
       let p = d.pnl_pct;
       if (p == null && d.exit_price != null && d.entry_price != null) {
         const e = Number(d.entry_price);
@@ -480,7 +489,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
   plPctClass(pos: PositionRow): string {
     const d = pos.data;
     let p: number | null = null;
-    if (d.status === 'closed') {
+    if (positionIsClosed(d)) {
       let pv = d.pnl_pct;
       if (pv == null && d.exit_price != null && d.entry_price != null) {
         const e = Number(d.entry_price);
@@ -570,7 +579,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
     const d = pos.data;
     const sig = resolveSignalRowForPosition(pos, this.signalIndex());
     const exitPd =
-      d.status === 'closed' && d.exit_price != null ? formatNum(d.exit_price) : '—';
+      positionIsClosed(d) && d.exit_price != null ? formatNum(d.exit_price) : '—';
     let conf = '—';
     const storedConf = d.signal_confidence != null ? Number(d.signal_confidence) : NaN;
     if (Number.isFinite(storedConf)) {
@@ -611,7 +620,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
 
   private pnlPctNumber(pos: PositionRow): number | null {
     const d = pos.data;
-    if (d.status === 'closed') {
+    if (positionIsClosed(d)) {
       let pv = d.pnl_pct;
       if (pv == null && d.exit_price != null && d.entry_price != null) {
         const e = Number(d.entry_price);
@@ -634,7 +643,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
       case 'entry_price':
         return d.entry_price != null ? Number(d.entry_price) : null;
       case 'exit_price':
-        return d.status === 'closed' && d.exit_price != null ? Number(d.exit_price) : null;
+        return positionIsClosed(d) && d.exit_price != null ? Number(d.exit_price) : null;
       case 'pnl_pct':
         return this.pnlPctNumber(pos);
       case 'stop_price':

@@ -19,9 +19,7 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // my_positions: any signed-in user may only access rows they own (owner_uid == auth.uid).
-    // Who may sign in (Google allowlist) is enforced in the web app + Firebase Auth settings, not duplicated here —
-    // the JWT "email" claim is unreliable in rules right after redirect.
+    // Canonical positions (deterministic ids after migrate; owner-scoped reads/writes via rules).
     match /my_positions/{posId} {
       allow read: if request.auth != null
         && request.auth.uid == resource.data.owner_uid;
@@ -32,6 +30,13 @@ service cloud.firestore {
         && request.resource.data.owner_uid == resource.data.owner_uid;
       allow delete: if request.auth != null
         && resource.data.owner_uid == request.auth.uid;
+    }
+
+    // Archived legacy rows (optional read-only browse; rename from pre-cutover ``my_positions`` → ``my_positions_old``).
+    match /my_positions_old/{posId} {
+      allow read: if request.auth != null
+        && resource.data.owner_uid == request.auth.uid;
+      allow write: if false;
     }
 
     // collectionGroup queries require a wildcard-path rule

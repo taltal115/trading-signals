@@ -43,6 +43,30 @@ export interface PositionRow {
 }
 
 /**
+ * True when the doc clearly represents an exited trade without relying on `status`.
+ * Migrated docs sometimes omit `status` but still carry exit fields.
+ */
+function positionLooksExitedWithoutStatusField(d: PositionData): boolean {
+  if (String(d.closed_at_utc ?? '').trim()) return true;
+  if (String(d.exit_at_utc ?? '').trim()) return true;
+  const xp = d.exit_price;
+  return xp != null && Number.isFinite(Number(xp)) && Number(xp) > 0;
+}
+
+/** Open row for Hide-closed, dashboards — case-insensitive; missing status inferred like legacy docs. */
+export function positionIsOpen(d: PositionData): boolean {
+  const s = String(d.status ?? '').trim().toLowerCase();
+  if (s === 'closed') return false;
+  if (s === 'open') return true;
+  if (s !== '') return true;
+  return !positionLooksExitedWithoutStatusField(d);
+}
+
+export function positionIsClosed(d: PositionData): boolean {
+  return !positionIsOpen(d);
+}
+
+/**
  * Shares used for P/L when Firestore omits `quantity` or it is non-positive.
  * Matches historical UI behavior (implicit 1 share).
  */
@@ -133,7 +157,7 @@ export function formatNum(x: unknown): string {
 }
 
 export function rowPnlClass(d: PositionData): string {
-  if (d.status !== 'closed') return 'row-open';
+  if (!positionIsClosed(d)) return 'row-open';
   let p = d.pnl_pct;
   if (p == null && d.exit_price != null && d.entry_price != null) {
     const e = Number(d.entry_price);
@@ -148,7 +172,7 @@ export function rowPnlClass(d: PositionData): string {
 }
 
 export function fmtPnlHtml(d: PositionData): string {
-  if (d.status !== 'closed') return '—';
+  if (!positionIsClosed(d)) return '—';
   let p = d.pnl_pct;
   if (p == null && d.exit_price != null && d.entry_price != null) {
     const e = Number(d.entry_price);
@@ -172,7 +196,7 @@ export function calculatePnlForPosition(
 
   const currentPriceRaw = livePrices[d.ticker || ''] ?? d.last_spot;
   const exitOrSpot =
-    d.status === 'closed' && d.exit_price != null
+    positionIsClosed(d) && d.exit_price != null
       ? Number(d.exit_price)
       : currentPriceRaw != null
         ? Number(currentPriceRaw)
@@ -193,7 +217,7 @@ export function calculateDailyPnl(
 
   for (const pos of positions) {
     const d = pos.data;
-    if (d.status !== 'open') continue;
+    if (!positionIsOpen(d)) continue;
     const entry = d.entry_price != null ? Number(d.entry_price) : null;
     const qty = effectiveQuantity(d);
     if (entry == null || entry === 0) continue;
@@ -222,13 +246,13 @@ export function exitViaLabel(d: PositionData): string {
     if (k === 'STOP_HIT') return 'Monitor · stop';
     return 'Monitor';
   }
-  if (d.status === 'closed') return 'Manual';
+  if (positionIsClosed(d)) return 'Manual';
   return '—';
 }
 
 export function getFilteredPositions(positions: PositionRow[], hideClosed: boolean): PositionRow[] {
   if (!hideClosed) return positions;
-  return positions.filter((p) => p.data.status === 'open');
+  return positions.filter((p) => positionIsOpen(p.data));
 }
 
 export function sortPositionsData(positions: PositionRow[], key: string, dir: 'asc' | 'desc', livePrices: Record<string, number>): PositionRow[] {

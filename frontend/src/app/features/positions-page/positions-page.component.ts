@@ -35,6 +35,8 @@ import {
   fmtMoneyInput,
   BracketPct,
   fmtUiDecimal,
+  positionIsOpen,
+  positionIsClosed,
 } from '../../core/positions-logic';
 import { formatApiErr } from '../../core/api-errors';
 import { environment } from '../../../environments/environment';
@@ -166,9 +168,19 @@ export class PositionsPageComponent {
     return rowPnlClass(d);
   }
 
+  /** Template bindings — inferred open/closed for migrated Firestore rows. */
+  readonly uiOpen = positionIsOpen;
+  readonly uiClosed = positionIsClosed;
+
+  statusCell(d: PositionData): string {
+    const raw = String(d.status ?? '').trim();
+    if (raw) return raw;
+    return positionIsOpen(d) ? 'open' : 'closed';
+  }
+
   pnlClosed(pos: PositionRow): { cls: string; text: string } | null {
     const d = pos.data;
-    if (d.status !== 'closed') return null;
+    if (!positionIsClosed(d)) return null;
     let p = d.pnl_pct;
     if (p == null && d.exit_price != null && d.entry_price != null) {
       const e = Number(d.entry_price);
@@ -239,7 +251,7 @@ export class PositionsPageComponent {
           ? Number(d.last_spot)
           : null;
     const entryF = d.entry_price != null ? Number(d.entry_price) : null;
-    const showRefresh = d.status === 'open';
+    const showRefresh = positionIsOpen(d);
 
     if (spotF != null && Number.isFinite(spotF)) {
       let valCls = 'spot-val';
@@ -261,7 +273,7 @@ export class PositionsPageComponent {
             : '';
 
       let pnlPart: { cls: string; text: string } | null = null;
-      if (d.status === 'open' && entryF != null && Number.isFinite(entryF) && entryF > 0) {
+      if (positionIsOpen(d) && entryF != null && Number.isFinite(entryF) && entryF > 0) {
         const pnlPct = ((spotF - entryF) / entryF) * 100;
         const sign = pnlPct > 0 ? '+' : '';
         const pctCls =
@@ -283,7 +295,7 @@ export class PositionsPageComponent {
       };
     }
 
-    if (d.status === 'open') {
+    if (positionIsOpen(d)) {
       return {
         hasVal: false,
         valCls: '',

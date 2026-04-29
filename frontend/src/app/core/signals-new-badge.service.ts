@@ -70,7 +70,7 @@ export class SignalsNewBadgeService {
       this.count.set(0);
       return;
     }
-    let n = 0;
+    const unreadTicker = new Set<string>();
     for (const doc of docs) {
       const asof = String(doc.data.asof_date || '').trim();
       if (asof !== max) continue;
@@ -81,10 +81,35 @@ export class SignalsNewBadgeService {
           .toUpperCase();
         if (!t) continue;
         const rowKey = doc.id + '\t' + t;
-        if (!this.seen.has(rowKey)) n++;
+        if (!this.seen.has(rowKey)) unreadTicker.add(t);
       }
     }
-    this.count.set(n);
+    this.count.set(unreadTicker.size);
+  }
+
+  /** Marks every distinct ticker on the latest `asof_date` as seen (badge → 0). */
+  acknowledgeAllLatestRun(): void {
+    const docs = this.lastDocs;
+    const max = maxAsofFromDocs(docs);
+    if (!max) return;
+    let changed = false;
+    for (const doc of docs) {
+      if (String(doc.data.asof_date || '').trim() !== max) continue;
+      const arr = Array.isArray(doc.data.signals) ? doc.data.signals : [];
+      for (const s of arr) {
+        const t = String(s['ticker'] || '')
+          .trim()
+          .toUpperCase();
+        if (!t) continue;
+        const rowKey = doc.id + '\t' + t;
+        if (!this.seen.has(rowKey)) {
+          this.seen.add(rowKey);
+          changed = true;
+        }
+      }
+    }
+    if (changed) this.persist();
+    this.recompute(docs);
   }
 
   /** True when this row is on the latest run and Log Buy was never clicked for it. */
@@ -92,6 +117,29 @@ export class SignalsNewBadgeService {
     const max = maxAsofFromDocs(docs);
     if (!max || String(asofDate).trim() !== max) return false;
     return !this.seen.has(rowKey);
+  }
+
+  /**
+   * Grouped-table primary row: highlighted if any BUY line for this ticker on the latest `asof_date`
+   * (across loaded run docs) still has no Log Buy ack (`doc_id\tticker` keys).
+   */
+  isTickerUnreadOnLatestRun(tickerU: string, docs: SignalDocRow[]): boolean {
+    const max = maxAsofFromDocs(docs);
+    if (!max) return false;
+    const sym = tickerU.trim().toUpperCase();
+    for (const doc of docs) {
+      if (String(doc.data.asof_date || '').trim() !== max) continue;
+      const arr = Array.isArray(doc.data.signals) ? doc.data.signals : [];
+      for (const s of arr) {
+        const t = String(s['ticker'] || '')
+          .trim()
+          .toUpperCase();
+        if (t !== sym) continue;
+        const rk = `${doc.id}\t${sym}`;
+        if (!this.seen.has(rk)) return true;
+      }
+    }
+    return false;
   }
 
   /** User clicked "Log Buy" — clear highlight and decrement badge. */

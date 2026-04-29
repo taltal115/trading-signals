@@ -1,4 +1,4 @@
-"""Set `quantity` on all documents in Firestore `my_positions`.
+"""Set `quantity` on all documents in Firestore ``my_positions``.
 
 Requires `GOOGLE_APPLICATION_CREDENTIALS` (see `src/signals_bot/storage/firestore.py`).
 
@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from google.cloud import firestore  # noqa: E402
 
-from signals_bot.storage.firestore import get_firestore_client  # noqa: E402
+from signals_bot.storage.firestore import MY_POSITIONS_COLLECTION, get_firestore_client  # noqa: E402
 
 
 def _commit_batches(
@@ -42,11 +42,11 @@ def _commit_batches(
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Set quantity on all my_positions documents.")
+    p = argparse.ArgumentParser(description=f"Set quantity on all {MY_POSITIONS_COLLECTION!r} documents.")
     p.add_argument(
         "--collection",
-        default="my_positions",
-        help="Collection name (default: my_positions).",
+        default=MY_POSITIONS_COLLECTION,
+        help=f"Collection name (default: {MY_POSITIONS_COLLECTION}).",
     )
     p.add_argument("--quantity", type=int, default=10, help="Quantity to set (default: 10).")
     p.add_argument(

@@ -6,7 +6,7 @@ Signal-only: the **web UI** and **position monitor** do not execute trades.
 
 - **Angular** (static): Universe, Signals, Positions, Monitor, About — all data via **`HttpClient`** to the **Nest API** ([`backend/`](../backend/)). See [`docs/backend-api.md`](backend-api.md).
 - **Nest** uses **firebase-admin**; the browser does **not** bundle the Firebase Web SDK for Auth/Firestore.
-- **Firestore** still stores `universe`, **`signals`** (canonical bot runs), optional **`signals_old`** (legacy archive), and `my_positions`; Python jobs and the API write with Admin credentials.
+- **Firestore** still stores `universe`, **`signals`** (canonical bot runs), optional **`signals_old`** (signal archive), **`my_positions`** (canonical positions), optional **`my_positions_old`** (position archive); Python jobs and the API write with Admin credentials.
 
 Firestore has no bulk “rename collection” API. To align with that layout, copy or export/import documents (e.g. archive the former auto-id `signals` rows into `signals_old`, then copy deterministic canonical run documents into `signals`, and remove empty superseded collections). Deploy [`firestore.rules`](../firestore.rules) after the data move. Step-by-step scripts: [`docs/firestore-collection-migration.md`](firestore-collection-migration.md). One-off copy from `signals_old` → `signals` with regenerated deterministic ids (not same doc ids): [`scripts/migrate_signals_old_to_signals.py`](../scripts/migrate_signals_old_to_signals.py).
 
@@ -15,7 +15,7 @@ Firestore has no bulk “rename collection” API. To align with that layout, co
 1. Enable **Firestore** (Native mode) if not already.
 2. **Authentication** with Google is still used **on the server** (OAuth): the Nest app validates Google accounts and resolves Firebase UIDs with Admin. You still need a Google OAuth client and (for production sign-in) consistent allowlists.
 3. **Authorized domains** in Firebase remain relevant if you use other Firebase features; for the dashboard, also configure the **Google Cloud OAuth consent screen** and redirect URIs (see backend doc).
-4. **`my_positions`** in [`firestore.rules`](../firestore.rules) may still reflect legacy client access. Once traffic is API-only, you can deny direct client reads/writes and rely on Admin SDK from Nest/Python.
+4. **`my_positions`** / optional **`my_positions_old`** in [`firestore.rules`](../firestore.rules) follow client access patterns in the rules file. Once traffic is API-only, you can deny direct client reads/writes and rely on Admin SDK from Nest/Python.
 
 ## 2. Angular environment
 
@@ -73,6 +73,7 @@ If the UI shows permission errors against Firestore **from the browser**, ensure
 | `universe`     | Admin (discovery) | Daily symbol snapshot                     |
 | `signals`      | Admin (signals bot) | BUY run payloads                        |
 | `my_positions` | API + allowlisted user context | Manual fills; exit price + P/L |
+| `my_positions_old` | (optional archive) | Legacy auto-id rows; read/browse only in rules |
 
 ## 5. Position monitor (GitHub Actions)
 

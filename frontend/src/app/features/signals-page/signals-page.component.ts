@@ -26,9 +26,76 @@ import {
 import { environment } from '../../../environments/environment';
 import { normalizeSignalDocs, type SignalDoc } from '../../core/signal-docs-normalize';
 
-type DisplayRow =
-  | { kind: 'sig'; docId: string; asofDate: string; s: Record<string, unknown>; rowKey: string }
-  | { kind: 'form'; rowKey: string };
+/** One flattened BUY line from any run document (for cross-doc grouping). */
+type FlatSigInst = {
+  docId: string;
+  asofDate: string;
+  /** Run document ordering (newest run wins ties). */
+  docTsMs: number;
+  index: number;
+  s: Record<string, unknown>;
+  tickerU: string;
+  sigSortMs: number;
+};
+
+type SigDisplayRow = {
+  kind: 'sig';
+  role: 'primary' | 'older';
+  docId: string;
+  asofDate: string;
+  s: Record<string, unknown>;
+  /** Index in Firestore `signals[]` for APIs and Log Buy context. */
+  signalIndex: number;
+  /** Unique per Firestore signal object: `${docId}\t${index}` */
+  instanceKey: string;
+  /** Stable key for duplicates: uppercase ticker — one parent row per stock in the table. */
+  groupKey: string;
+  /** One row per ticker in a run (`docId\tticker`) — badge ack (`acknowledgeLogBuy`). */
+  rowKey: string;
+  olderCount: number;
+};
+
+type DisplayRow = SigDisplayRow | { kind: 'form'; instanceKey: string };
+
+function parseSignalTimeMs(s: Record<string, unknown>): number | null {
+  for (const k of ['ts_utc', 'signal_ts', 'updated_at', 'created_at']) {
+    const v = s[k];
+    if (typeof v === 'string' && v.trim()) {
+      const t = Date.parse(v);
+      if (Number.isFinite(t)) return t;
+    }
+  }
+  return null;
+}
+
+function docTimestampMs(data: SignalDoc): number {
+  const raw = data.ts_utc;
+  if (typeof raw === 'string' && raw.trim()) {
+    const t = Date.parse(raw.trim());
+    if (Number.isFinite(t)) return t;
+  }
+  const ad = String(data.asof_date || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ad)) {
+    const t = Date.parse(ad + 'T12:00:00.000Z');
+    if (Number.isFinite(t)) return t;
+  }
+  return 0;
+}
+
+function compareInstances(a: FlatSigInst, b: FlatSigInst): number {
+  if (b.docTsMs !== a.docTsMs) return b.docTsMs - a.docTsMs;
+  const d = b.sigSortMs - a.sigSortMs;
+  if (d !== 0) return d;
+  if (b.index !== a.index) return b.index - a.index;
+  return a.docId < b.docId ? -1 : a.docId > b.docId ? 1 : 0;
+}
+
+/** Prefer explicit timestamps; otherwise treat later array indices as newer. */
+function sortKeyForInstance(s: Record<string, unknown>, index: number): number {
+  const ms = parseSignalTimeMs(s);
+  if (ms != null) return ms;
+  return index;
+}
 
 type StockDetailEntry =
   | { expanded: false }
@@ -54,7 +121,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   private readonly github = inject(GithubWorkflowsService);
   private readonly openPos = inject(OpenPositionService);
   private readonly positionsStore = inject(PositionsStoreService);
-  private readonly signalsNew = inject(SignalsNewBadgeService);
+  readonly signalsBadge = inject(SignalsNewBadgeService);
 
   private sub: Subscription | null = null;
 
@@ -62,6 +129,8 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   readonly loadError = signal('');
   readonly loading = signal(true);
   readonly docs = signal<{ id: string; data: SignalDoc }[]>([]);
+  /** `groupKey` = ticker (uppercase). When present, superseded suggestions for that symbol are visible. */
+  readonly expandedSignalGroups = signal<ReadonlySet<string>>(new Set<string>());
   /** Live price display per ticker (e.g. "$12.34" or "err"). */
   readonly liveByTicker = signal<Record<string, string>>({});
   /** Last fetched raw price for comparison (e.g. vs signal close in Log Buy form). */
@@ -100,24 +169,111 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   );
 
   readonly displayRows = computed(() => {
+    const expanded = this.expandedSignalGroups();
     const out: DisplayRow[] = [];
-    const openKey = this.inlineKey();
+    const openIk = this.inlineKey();
+    const pushSig = (row: SigDisplayRow) => {
+      out.push(row);
+      const ik = row.instanceKey;
+      if (openIk === ik) {
+        out.push({ kind: 'form', instanceKey: ik });
+      }
+    };
+
+    const flat: FlatSigInst[] = [];
     for (const doc of this.docs()) {
       const arr = Array.isArray(doc.data.signals) ? doc.data.signals : [];
       const asof = String(doc.data.asof_date || '');
-      for (const s of arr) {
-        const ticker = String(s['ticker'] || '')
+      const docTsMs = docTimestampMs(doc.data);
+      for (let index = 0; index < arr.length; index++) {
+        const s = arr[index] as Record<string, unknown>;
+        const tickerU = String(s['ticker'] || '')
           .trim()
           .toUpperCase();
-        const rowKey = doc.id + '\t' + ticker;
-        out.push({ kind: 'sig', docId: doc.id, asofDate: asof, s, rowKey });
-        if (openKey === rowKey) {
-          out.push({ kind: 'form', rowKey });
-        }
+        if (!tickerU) continue;
+        flat.push({
+          docId: doc.id,
+          asofDate: asof,
+          docTsMs,
+          index,
+          s,
+          tickerU,
+          sigSortMs: sortKeyForInstance(s, index),
+        });
       }
     }
+
+    const byTicker = new Map<string, FlatSigInst[]>();
+    for (const inst of flat) {
+      if (!byTicker.has(inst.tickerU)) byTicker.set(inst.tickerU, []);
+      byTicker.get(inst.tickerU)!.push(inst);
+    }
+
+    const tickersSorted = [...byTicker.keys()].sort((ta, tb) => {
+      const aa = [...(byTicker.get(ta) ?? [])].sort(compareInstances)[0];
+      const bb = [...(byTicker.get(tb) ?? [])].sort(compareInstances)[0];
+      if (!aa || !bb) return 0;
+      return compareInstances(aa, bb);
+    });
+
+    for (const tickerU of tickersSorted) {
+      const grp = [...(byTicker.get(tickerU) ?? [])].sort(compareInstances);
+      if (grp.length === 0) continue;
+      const [primary, ...rest] = grp;
+      const rk = `${primary.docId}\t${primary.tickerU}`;
+      const ikP = `${primary.docId}\t${primary.index}`;
+      const gk = primary.tickerU;
+
+      pushSig({
+        kind: 'sig',
+        role: 'primary',
+        docId: primary.docId,
+        asofDate: primary.asofDate,
+        s: primary.s,
+        signalIndex: primary.index,
+        instanceKey: ikP,
+        groupKey: gk,
+        rowKey: rk,
+        olderCount: rest.length,
+      });
+      if (!expanded.has(gk)) continue;
+      for (const o of rest) {
+        const ikO = `${o.docId}\t${o.index}`;
+        pushSig({
+          kind: 'sig',
+          role: 'older',
+          docId: o.docId,
+          asofDate: o.asofDate,
+          s: o.s,
+          signalIndex: o.index,
+          instanceKey: ikO,
+          groupKey: gk,
+          rowKey: `${o.docId}\t${o.tickerU}`,
+          olderCount: 0,
+        });
+      }
+    }
+
     return out;
   });
+
+  clearSignalNotifications(): void {
+    this.signalsBadge.acknowledgeAllLatestRun();
+  }
+
+  olderSignalsExpanded(groupKey: string): boolean {
+    return this.expandedSignalGroups().has(groupKey);
+  }
+
+  toggleOlderSignals(groupKey: string, ev?: Event): void {
+    ev?.stopPropagation?.();
+    this.expandedSignalGroups.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) next.delete(groupKey);
+      else next.add(groupKey);
+      return next;
+    });
+  }
 
   readonly inlineForm = this.fb.group({
     entry_price: [null as number | null, Validators.required],
@@ -128,13 +284,26 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     notes: [''],
   });
 
-  /** Parse `docId\\tticker` when the inline form is open (set by Log Buy). */
+  /** Parse `docId\t{index}` when the inline form is open (set by Log Buy). */
   private inlineContext(): { docId: string; ticker: string } | null {
     const k = this.inlineKey();
     if (!k) return null;
     const tab = k.indexOf('\t');
     if (tab < 0) return null;
-    return { docId: k.slice(0, tab).trim(), ticker: k.slice(tab + 1).trim().toUpperCase() };
+    const docId = k.slice(0, tab).trim();
+    const idx = parseInt(k.slice(tab + 1).trim(), 10);
+    if (!Number.isFinite(idx)) return null;
+    const doc = this.docs().find((d) => d.id === docId);
+    const arr = Array.isArray(doc?.data.signals) ? doc!.data.signals : [];
+    const s = arr[idx];
+    const ticker =
+      s && typeof s === 'object' && s !== null
+        ? String((s as Record<string, unknown>)['ticker'] || '')
+            .trim()
+            .toUpperCase()
+        : '';
+    if (!docId || !ticker) return null;
+    return { docId, ticker };
   }
 
   /** Ticker for the open Log Buy form (title + live price). */
@@ -163,7 +332,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
         this.loading.set(false);
         const normalized = normalizeSignalDocs(r.docs ?? []);
         this.docs.set(normalized);
-        this.signalsNew.recompute(normalized);
+        this.signalsBadge.recompute(normalized);
         this.inlineKey.set(null);
         this.inlineExpanded.set(false);
         this.bracketPct.set(null);
@@ -191,8 +360,11 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   }
 
   isSignalRowNew(row: DisplayRow): boolean {
-    if (row.kind !== 'sig') return false;
-    return this.signalsNew.isRowNew(row.rowKey, row.asofDate, this.docs());
+    if (row.kind !== 'sig' || row.role !== 'primary') return false;
+    const tickerU = String(row.s['ticker'] || '')
+      .trim()
+      .toUpperCase();
+    return this.signalsBadge.isTickerUnreadOnLatestRun(tickerU, this.docs());
   }
 
   toggleStockDetails(rowKey: string, ticker: string): void {
@@ -326,18 +498,23 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  toggleInline(docId: string, s: Record<string, unknown>): void {
+  toggleInline(docId: string, signalIndex: number): void {
+    const doc = this.docs().find((d) => d.id === docId);
+    const arr = Array.isArray(doc?.data.signals) ? doc!.data.signals : [];
+    const s = arr[signalIndex] as Record<string, unknown> | undefined;
+    if (!s) return;
     const ticker = String(s['ticker'] || '')
       .trim()
       .toUpperCase();
-    const key = docId + '\t' + ticker;
+    const key = docId + '\t' + signalIndex;
+    const rowKey = docId + '\t' + ticker;
     if (this.inlineKey() === key && this.inlineExpanded()) {
       this.inlineKey.set(null);
       this.inlineExpanded.set(false);
       this.bracketPct.set(null);
       return;
     }
-    this.signalsNew.acknowledgeLogBuy(key);
+    this.signalsBadge.acknowledgeLogBuy(rowKey);
     this.inlineKey.set(key);
     this.inlineExpanded.set(false);
     this.fillFromSignal(docId, s);

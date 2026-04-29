@@ -7,7 +7,7 @@ from typing import Any
 
 from google.cloud import firestore
 
-from signals_bot.storage.firestore import SIGNALS_COLLECTION, get_firestore_client
+from signals_bot.storage.firestore import MY_POSITIONS_COLLECTION, SIGNALS_COLLECTION, get_firestore_client
 
 
 def resolve_signals_run_ref(db: firestore.Client, doc_id: str) -> firestore.DocumentReference:
@@ -96,7 +96,7 @@ def write_evaluation(
     run_ref = resolve_signals_run_ref(db, signal_doc_id)
 
     if position_id and owner_uid:
-        pref = db.collection("my_positions").document(position_id)
+        pref = db.collection(MY_POSITIONS_COLLECTION).document(position_id)
         psnap = pref.get()
         if not psnap.exists:
             raise RuntimeError(f"Position not found: {position_id}")
@@ -118,7 +118,7 @@ def build_ai_evaluation_record(
     llm: dict[str, Any],
     verify: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Single object stored as ``signals[i].ai_evaluation`` and on ``my_positions.ai_evaluation``."""
+    """Single object stored as ``signals[i].ai_evaluation`` and on position rows ``ai_evaluation``."""
     out: dict[str, Any] = {
         "evaluated_at_utc": datetime.now(timezone.utc).isoformat(),
         "ticker": ticker.strip().upper(),

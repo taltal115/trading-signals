@@ -370,7 +370,7 @@
     <td>{{ formatNum(pos.data.entry_price) }}</td>
     <td>
       {{
-        pos.data.status === 'closed' && pos.data.exit_price != null
+        uiClosed(pos.data) && pos.data.exit_price != null
           ? formatNum(pos.data.exit_price)
           : '—'
       }}

@@ -12,8 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { isAbsolute, resolve } from 'path';
 import * as admin from 'firebase-admin';
 import type { DocumentData } from 'firebase-admin/firestore';
-
-/** JSON-serialize Firestore types (Timestamp, nested) for HTTP responses. */
+import { utcDatetimeLexId } from './my-position-doc-id';
 function toPlainFirestoreValue(v: unknown): unknown {
   if (v == null) return v;
   if (v instanceof admin.firestore.Timestamp) {
@@ -41,6 +40,9 @@ function toPlainDoc(data: DocumentData | undefined): DocumentData {
   if (!data) return {};
   return toPlainFirestoreValue(data) as DocumentData;
 }
+
+/** Open positions (`created_at_utc`; deterministic ids after migrate). */
+const MY_POSITIONS_COLLECTION = 'my_positions';
 
 /**
  * Resolve relative GOOGLE_APPLICATION_CREDENTIALS by walking up from cwd (e.g. backend/ → repo root).
@@ -193,7 +195,7 @@ export class FirestoreService implements OnModuleInit {
   async listPositions(ownerUid: string): Promise<{ id: string; data: DocumentData }[]> {
     try {
       const snap = await this.db
-        .collection('my_positions')
+        .collection(MY_POSITIONS_COLLECTION)
         .where('owner_uid', '==', ownerUid)
         .orderBy('created_at_utc', 'desc')
         .limit(60)
@@ -232,18 +234,37 @@ export class FirestoreService implements OnModuleInit {
     ownerUid: string,
     payload: Record<string, unknown>
   ): Promise<{ id: string }> {
-    const docRef = await this.db.collection('my_positions').add({
-      ...payload,
-      owner_uid: ownerUid,
-    });
-    return { id: docRef.id };
+    const raw = payload['created_at_utc'];
+    let baseId: string;
+    if (typeof raw === 'string' && raw.trim()) {
+      const d = new Date(raw.trim());
+      baseId = Number.isFinite(d.getTime()) ? utcDatetimeLexId(d) : utcDatetimeLexId(new Date());
+    } else {
+      baseId = utcDatetimeLexId(new Date());
+    }
+
+    for (let dup = 0; dup < 512; dup++) {
+      const docId = dup === 0 ? baseId : `${baseId}_dup${dup}`;
+      const ref = this.db.collection(MY_POSITIONS_COLLECTION).doc(docId);
+      const snap = await ref.get();
+      if (snap.exists) continue;
+      await ref.set({
+        ...payload,
+        owner_uid: ownerUid,
+      });
+      return { id: docId };
+    }
+
+    throw new InternalServerErrorException(
+      'Could not allocate a unique my_positions document id (try again).'
+    );
   }
 
   async getPosition(
     ownerUid: string,
     docId: string
   ): Promise<{ id: string; data: DocumentData } | null> {
-    const ref = this.db.collection('my_positions').doc(docId);
+    const ref = this.db.collection(MY_POSITIONS_COLLECTION).doc(docId);
     const doc = await ref.get();
     if (!doc.exists) return null;
     const data = doc.data();
@@ -256,7 +277,7 @@ export class FirestoreService implements OnModuleInit {
     docId: string,
     patch: Record<string, unknown>
   ): Promise<void> {
-    const ref = this.db.collection('my_positions').doc(docId);
+    const ref = this.db.collection(MY_POSITIONS_COLLECTION).doc(docId);
     const doc = await ref.get();
     if (!doc.exists) {
       throw new NotFoundException('Position not found');
@@ -274,7 +295,7 @@ export class FirestoreService implements OnModuleInit {
   ): Promise<{ id: string; data: DocumentData }[]> {
     try {
       const snap = await this.db
-        .collection('my_positions')
+        .collection(MY_POSITIONS_COLLECTION)
         .doc(posId)
         .collection('checks')
         .where('owner_uid', '==', ownerUid)
