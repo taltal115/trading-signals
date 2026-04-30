@@ -30,7 +30,9 @@ export class AuthService {
         ? u
         : null;
     }),
-    distinctUntilChanged((a, b) => a?.uid === b?.uid),
+    distinctUntilChanged(
+      (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null),
+    ),
     shareReplay(1)
   );
 
@@ -71,6 +73,8 @@ export class AuthService {
     }
     this.userSubject.next(null);
     if (environment.devAuthBypass) {
+      /* Server cleared session + dev_persona; Nest `/me` returns default bypass persona again. */
+      await this.refreshMe();
       await this.router.navigate(['/dashboard'], { replaceUrl: true });
     } else {
       await this.router.navigate(['/login'], { replaceUrl: true });
@@ -79,6 +83,29 @@ export class AuthService {
 
   displayEmail(user: AuthUser | null): string {
     if (!user) return '';
-    return user.email || primaryAccountEmail(user) || user.uid;
+    const email = user.email || primaryAccountEmail(user) || '';
+    const name = (user.displayName || '').trim();
+    if (name && email) return `${name} · ${email}`;
+    return email || user.uid;
+  }
+
+  /** Short line for reporting / positions headers. */
+  displaySignedInLine(user: AuthUser | null): string {
+    if (!user) return '';
+    const email = primaryAccountEmail(user);
+    const name = (user.displayName || '').trim();
+    if (name && email) return `Signed in as ${name} · ${email}`;
+    if (email) return `Signed in as ${email}`;
+    return `Signed in as ${user.uid}`;
+  }
+
+  /** Switch local dev persona (AUTH_BYPASS_LOCAL + DEV_LOCAL_USERS); no-op errors propagate. */
+  async setDevPersona(uid: string): Promise<void> {
+    await firstValueFrom(
+      this.http.post<{ ok: boolean }>(`${environment.apiBaseUrl}/api/auth/dev/persona`, {
+        uid,
+      }),
+    );
+    await this.refreshMe();
   }
 }

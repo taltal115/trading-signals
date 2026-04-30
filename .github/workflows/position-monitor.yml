@@ -40,6 +40,8 @@ jobs:
             exit 1
           fi
 
+      # Omit or clear MONITOR_OWNER_UID to evaluate **all** users' open `my_positions` rows (multi-tenant cron).
+      # Set secret MONITOR_OWNER_UID only when you want single-account monitoring.
       - name: Monitor open positions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}

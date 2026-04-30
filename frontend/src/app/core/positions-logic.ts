@@ -31,6 +31,9 @@ export interface PositionData {
   signal_close_price?: number | null;
   notes?: string | null;
   exit_notes?: string | null;
+  /** Denormalized at open (server); optional on legacy docs. */
+  owner_email?: string | null;
+  owner_display_name?: string | null;
   /** `user` = manual exit in UI; `position_monitor` = auto-closed when monitor saw TARGET_HIT/STOP_HIT. */
   exit_origin?: string | null;
   /** When exit_origin is position_monitor: TARGET_HIT or STOP_HIT. */

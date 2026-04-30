@@ -4,7 +4,7 @@
   <p id="positions-gate" class="positions-gate" *ngIf="guestMode()">
     {{
       authSvc.devAuthBypass
-        ? 'Local dev: positions use the Nest API session (AUTH_BYPASS_LOCAL + DEV_OWNER_UID).'
+        ? 'Local dev: positions use the Nest API session (AUTH_BYPASS_LOCAL). Use DEV_LOCAL_USERS + the sidebar persona switcher if configured; otherwise DEV_OWNER_UID applies.'
         : 'Sign in with Google to manage positions.'
     }}
   </p>
@@ -82,7 +82,10 @@
   </p>
 
   <div class="positions-header-row" *ngIf="!guestMode()">
-    <h2>Your positions</h2>
+    <div class="positions-header-copy">
+      <h2>Your positions</h2>
+      <p class="dash-muted positions-account-line">{{ authSvc.displaySignedInLine(allowedUser()) }}</p>
+    </div>
     <label class="ios-switch-label">
       <span>Hide closed</span>
       <input

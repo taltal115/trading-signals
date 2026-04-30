@@ -24,7 +24,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   validate(
     _accessToken: string,
     _refreshToken: string,
-    profile: { emails?: { value: string }[] },
+    profile: {
+      emails?: { value: string }[];
+      displayName?: string;
+      name?: { givenName?: string; familyName?: string };
+    },
     done: VerifyCallback
   ): void {
     const email = profile.emails?.[0]?.value;
@@ -32,6 +36,16 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       done(new Error('No email from Google'), undefined);
       return;
     }
-    done(null, { email: email.trim().toLowerCase() });
+    const displayName =
+      profile.displayName?.trim() ||
+      [profile.name?.givenName, profile.name?.familyName]
+        .filter(Boolean)
+        .join(' ')
+        .trim() ||
+      undefined;
+    done(null, {
+      email: email.trim().toLowerCase(),
+      displayName: displayName || undefined,
+    });
   }
 }

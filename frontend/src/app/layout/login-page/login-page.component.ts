@@ -1,6 +1,8 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { take } from 'rxjs/operators';
 import { AuthService } from '../../core/auth.service';
 
 function messageForOAuthError(code: string | null): string {
@@ -40,10 +42,26 @@ export class LoginPageComponent implements OnInit {
   readonly loading = signal(false);
   readonly error = signal('');
 
-  ngOnInit(): void {
+  async ngOnInit(): Promise<void> {
     const q = this.route.snapshot.queryParamMap.get('error');
-    const msg = messageForOAuthError(q);
-    if (msg) this.error.set(msg);
+    const oauthMsg = messageForOAuthError(q);
+    if (oauthMsg) {
+      this.error.set(oauthMsg);
+      return;
+    }
+    if (!this.authSvc.devAuthBypass) {
+      /** After `/me`; detect deployed SPA allowlist lagging Nest (looks like MIME / chunk failures). */
+      await this.authSvc.refreshMe();
+      const u = await firstValueFrom(this.authSvc.user$.pipe(take(1)));
+      const email =
+        typeof u?.email === 'string' ? u!.email!.trim().toLowerCase() : '';
+      if (u && email && !this.authSvc.isAllowed(u)) {
+        this.error.set(
+          'Google sign-in succeeded, but this site build\'s email allowlist does not include your account yet. ' +
+            'Ask the deployer to add your Gmail to frontend/src/environments/environment.prod.ts, redeploy Hosting, then hard‑refresh…'
+        );
+      }
+    }
   }
 
   googleSignIn(): void {

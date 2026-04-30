@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { GoogleStrategy } from './google.strategy';
 import { GoogleOAuthConfiguredGuard } from './google-oauth-configured.guard';
 import { SessionAuthGuard } from './session-auth.guard';
+import { GoogleOauthAuthorizeGuard } from './google-oauth-authorize.guard';
 
 @Module({
   imports: [PassportModule.register({})],
@@ -13,6 +14,7 @@ import { SessionAuthGuard } from './session-auth.guard';
     AuthService,
     GoogleStrategy,
     GoogleOAuthConfiguredGuard,
+    GoogleOauthAuthorizeGuard,
     SessionAuthGuard,
   ],
   exports: [AuthService, SessionAuthGuard],

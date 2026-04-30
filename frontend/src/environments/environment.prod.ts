@@ -20,6 +20,13 @@ export const environment = {
    * `{apiOrigin}/api/auth/google/callback` on the API host.
    */
   apiBaseUrl: '',
-  allowedSignInEmails: ['taltal115@gmail.com'],
-  allowedAuthUids: ['tgIBRfrP1ibiEi6P2LMsVoyvNaM2'],
+  /** Must match Nest `ALLOWED_SIGN_IN_EMAILS` / `ALLOWED_AUTH_UIDS` for every production user. */
+  allowedSignInEmails: [
+    'taltal115@gmail.com',
+    'tal.david.shitrit@gmail.com',
+  ],
+  allowedAuthUids: [
+    'tgIBRfrP1ibiEi6P2LMsVoyvNaM2',
+    // 'TEAMMATE_FIREBASE_UID',
+  ],
 };

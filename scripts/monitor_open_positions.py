@@ -415,6 +415,24 @@ def _load_reason_trail(ref: firestore.DocumentReference) -> list[str]:
         return []
 
 
+def _format_owner_tag(data: dict[str, Any]) -> str:
+    """Identify which tenancy row this Slack/log line belongs to (multi-user monitors)."""
+    name = str(data.get("owner_display_name") or "").strip()
+    email = str(data.get("owner_email") or "").strip().lower()
+    uid = str(data.get("owner_uid") or "").strip()
+    if name and email:
+        return f"Owner: {name} ({email})"
+    if email:
+        return f"Owner: {email}"
+    if name:
+        return f"Owner: {name}"
+    if uid:
+        if len(uid) > 12:
+            return f"Owner: uid {uid[:10]}…"
+        return f"Owner: uid {uid}"
+    return "Owner: (unknown)"
+
+
 def _build_exit_attachment(
     *,
     ticker: str,
@@ -437,7 +455,7 @@ def _build_exit_attachment(
     tag = "SELL" if alert.kind in EXIT_KINDS else "REVIEW"
     action_emoji = ":red_circle:" if tag == "SELL" else ":warning:"
 
-    lines = [f"{action_emoji} *{tag}* `{ticker}` — {alert.kind.replace('_', ' ').lower()}"]
+    lines = [_format_owner_tag(data), "", f"{action_emoji} *{tag}* `{ticker}` — {alert.kind.replace('_', ' ').lower()}"]
 
     if entry_f is not None and display_px is not None:
         pnl_str = f"{pnl_pct:+.1f}%" if pnl_pct is not None else ""
@@ -493,7 +511,11 @@ def _build_wait_attachment(
     last_close: float | None,
 ) -> dict:
     sector = data.get("sector", "")
-    lines = [f":large_blue_circle: *WAIT* `{ticker}` — {alert.kind.replace('_', ' ').lower()}"]
+    lines = [
+        _format_owner_tag(data),
+        "",
+        f":large_blue_circle: *WAIT* `{ticker}` — {alert.kind.replace('_', ' ').lower()}",
+    ]
     entry_f = float(data["entry_price"]) if isinstance(data.get("entry_price"), (int, float)) else None
     pnl_pct = _compute_pnl_pct(data.get("entry_price"), last_close)
     if entry_f is not None and last_close is not None:
@@ -626,7 +648,8 @@ def main() -> int:
         ts = now_utc.isoformat()
 
         tag = "SELL" if alert.kind in EXIT_KINDS else "WAIT"
-        log_line = f"[{tag}] conf={alert.confidence} :: {alert.message}"
+        owner_line = _format_owner_tag(data)
+        log_line = f"[{tag}] conf={alert.confidence} :: {owner_line} :: {alert.message}"
         print(log_line)
 
         fill_for_pnl = alert.report_price if alert.report_price is not None else last_close

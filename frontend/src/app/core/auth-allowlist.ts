@@ -1,6 +1,8 @@
 export interface AuthUser {
   uid: string;
   email: string | null;
+  /** Best-effort display name from Google / Firebase; null when unknown. */
+  displayName?: string | null;
 }
 
 export function allowedEmailsList(allowedSignInEmails: string[]): string[] {
