@@ -121,12 +121,21 @@ export function countTradingDaysBetween(startDate: Date, endDate: Date): number 
   return count;
 }
 
-/** Max fractional digits for prices, percentages, and spot values in the UI. */
+/** Max fractional digits for prices and spot values in the UI. */
 export const UI_MAX_DECIMALS = 3;
+
+/** Max fractional digits when a value is shown with a `%` suffix (tables, cards, charts). */
+export const UI_PERCENT_DECIMALS = 2;
 
 export function roundUi(n: number): number {
   if (!Number.isFinite(n)) return NaN;
   const f = 10 ** UI_MAX_DECIMALS;
+  return Math.round(n * f) / f;
+}
+
+export function roundUiPercent(n: number): number {
+  if (!Number.isFinite(n)) return NaN;
+  const f = 10 ** UI_PERCENT_DECIMALS;
   return Math.round(n * f) / f;
 }
 
@@ -135,6 +144,13 @@ export function fmtUiDecimal(n: number): string {
   if (!Number.isFinite(n)) return '—';
   const r = roundUi(n);
   return r.toFixed(UI_MAX_DECIMALS).replace(/\.?0+$/, '');
+}
+
+/** Trimmed string for percentage display (max {@link UI_PERCENT_DECIMALS} places); `—` if not finite. */
+export function fmtUiPercent(n: number): string {
+  if (!Number.isFinite(n)) return '—';
+  const r = roundUiPercent(n);
+  return r.toFixed(UI_PERCENT_DECIMALS).replace(/\.?0+$/, '');
 }
 
 /** Unsigned USD for tables and live price (e.g. `$6.19`). */
@@ -183,7 +199,7 @@ export function fmtPnlHtml(d: PositionData): string {
   p = Number(p);
   const cls = p > 0.0001 ? 'pnl-profit' : p < -0.0001 ? 'pnl-loss' : 'pnl-flat';
   const sign = p > 0 ? '+' : '';
-  return '<span class="' + cls + '">' + sign + fmtUiDecimal(p) + '%</span>';
+  return '<span class="' + cls + '">' + sign + fmtUiPercent(p) + '%</span>';
 }
 
 export function calculatePnlForPosition(
@@ -237,17 +253,74 @@ export function calculateDailyPnl(
   return { pnlValue: dailyPnl, pnlPct: dailyPct };
 }
 
-/** Table label for how a closed position was exited (manual vs position monitor). */
-export function exitViaLabel(d: PositionData): string {
-  const o = String(d.exit_origin || '').toLowerCase();
-  if (o === 'position_monitor') {
-    const k = String(d.monitor_close_kind || '');
-    if (k === 'TARGET_HIT') return 'Monitor · target';
-    if (k === 'STOP_HIT') return 'Monitor · stop';
-    return 'Monitor';
+export type CloseOutcomeKind =
+  | 'open'
+  | 'manual'
+  | 'take_profit'
+  | 'stop_loss'
+  | 'monitor_other'
+  | 'unspecified';
+
+/** UI row for how a trade was closed (manual vs TP/SL limits vs monitor). */
+export interface CloseOutcomeUi {
+  kind: CloseOutcomeKind;
+  label: string;
+  abbrev: string;
+  /** `exit-badge--manual` etc.; empty when not closed. */
+  badgeVariant: string;
+}
+
+export function closeOutcomeUi(d: PositionData): CloseOutcomeUi {
+  if (!positionIsClosed(d)) {
+    return { kind: 'open', label: '—', abbrev: '', badgeVariant: '' };
   }
-  if (positionIsClosed(d)) return 'Manual';
-  return '—';
+  const o = String(d.exit_origin || '').toLowerCase();
+  const mk = String(d.monitor_close_kind || '').toUpperCase();
+
+  if (o === 'position_monitor') {
+    if (mk === 'TARGET_HIT') {
+      return {
+        kind: 'take_profit',
+        label: 'Take-profit (limit)',
+        abbrev: 'TP',
+        badgeVariant: 'tp',
+      };
+    }
+    if (mk === 'STOP_HIT') {
+      return {
+        kind: 'stop_loss',
+        label: 'Stop-loss (limit)',
+        abbrev: 'SL',
+        badgeVariant: 'sl',
+      };
+    }
+    return {
+      kind: 'monitor_other',
+      label: 'Monitor',
+      abbrev: 'MON',
+      badgeVariant: 'monitor',
+    };
+  }
+  if (o === 'user') {
+    return {
+      kind: 'manual',
+      label: 'Manual close',
+      abbrev: 'MAN',
+      badgeVariant: 'manual',
+    };
+  }
+
+  return {
+    kind: 'unspecified',
+    label: 'Unspecified',
+    abbrev: '—',
+    badgeVariant: '',
+  };
+}
+
+/** Table label / sort text for closed-via column. */
+export function exitViaLabel(d: PositionData): string {
+  return closeOutcomeUi(d).label;
 }
 
 export function getFilteredPositions(positions: PositionRow[], hideClosed: boolean): PositionRow[] {

@@ -16,6 +16,7 @@ import {
   fmtMoneyInput,
   fmtUsd,
   fmtUiDecimal,
+  fmtUiPercent,
   roundUi,
 } from '../../core/positions-logic';
 import { formatApiErr } from '../../core/api-errors';
@@ -114,6 +115,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   /** Unsigned `$` prices for the table (max 3 decimal places). */
   protected readonly fmtUsd = fmtUsd;
   protected readonly fmtUiDecimal = fmtUiDecimal;
+  protected readonly fmtUiPercent = fmtUiPercent;
   private readonly http = inject(HttpClient);
   private readonly fb = inject(FormBuilder);
   private readonly authSvc = inject(AuthService);
@@ -352,11 +354,11 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     return 'conf-low';
   }
 
-  /** Confidence column: max 3 decimal places (trimmed). */
+  /** Confidence column: max 2 decimal places (trimmed); shown as `N%`. */
   confFmt(conf: unknown): string {
     if (conf == null) return '—';
     const v = Number(conf);
-    return Number.isFinite(v) ? fmtUiDecimal(v) : '—';
+    return Number.isFinite(v) ? fmtUiPercent(v) : '—';
   }
 
   isSignalRowNew(row: DisplayRow): boolean {
@@ -582,10 +584,10 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     return (
       'Signal: SL ' +
       (bp.stopPct >= 0 ? '+' : '') +
-      fmtUiDecimal(bp.stopPct) +
+      fmtUiPercent(bp.stopPct) +
       '% · TP ' +
       (bp.targetPct >= 0 ? '+' : '') +
-      fmtUiDecimal(bp.targetPct) +
+      fmtUiPercent(bp.targetPct) +
       '% vs entry (same as Slack).'
     );
   }

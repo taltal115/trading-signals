@@ -31,10 +31,12 @@ import {
   getFilteredPositions,
   sortPositionsData,
   exitViaLabel,
+  closeOutcomeUi,
   calculatePnlForPosition,
   fmtMoneyInput,
   BracketPct,
   fmtUiDecimal,
+  fmtUiPercent,
   positionIsOpen,
   positionIsClosed,
 } from '../../core/positions-logic';
@@ -191,7 +193,48 @@ export class PositionsPageComponent {
     p = Number(p);
     const cls = p > 0.0001 ? 'pnl-profit' : p < -0.0001 ? 'pnl-loss' : 'pnl-flat';
     const sign = p > 0 ? '+' : '';
-    return { cls, text: sign + fmtUiDecimal(p) + '%' };
+    return { cls, text: sign + fmtUiPercent(p) + '%' };
+  }
+
+  /** P/L % column: realized when closed, unrealized (vs live/spot) when open. */
+  pnlAnyRow(pos: PositionRow): { cls: string; text: string } | null {
+    const closed = this.pnlClosed(pos);
+    if (closed) return closed;
+    const d = pos.data;
+    if (!positionIsOpen(d)) return null;
+    const { pnlPct } = calculatePnlForPosition(d, this.livePrices());
+    if (!Number.isFinite(pnlPct)) return null;
+    const cls =
+      pnlPct > 0.0001 ? 'pnl-profit' : pnlPct < -0.0001 ? 'pnl-loss' : 'pnl-flat';
+    const sign = pnlPct > 0 ? '+' : '';
+    return { cls, text: sign + fmtUiPercent(pnlPct) + '%' };
+  }
+
+  /** Stop or target vs entry (%), same sign convention as Slack bracket lines. */
+  bracketVsEntryPct(
+    d: PositionData,
+    which: 'stop' | 'target'
+  ): { cls: string; text: string } | null {
+    const entry = d.entry_price != null ? Number(d.entry_price) : null;
+    const raw = which === 'stop' ? d.stop_price : d.target_price;
+    const px = raw != null ? Number(raw) : null;
+    if (
+      entry == null ||
+      !Number.isFinite(entry) ||
+      entry <= 0 ||
+      px == null ||
+      !Number.isFinite(px)
+    ) {
+      return null;
+    }
+    const pct = ((px - entry) / entry) * 100;
+    const sign = pct > 0 ? '+' : '';
+    const base =
+      pct > 0.0001 ? 'pnl-profit' : pct < -0.0001 ? 'pnl-loss' : 'pnl-flat';
+    return {
+      cls: base + ' bracket-vs-entry-pct',
+      text: ` (${sign}${fmtUiPercent(pct)}%)`,
+    };
   }
 
   actionCell(d: PositionData): { cls: string; text: string } | null {
@@ -238,19 +281,30 @@ export class PositionsPageComponent {
     arrow: string;
     showRefresh: boolean;
     stale: string;
-    /** Unrealized P/L % vs entry when position is open (spot vs entry). */
+    /** P/L % vs entry (open = unrealized; closed = realized on exit / reference price). */
     pnlPart: { cls: string; text: string } | null;
   } {
     const d = pos.data;
     const ticker = (d.ticker || '').toUpperCase();
     const live = this.livePrices()[ticker];
-    const spotF =
-      live !== undefined
-        ? live
-        : d.last_spot != null
-          ? Number(d.last_spot)
-          : null;
     const entryF = d.entry_price != null ? Number(d.entry_price) : null;
+
+    let spotF: number | null = null;
+    if (positionIsClosed(d)) {
+      const xp = d.exit_price != null ? Number(d.exit_price) : null;
+      if (xp != null && Number.isFinite(xp)) spotF = xp;
+      else if (d.last_spot != null && Number.isFinite(Number(d.last_spot)))
+        spotF = Number(d.last_spot);
+      else if (live !== undefined && Number.isFinite(Number(live))) spotF = Number(live);
+    } else {
+      spotF =
+        live !== undefined
+          ? live
+          : d.last_spot != null
+            ? Number(d.last_spot)
+            : null;
+    }
+
     const showRefresh = positionIsOpen(d);
 
     if (spotF != null && Number.isFinite(spotF)) {
@@ -265,23 +319,36 @@ export class PositionsPageComponent {
           arrow = ' ▼';
         }
       }
-      const stale =
-        live !== undefined
-          ? 'live'
-          : d.last_alert_ts_utc
-            ? String(d.last_alert_ts_utc).slice(0, 16).replace('T', ' ')
-            : '';
+
+      let stale = '';
+      if (positionIsClosed(d)) {
+        const cx = d.closed_at_utc || d.exit_at_utc;
+        if (cx) stale = String(cx).slice(0, 16).replace('T', ' ');
+        else if (d.last_alert_ts_utc)
+          stale = String(d.last_alert_ts_utc).slice(0, 16).replace('T', ' ');
+      } else if (live !== undefined) stale = 'live';
+      else if (d.last_alert_ts_utc)
+        stale = String(d.last_alert_ts_utc).slice(0, 16).replace('T', ' ');
 
       let pnlPart: { cls: string; text: string } | null = null;
-      if (positionIsOpen(d) && entryF != null && Number.isFinite(entryF) && entryF > 0) {
-        const pnlPct = ((spotF - entryF) / entryF) * 100;
-        const sign = pnlPct > 0 ? '+' : '';
-        const pctCls =
-          pnlPct > 0.0001 ? 'pnl-profit' : pnlPct < -0.0001 ? 'pnl-loss' : 'pnl-flat';
-        pnlPart = {
-          cls: pctCls + ' spot-pnl-pct',
-          text: ` (${sign}${fmtUiDecimal(pnlPct)}%)`,
-        };
+      if (entryF != null && Number.isFinite(entryF) && entryF > 0) {
+        let pnlPct: number | null = null;
+        if (positionIsClosed(d)) {
+          const stored = d.pnl_pct != null ? Number(d.pnl_pct) : NaN;
+          if (Number.isFinite(stored)) pnlPct = stored;
+          else pnlPct = ((spotF - entryF) / entryF) * 100;
+        } else {
+          pnlPct = ((spotF - entryF) / entryF) * 100;
+        }
+        if (pnlPct != null && Number.isFinite(pnlPct)) {
+          const sign = pnlPct > 0 ? '+' : '';
+          const pctCls =
+            pnlPct > 0.0001 ? 'pnl-profit' : pnlPct < -0.0001 ? 'pnl-loss' : 'pnl-flat';
+          pnlPart = {
+            cls: pctCls + ' spot-pnl-pct',
+            text: ` (${sign}${fmtUiPercent(pnlPct)}%)`,
+          };
+        }
       }
 
       return {
@@ -453,10 +520,10 @@ export class PositionsPageComponent {
     return (
       'Signal: SL ' +
       (bp.stopPct >= 0 ? '+' : '') +
-      fmtUiDecimal(bp.stopPct) +
+      fmtUiPercent(bp.stopPct) +
       '% · TP ' +
       (bp.targetPct >= 0 ? '+' : '') +
-      fmtUiDecimal(bp.targetPct) +
+      fmtUiPercent(bp.targetPct) +
       '% vs entry (same as Slack).'
     );
   }
@@ -576,9 +643,10 @@ export class PositionsPageComponent {
     const pv = Number(c.pnl_pct);
     const cls = pv > 0.0001 ? 'pnl-profit' : pv < -0.0001 ? 'pnl-loss' : 'pnl-flat';
     const sign = pv > 0 ? '+' : '';
-    return { cls, text: sign + fmtUiDecimal(pv) + '%' };
+    return { cls, text: sign + fmtUiPercent(pv) + '%' };
   }
 
   protected readonly formatNum = formatNum;
   protected readonly exitViaLabel = exitViaLabel;
+  protected readonly closeOutcomeUi = closeOutcomeUi;
 }

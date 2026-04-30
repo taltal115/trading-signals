@@ -14,7 +14,7 @@ import { SignalsNewBadgeService } from '../../core/signals-new-badge.service';
 import {
   effectiveQuantity,
   fmtSignedUsd,
-  fmtUiDecimal,
+  fmtUiPercent,
   quantityWasInferred,
   type PositionData,
 } from '../../core/positions-logic';
@@ -188,7 +188,7 @@ export class AppShellComponent implements OnInit, OnDestroy {
   protected fmtExitPct(pnlPct: number | null): string {
     if (pnlPct == null || !Number.isFinite(pnlPct)) return '—';
     const sign = pnlPct > 0 ? '+' : '';
-    return sign + fmtUiDecimal(pnlPct) + '%';
+    return sign + fmtUiPercent(pnlPct) + '%';
   }
 
   async submitExit(): Promise<void> {

@@ -98,10 +98,31 @@
     <table class="positions-table" id="positions-table">
       <thead>
         <tr>
-          <th data-sort="ticker" (click)="onSortHeader('ticker')" [ngClass]="thClass('ticker')">ticker</th>
-          <th data-sort="sector" (click)="onSortHeader('sector')" [ngClass]="thClass('sector')">sector</th>
+          <th
+            class="col-ticker-sticky"
+            data-sort="ticker"
+            (click)="onSortHeader('ticker')"
+            [ngClass]="thClass('ticker')"
+          >
+            ticker
+          </th>
           <th data-sort="entry_price" (click)="onSortHeader('entry_price')" [ngClass]="thClass('entry_price')">
             entry
+          </th>
+          <th data-sort="last_spot" (click)="onSortHeader('last_spot')" [ngClass]="thClass('last_spot')">spot</th>
+          <th data-sort="stop_price" (click)="onSortHeader('stop_price')" [ngClass]="thClass('stop_price')">
+            stop
+          </th>
+          <th data-sort="target_price" (click)="onSortHeader('target_price')" [ngClass]="thClass('target_price')">
+            target
+          </th>
+          <th data-sort="hold" (click)="onSortHeader('hold')" [ngClass]="thClass('hold')">hold</th>
+          <th
+            data-sort="last_alert_kind"
+            (click)="onSortHeader('last_alert_kind')"
+            [ngClass]="thClass('last_alert_kind')"
+          >
+            action
           </th>
           <th data-sort="exit_price" (click)="onSortHeader('exit_price')" [ngClass]="thClass('exit_price')">
             exit
@@ -114,21 +135,6 @@
           >
             closed via
           </th>
-          <th data-sort="stop_price" (click)="onSortHeader('stop_price')" [ngClass]="thClass('stop_price')">
-            stop
-          </th>
-          <th data-sort="target_price" (click)="onSortHeader('target_price')" [ngClass]="thClass('target_price')">
-            target
-          </th>
-          <th data-sort="hold" (click)="onSortHeader('hold')" [ngClass]="thClass('hold')">hold</th>
-          <th data-sort="last_spot" (click)="onSortHeader('last_spot')" [ngClass]="thClass('last_spot')">spot</th>
-          <th
-            data-sort="last_alert_kind"
-            (click)="onSortHeader('last_alert_kind')"
-            [ngClass]="thClass('last_alert_kind')"
-          >
-            action
-          </th>
           <th data-sort="status" (click)="onSortHeader('status')" [ngClass]="thClass('status')">status</th>
           <th data-sort="bought_at" (click)="onSortHeader('bought_at')" [ngClass]="thClass('bought_at')">
             bought
@@ -139,40 +145,13 @@
       <tbody>
         <ng-container *ngFor="let pos of sortedRows()">
           <tr [class]="rowClass(pos.data)">
-            <td class="code">
+            <td class="code col-ticker-sticky">
               <strong>{{ pos.data.ticker }}</strong>
-            </td>
-            <td>
-              <span class="sector-tag" *ngIf="pos.data.sector">{{ pos.data.sector }}</span>
-              <ng-container *ngIf="!pos.data.sector">—</ng-container>
+              <div class="ticker-sector" *ngIf="pos.data.sector">
+                <span class="sector-tag">{{ pos.data.sector }}</span>
+              </div>
             </td>
             <td>{{ formatNum(pos.data.entry_price) }}</td>
-            <td>
-              {{
-                uiClosed(pos.data) && pos.data.exit_price != null
-                  ? formatNum(pos.data.exit_price)
-                  : '—'
-              }}
-            </td>
-            <td>
-              <ng-container *ngIf="pnlClosed(pos) as pnl; else pnlDash">
-                <span [class]="pnl.cls">{{ pnl.text }}</span>
-              </ng-container>
-              <ng-template #pnlDash>—</ng-template>
-            </td>
-            <td class="exit-via-cell">
-              <span *ngIf="uiClosed(pos.data)">{{ exitViaLabel(pos.data) }}</span>
-              <span *ngIf="!uiClosed(pos.data)" class="dash-muted">—</span>
-            </td>
-            <td>{{ formatNum(pos.data.stop_price) }}</td>
-            <td>{{ formatNum(pos.data.target_price) }}</td>
-            <td>
-              <ng-container *ngIf="holdLines(pos.data) as h; else holdDash">
-                {{ h.main }}<span *ngIf="h.extra" class="hold-est"> {{ h.extra }}</span>
-                <div class="hold-due" *ngIf="h.due">{{ h.due }}</div>
-              </ng-container>
-              <ng-template #holdDash>—</ng-template>
-            </td>
             <td class="spot-cell">
               <ng-container *ngIf="spotBlock(pos) as sp">
                 <div class="spot-wrap" *ngIf="sp.hasVal || sp.showRefresh">
@@ -196,10 +175,57 @@
               </ng-container>
             </td>
             <td>
+              {{ formatNum(pos.data.stop_price) }}<span
+                *ngIf="bracketVsEntryPct(pos.data, 'stop') as bp"
+                [class]="bp.cls"
+                >{{ bp.text }}</span>
+            </td>
+            <td>
+              {{ formatNum(pos.data.target_price) }}<span
+                *ngIf="bracketVsEntryPct(pos.data, 'target') as bp"
+                [class]="bp.cls"
+                >{{ bp.text }}</span>
+            </td>
+            <td>
+              <ng-container *ngIf="holdLines(pos.data) as h; else holdDash">
+                {{ h.main }}<span *ngIf="h.extra" class="hold-est"> {{ h.extra }}</span>
+                <div class="hold-due" *ngIf="h.due">{{ h.due }}</div>
+              </ng-container>
+              <ng-template #holdDash>—</ng-template>
+            </td>
+            <td>
               <ng-container *ngIf="actionCell(pos.data) as ac; else actionDash">
                 <span [class]="ac.cls">{{ ac.text }}</span>
               </ng-container>
               <ng-template #actionDash>—</ng-template>
+            </td>
+            <td>
+              {{
+                uiClosed(pos.data) && pos.data.exit_price != null
+                  ? formatNum(pos.data.exit_price)
+                  : '—'
+              }}
+            </td>
+            <td>
+              <ng-container *ngIf="pnlAnyRow(pos) as pnl; else pnlDash">
+                <span [class]="pnl.cls">{{ pnl.text }}</span>
+              </ng-container>
+              <ng-template #pnlDash>—</ng-template>
+            </td>
+            <td class="exit-via-cell">
+              <ng-container *ngIf="uiClosed(pos.data) && closeOutcomeUi(pos.data) as co; else exitViaOpen">
+                <span class="exit-outcome" [attr.title]="co.label">
+                  <span
+                    *ngIf="co.badgeVariant"
+                    class="exit-badge"
+                    [ngClass]="'exit-badge--' + co.badgeVariant"
+                  >
+                    {{ co.abbrev }}
+                  </span>
+                  <span class="exit-outcome-label">{{ co.label }}</span>
+                </span>
+              </ng-container>
+              <ng-template #exitViaOpen><span class="dash-muted">—</span></ng-template>
             </td>
             <td>{{ statusCell(pos.data) }}</td>
             <td class="code">{{ pos.data.bought_at || pos.data.created_at_utc || '' }}</td>
@@ -238,7 +264,7 @@
             </td>
           </tr>
           <tr class="pos-monitor-expand" [hidden]="expandedMonitorId() !== pos.id">
-            <td colspan="14" class="pos-monitor-expand-cell">
+            <td colspan="13" class="pos-monitor-expand-cell">
               <div class="pos-monitor-expand-inner">
                 <span class="dash-muted" *ngIf="checksErr()[pos.id]">{{ checksErr()[pos.id] }}</span>
                 <span class="dash-muted" *ngIf="!checksErr()[pos.id] && checksMap()[pos.id] === undefined">
@@ -271,7 +297,7 @@
                           c.tag || c.alert_kind || ''
                         }}</span>
                       </td>
-                      <td>{{ c.confidence != null ? c.confidence : '—' }}</td>
+                      <td>{{ c.confidence != null ? (+c.confidence! | number: '1.0-2') : '—' }}</td>
                       <td>{{ c.last_spot != null ? (+c.last_spot! | number: '1.0-3') : '—' }}</td>
                       <td>
                         <ng-container *ngIf="checkPnl(c) as cp; else dashPnl">
@@ -289,7 +315,7 @@
             </td>
           </tr>
           <tr class="pos-history-expand" [hidden]="expandedHistoryId() !== pos.id">
-            <td colspan="14" class="pos-history-expand-cell">
+            <td colspan="13" class="pos-history-expand-cell">
               <div class="pos-history-expand-inner">
                 <app-price-history-chart
                   [ticker]="pos.data.ticker || ''"

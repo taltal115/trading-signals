@@ -174,6 +174,13 @@
                     P/L %
                   </th>
                   <th
+                    data-sort="exit_via"
+                    (click)="onSortHeader('exit_via')"
+                    [ngClass]="thClass('exit_via')"
+                  >
+                    closed via
+                  </th>
+                  <th
                     data-sort="stop_price"
                     (click)="onSortHeader('stop_price')"
                     [ngClass]="thClass('stop_price')"
@@ -233,7 +240,7 @@
               </thead>
               <tbody>
                 <tr *ngIf="displayRowsOpen().length === 0">
-                  <td colspan="13" class="reporting-empty-row">No open positions in this report.</td>
+                  <td colspan="14" class="reporting-empty-row">No open positions in this report.</td>
                 </tr>
                 <tr *ngFor="let pos of displayRowsOpen()">
                   <ng-container *ngTemplateOutlet="reportRowCells; context: { $implicit: pos }" />
@@ -280,6 +287,13 @@
                   </th>
                   <th data-sort="pnl_pct" (click)="onSortHeader('pnl_pct')" [ngClass]="thClass('pnl_pct')">
                     P/L %
+                  </th>
+                  <th
+                    data-sort="exit_via"
+                    (click)="onSortHeader('exit_via')"
+                    [ngClass]="thClass('exit_via')"
+                  >
+                    closed via
                   </th>
                   <th
                     data-sort="stop_price"
@@ -341,7 +355,7 @@
               </thead>
               <tbody>
                 <tr *ngIf="displayRowsClosed().length === 0">
-                  <td colspan="13" class="reporting-empty-row">No closed positions in this report.</td>
+                  <td colspan="14" class="reporting-empty-row">No closed positions in this report.</td>
                 </tr>
                 <tr *ngFor="let pos of displayRowsClosed()">
                   <ng-container *ngTemplateOutlet="reportRowCells; context: { $implicit: pos }" />
@@ -377,6 +391,19 @@
     </td>
     <td>
       <span [class]="plPctClass(pos)">{{ plPctText(pos) }}</span>
+    </td>
+    <td class="report-exit-outcome-cell">
+      <ng-container *ngIf="uiClosed(pos.data) && closeOutcomeUi(pos.data) as eco">
+        <span class="exit-outcome" [attr.title]="eco.label">
+          <span
+            *ngIf="eco.badgeVariant"
+            class="exit-badge"
+            [ngClass]="'exit-badge--' + eco.badgeVariant"
+            >{{ eco.abbrev }}</span>
+          <span class="exit-outcome-label">{{ eco.label }}</span>
+        </span>
+      </ng-container>
+      <ng-container *ngIf="!uiClosed(pos.data)"><span class="dash-muted">—</span></ng-container>
     </td>
     <td>{{ formatNum(pos.data.stop_price) }}</td>
     <td>{{ formatNum(pos.data.target_price) }}</td>

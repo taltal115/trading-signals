@@ -169,7 +169,7 @@
                     <ng-container *ngIf="snap.quote.change != null; else noChg">
                       {{ snap.quote.change >= 0 ? '+' : '' }}{{ fmtUsd(snap.quote.change) }}
                       <span *ngIf="snap.quote.pctChange != null" class="sig-detail-pct">
-                        ({{ snap.quote.pctChange >= 0 ? '+' : '' }}{{ fmtUiDecimal(snap.quote.pctChange) }}%)
+                        ({{ snap.quote.pctChange >= 0 ? '+' : '' }}{{ fmtUiPercent(snap.quote.pctChange) }}%)
                       </span>
                     </ng-container>
                     <ng-template #noChg>—</ng-template>

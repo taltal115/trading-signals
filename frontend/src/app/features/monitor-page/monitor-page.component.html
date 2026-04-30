@@ -38,13 +38,13 @@
             <tr>
               <td class="code"><strong>{{ c['ticker'] }}</strong></td>
               <td><span [class]="tagCls">{{ tag }}</span></td>
-              <td>{{ c['confidence'] != null ? (+c['confidence']! | number: '1.0-3') : '—' }}</td>
+              <td>{{ c['confidence'] != null ? (+c['confidence']! | number: '1.0-2') : '—' }}</td>
               <td>{{ c['last_spot'] != null ? (+c['last_spot']! | number: '1.0-3') : '—' }}</td>
               <td>
                 @if (c['pnl_pct'] != null) {
                   @let pv = +c['pnl_pct']!;
                   @let pCls = pv > 0.0001 ? 'pnl-profit' : pv < -0.0001 ? 'pnl-loss' : 'pnl-flat';
-                  <span [class]="pCls">{{ pv > 0 ? '+' : '' }}{{ pv | number: '1.0-3' }}%</span>
+                  <span [class]="pCls">{{ pv > 0 ? '+' : '' }}{{ pv | number: '1.0-2' }}%</span>
                 } @else {
                   —
                 }

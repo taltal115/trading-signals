@@ -1,1 +1,67 @@
 /* You can add global styles to this file, and also import other style files */
+
+.exit-outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.exit-outcome-label {
+  color: var(--muted, #9aa0a6);
+  font-size: 0.88em;
+  line-height: 1.25;
+}
+
+.exit-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.15em 0.45em;
+  border-radius: 4px;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.exit-badge--manual {
+  background: rgba(139, 148, 158, 0.25);
+  color: var(--text, #e6edf3);
+  border: 1px solid rgba(139, 148, 158, 0.45);
+}
+
+.exit-badge--tp {
+  background: rgba(63, 185, 80, 0.2);
+  color: var(--buy, #3fb950);
+  border: 1px solid rgba(63, 185, 80, 0.45);
+}
+
+.exit-badge--sl {
+  background: rgba(248, 81, 73, 0.18);
+  color: var(--sell, #f85149);
+  border: 1px solid rgba(248, 81, 73, 0.42);
+}
+
+.exit-badge--monitor {
+  background: rgba(130, 80, 223, 0.2);
+  color: #a78bfa;
+  border: 1px solid rgba(130, 80, 223, 0.4);
+}
+
+.exit-badge--unknown {
+  background: rgba(110, 118, 129, 0.15);
+  color: var(--muted, #888);
+  border: 1px solid var(--border, #444);
+}
+
+.report-exit-outcome-cell {
+  white-space: normal;
+  max-width: 10.5rem;
+  vertical-align: middle;
+  line-height: 1.35;
+}
+
+.report-exit-outcome-cell .exit-badge {
+  font-size: 0.62rem;
+  padding: 0.15em 0.4em;
+}

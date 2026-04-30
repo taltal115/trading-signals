@@ -4,9 +4,64 @@
   line-height: 1.45;
 }
 
-.exit-via-cell {
+#positions-table-wrap .positions-table th.col-ticker-sticky,
+#positions-table-wrap .positions-table td.col-ticker-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  box-shadow: 3px 0 8px -4px rgba(0, 0, 0, 0.45);
+  /* Opaque fill so scrolled cells never show through the sticky column */
+  background: var(--surface);
+  background-clip: padding-box;
+}
+
+.col-ticker-sticky {
+  min-width: 5.25rem;
+  max-width: 9rem;
+  vertical-align: middle;
+}
+
+#positions-table-wrap .positions-table thead th.col-ticker-sticky {
+  z-index: 4;
+}
+
+#positions-table-wrap .positions-table tbody tr.row-open td.col-ticker-sticky,
+#positions-table-wrap .positions-table tbody tr.row-flat td.col-ticker-sticky {
+  background-color: var(--surface);
+}
+
+#positions-table-wrap .positions-table tbody tr.row-profit td.col-ticker-sticky {
+  background-color: color-mix(in srgb, var(--surface) 94%, var(--buy) 6%);
+}
+
+#positions-table-wrap .positions-table tbody tr.row-loss td.col-ticker-sticky {
+  background-color: color-mix(in srgb, var(--surface) 94%, var(--sell) 6%);
+}
+
+#positions-table-wrap .positions-table tbody tr:hover td.col-ticker-sticky {
+  background-color: color-mix(in srgb, var(--surface) 92%, var(--accent) 8%);
+}
+
+.ticker-sector {
+  margin-top: 0.3rem;
+  line-height: 1.25;
+}
+
+.bracket-vs-entry-pct {
+  font-weight: 600;
+  margin-left: 0.15em;
   white-space: nowrap;
+}
+
+.exit-via-cell {
+  white-space: normal;
   font-size: 0.92em;
+  vertical-align: middle;
+  max-width: 12rem;
+}
+
+.exit-via-cell .exit-outcome {
+  max-width: 11rem;
 }
 
 .spot-pnl-pct {

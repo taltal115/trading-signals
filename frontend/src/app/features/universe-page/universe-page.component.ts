@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Subscription, switchMap, catchError, of, tap } from 'rxjs';
 import { formatApiErr } from '../../core/api-errors';
-import { fmtUiDecimal } from '../../core/positions-logic';
+import { fmtUiDecimal, fmtUiPercent } from '../../core/positions-logic';
 import { environment } from '../../../environments/environment';
 
 /** Row in Firestore ``universe.symbol_details`` (Finnhub profile + strategy scores). */
@@ -130,7 +130,7 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     if (score == null || !Number.isFinite(Number(score))) return '—';
     const s = Number(score);
     if (s >= 0 && s <= 1.0 + 1e-9) {
-      return fmtUiDecimal(s * 100) + '%';
+      return fmtUiPercent(s * 100) + '%';
     }
     return fmtUiDecimal(s);
   }

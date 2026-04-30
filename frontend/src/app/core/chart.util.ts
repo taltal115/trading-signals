@@ -1,5 +1,5 @@
 import type { DailyCandles } from './market-data.service';
-import { fmtUiDecimal } from './positions-logic';
+import { fmtUiDecimal, fmtUiPercent } from './positions-logic';
 
 export interface ChartPoint {
   x: number;
@@ -169,7 +169,7 @@ export function drawPriceChart(
   }
 
   const latestPnl = entryPrice > 0 ? ((lastPrice - entryPrice) / entryPrice) * 100 : 0;
-  const pnlText = (latestPnl >= 0 ? '+' : '') + fmtUiDecimal(latestPnl) + '%';
+  const pnlText = (latestPnl >= 0 ? '+' : '') + fmtUiPercent(latestPnl) + '%';
   ctx.textAlign = 'left';
   ctx.font = 'bold 12px system-ui, sans-serif';
   ctx.fillStyle = isUp ? 'rgba(63, 185, 80, 1)' : 'rgba(248, 81, 73, 1)';

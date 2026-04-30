@@ -12,7 +12,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { MarketDataService } from '../../core/market-data.service';
 import { drawPriceChart, ChartPoint } from '../../core/chart.util';
-import { fmtUiDecimal, fmtUsd } from '../../core/positions-logic';
+import { fmtUsd, fmtUiPercent } from '../../core/positions-logic';
 
 @Component({
   selector: 'app-price-history-chart',
@@ -133,7 +133,7 @@ export class PriceHistoryChartComponent implements AfterViewInit, OnChanges, OnD
         day: 'numeric',
       });
       const pnl = entry > 0 ? ((closest.price - entry) / entry) * 100 : 0;
-      const pnlStr = (pnl >= 0 ? '+' : '') + fmtUiDecimal(pnl) + '%';
+      const pnlStr = (pnl >= 0 ? '+' : '') + fmtUiPercent(pnl) + '%';
       this.tipDate = dateStr;
       this.tipPrice = fmtUsd(closest.price);
       this.tipPnl = pnlStr;

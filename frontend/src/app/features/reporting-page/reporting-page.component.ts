@@ -8,9 +8,11 @@ import { PositionsStoreService } from '../../core/positions-store.service';
 import {
   PositionRow,
   calculatePnlForPosition,
+  closeOutcomeUi,
   effectiveQuantity,
+  exitViaLabel,
   fmtSignedUsd,
-  fmtUiDecimal,
+  fmtUiPercent,
   formatNum,
   positionIsOpen,
   positionIsClosed,
@@ -235,7 +237,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
     const stored = d.signal_confidence != null ? Number(d.signal_confidence) : NaN;
     if (Number.isFinite(stored)) {
       return {
-        text: fmtUiDecimal(stored) + '%',
+        text: fmtUiPercent(stored) + '%',
         cls: this.confClass(stored),
         inferred: false,
       };
@@ -247,7 +249,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
     const v = Number(raw);
     if (!Number.isFinite(v)) return null;
     return {
-      text: fmtUiDecimal(v) + '%',
+      text: fmtUiPercent(v) + '%',
       cls: this.confClass(raw),
       inferred: sig.via === 'ticker',
     };
@@ -431,7 +433,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
     const s = this.filterStats();
     const v = s.totalPct;
     const sign = v > 0 ? '+' : v < 0 ? '' : '+';
-    return sign + fmtUiDecimal(v) + '%';
+    return sign + fmtUiPercent(v) + '%';
   }
 
   winRateCardClass(): Record<string, boolean> {
@@ -456,7 +458,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
   winRateText(): string {
     const p = this.filterStats().winRatePct;
     if (p == null) return '—';
-    return fmtUiDecimal(p) + '%';
+    return fmtUiPercent(p) + '%';
   }
 
   winRateSubtext(): string {
@@ -478,12 +480,12 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
       if (p == null || !Number.isFinite(Number(p))) return '—';
       const v = Number(p);
       const sign = v > 0 ? '+' : '';
-      return sign + fmtUiDecimal(v) + '%';
+      return sign + fmtUiPercent(v) + '%';
     }
     const { pnlPct } = calculatePnlForPosition(d, {});
     if (!Number.isFinite(pnlPct)) return '—';
     const sign = pnlPct > 0 ? '+' : '';
-    return sign + fmtUiDecimal(pnlPct) + '%';
+    return sign + fmtUiPercent(pnlPct) + '%';
   }
 
   plPctClass(pos: PositionRow): string {
@@ -531,6 +533,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
   protected readonly fmtSignedUsd = fmtSignedUsd;
   protected readonly effectiveQuantity = effectiveQuantity;
   protected readonly quantityWasInferred = quantityWasInferred;
+  protected readonly closeOutcomeUi = closeOutcomeUi;
 
   private buildPdfSummaryLine(): string {
     const s = this.summary();
@@ -558,6 +561,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
       'entry',
       'exit',
       'P/L %',
+      'closed via',
       'stop',
       'target',
       'bought',
@@ -583,11 +587,11 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
     let conf = '—';
     const storedConf = d.signal_confidence != null ? Number(d.signal_confidence) : NaN;
     if (Number.isFinite(storedConf)) {
-      conf = fmtUiDecimal(storedConf) + '%';
+      conf = fmtUiPercent(storedConf) + '%';
     } else if (sig != null && sig.row['confidence'] != null && sig.row['confidence'] !== '') {
       const cv = Number(sig.row['confidence']);
       if (Number.isFinite(cv)) {
-        conf = fmtUiDecimal(cv) + '%' + (sig.via === 'ticker' ? ' ~' : '');
+        conf = fmtUiPercent(cv) + '%' + (sig.via === 'ticker' ? ' ~' : '');
       }
     }
     const qty = effectiveQuantity(d);
@@ -599,6 +603,7 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
       formatNum(d.entry_price),
       exitPd,
       this.plPctText(pos),
+      this.pdfCell(exitViaLabel(d), 24),
       formatNum(d.stop_price),
       formatNum(d.target_price),
       this.pdfCell(d.bought_at, 22),
@@ -646,6 +651,8 @@ export class ReportingPageComponent implements OnInit, OnDestroy {
         return positionIsClosed(d) && d.exit_price != null ? Number(d.exit_price) : null;
       case 'pnl_pct':
         return this.pnlPctNumber(pos);
+      case 'exit_via':
+        return exitViaLabel(d);
       case 'stop_price':
         return d.stop_price != null ? Number(d.stop_price) : null;
       case 'target_price':
