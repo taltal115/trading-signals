@@ -1,5 +1,8 @@
 <section id="panel-reporting" class="panel active reporting-page" aria-label="Trade reporting">
   <h2 class="reporting-title">Reporting</h2>
+  <p class="dash-muted reporting-account-line" *ngIf="!guestMode()">
+    {{ authSvc.displaySignedInLine(allowedUser()) }}
+  </p>
   <p class="empty-state" *ngIf="guestMode()">Sign in with Google to view trade reporting.</p>
 
   <ng-container *ngIf="!guestMode()">

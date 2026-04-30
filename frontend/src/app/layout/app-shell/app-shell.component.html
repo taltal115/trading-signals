@@ -113,26 +113,48 @@
 
       <div class="sidebar-footer">
         <app-market-status-bar />
-        @if (authSvc.allowedUser$ | async; as u) {
-          <span id="header-user-email" class="sidebar-user-email">{{ authSvc.displayEmail(u) }}</span>
+        @let sidebarUser = authSvc.allowedUser$ | async;
+        @if (env.devAuthBypass && devPersonas().length > 0) {
+          <label class="dev-persona-picker">
+            <span class="picker-label">Dev user</span>
+            <select
+              id="dev-persona-select"
+              class="dev-persona-select"
+              [value]="me()?.uid ?? ''"
+              (change)="onDevPersonaPick($event)"
+            >
+              @for (p of devPersonas(); track p.uid) {
+                <option [value]="p.uid">{{ p.displayName }} ({{ p.email }})</option>
+              }
+            </select>
+          </label>
+        } @else if (env.devAuthBypass) {
+          <p class="sidebar-local-hint">
+            Set Nest <code>DEV_LOCAL_USERS</code> JSON in <code>.env</code> to switch personas via the dropdown. Otherwise you stay on one
+            <code>DEV_OWNER_UID</code>.
+          </p>
+        }
+        @if (sidebarUser) {
+          <span id="header-user-email" class="sidebar-user-email">{{ authSvc.displayEmail(sidebarUser) }}</span>
         }
         @if (!env.devAuthBypass) {
           <a
             routerLink="/login"
             class="sidebar-auth-btn sidebar-auth-signin nav-link"
             id="nav-sign-in"
-            [hidden]="!!(authSvc.allowedUser$ | async)"
+            [hidden]="!!sidebarUser"
           >
             Sign in with Google
           </a>
+        }
+        @if (sidebarUser) {
           <button
             type="button"
             class="sidebar-auth-btn sidebar-auth-signout"
-            id="logout-btn"
-            [hidden]="!(authSvc.allowedUser$ | async)"
+            [attr.id]="env.devAuthBypass ? 'logout-btn-local' : 'logout-btn'"
             (click)="signOutClick()"
           >
-            Sign out
+            {{ env.devAuthBypass ? 'Clear session' : 'Sign out' }}
           </button>
         }
       </div>

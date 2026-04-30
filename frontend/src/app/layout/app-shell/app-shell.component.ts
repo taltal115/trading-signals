@@ -1,6 +1,7 @@
 import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Subscription, firstValueFrom, distinctUntilChanged } from 'rxjs';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
@@ -45,6 +46,8 @@ export class AppShellComponent implements OnInit, OnDestroy {
   readonly signalsNewBadge = inject(SignalsNewBadgeService);
   private exitSub?: Subscription;
   private authStoreSub?: Subscription;
+  readonly devPersonas = signal<Array<{ uid: string; email: string; displayName: string }>>([]);
+  readonly me = toSignal(this.authSvc.user$, { initialValue: null });
   /** Avoid repeated `start()` (and duplicate `/api/positions` fetches) if `allowedUser$` re-emits the same uid. */
   private lastStoreUid: string | null = null;
 
@@ -109,6 +112,38 @@ export class AppShellComponent implements OnInit, OnDestroy {
     this.mq?.addEventListener('change', () => {
       if (!this.isMobile()) this.mobileOpen.set(false);
     });
+
+    if (environment.devAuthBypass) {
+      void this.loadDevPersonas();
+    }
+  }
+
+  private async loadDevPersonas(): Promise<void> {
+    try {
+      const base = environment.apiBaseUrl || '';
+      const r = await firstValueFrom(
+        this.http.get<{
+          users: Array<{ uid: string; email: string; displayName: string }>;
+        }>(`${base}/api/auth/dev-users`)
+      );
+      this.devPersonas.set(r.users);
+    } catch {
+      this.devPersonas.set([]);
+    }
+  }
+
+  async onDevPersonaPick(ev: Event): Promise<void> {
+    const sel = ev.target as HTMLSelectElement | null;
+    if (!sel) return;
+    const uid = sel.value.trim();
+    if (!uid || uid === this.me()?.uid) return;
+    try {
+      await this.authSvc.setDevPersona(uid);
+      this.positionsStore.refetch();
+    } catch (err) {
+      alert('Could not switch dev persona: ' + formatApiErr(err));
+      sel.value = this.me()?.uid ?? '';
+    }
   }
 
   ngOnDestroy(): void {

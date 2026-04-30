@@ -1,7 +1,34 @@
+import type { DevLocalUser } from '../types/dev-local-user';
 import { envString } from './env-string';
 
 const envFlagFalse = (v: string | undefined): boolean =>
   ['false', '0', 'no', 'off'].includes((v || '').trim().toLowerCase());
+
+/** Parse `[{"uid":"...", "email":"...", "displayName": "..."}]` for local bypass multi-persona testing. */
+function parseDevLocalUsers(raw: string | undefined): DevLocalUser[] {
+  const s = (raw || '').trim();
+  if (!s) return [];
+  try {
+    const arr = JSON.parse(s) as unknown;
+    if (!Array.isArray(arr)) return [];
+    const out: DevLocalUser[] = [];
+    for (const item of arr) {
+      if (!item || typeof item !== 'object') continue;
+      const o = item as Record<string, unknown>;
+      const uid = typeof o.uid === 'string' ? o.uid.trim() : '';
+      const email = typeof o.email === 'string' ? o.email.trim().toLowerCase() : '';
+      if (!uid || !email) continue;
+      const displayName =
+        typeof o.displayName === 'string' ? o.displayName.trim() : undefined;
+      out.push(
+        displayName ? { uid, email, displayName } : { uid, email },
+      );
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
 
 /** Cloud Run sets `K_SERVICE`; default to production so cookies/sessions match deployment. */
 const defaultNodeEnv = (): string =>
@@ -36,6 +63,10 @@ export default () => ({
   authBypassLocal: process.env.AUTH_BYPASS_LOCAL === 'true',
   devOwnerUid: process.env.DEV_OWNER_UID || '',
   devUserEmail: process.env.DEV_USER_EMAIL || 'dev@localhost',
+  /** Optional display name when using legacy single DEV_OWNER_UID bypass (no DEV_LOCAL_USERS). */
+  devUserDisplayName: envString(process.env.DEV_USER_DISPLAY_NAME),
+  /** JSON array of local test personas — when non-empty + AUTH_BYPASS_LOCAL, cookie `dev_persona` selects uid. */
+  devLocalUsers: parseDevLocalUsers(process.env.DEV_LOCAL_USERS),
   frontendUrl: envString(process.env.FRONTEND_URL) || 'http://localhost:4200',
   /** e.g. trading-goals.firebaseapp.com — requests with this Host get 307 to frontendUrl */
   altHostingHostname: altHostingHostname(),

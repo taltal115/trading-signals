@@ -10,6 +10,12 @@ export const environment = {
    */
   devAuthBypass: true,
   apiBaseUrl: '',
-  allowedSignInEmails: ['taltal115@gmail.com'],
-  allowedAuthUids: ['tgIBRfrP1ibiEi6P2LMsVoyvNaM2'],
+  allowedSignInEmails: [
+    'taltal115@gmail.com',
+    'tal.david.shitrit@gmail.com',
+  ],
+  allowedAuthUids: [
+    'tgIBRfrP1ibiEi6P2LMsVoyvNaM2',
+    // 'TEAMMATE_FIREBASE_UID',
+  ],
 };

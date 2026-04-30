@@ -1,0 +1,29 @@
+.dev-persona-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  font-size: 0.8rem;
+}
+
+.dev-persona-picker .picker-label {
+  opacity: 0.85;
+}
+
+.dev-persona-select {
+  width: 100%;
+  max-width: 100%;
+}
+
+.sidebar-local-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  opacity: 0.88;
+  max-width: 100%;
+}
+
+.sidebar-local-hint code {
+  font-size: 0.7rem;
+  word-break: break-all;
+}

@@ -42,8 +42,11 @@ export class PositionsController {
 
   @Post()
   async create(@Req() req: Request, @Body() body: Record<string, unknown>) {
-    const uid = req.sessionUser!.uid;
+    const su = req.sessionUser!;
+    const uid = su.uid;
     const created_at_utc = new Date().toISOString();
+    const owner_email = su.email.trim().toLowerCase();
+    const owner_display_name = su.displayName.trim();
     const payload = {
       ticker: body['ticker'],
       entry_price: body['entry_price'],
@@ -61,6 +64,8 @@ export class PositionsController {
       notes: body['notes'] ?? null,
       status: 'open',
       created_at_utc,
+      owner_email,
+      owner_display_name,
     };
     return this.firestore.addPosition(uid, payload);
   }
@@ -92,6 +97,9 @@ export class PositionsController {
     if (body.closed_at_utc != null) patch['closed_at_utc'] = body.closed_at_utc;
     if (body.exit_origin !== undefined) patch['exit_origin'] = body.exit_origin;
     if (body.monitor_close_kind !== undefined) patch['monitor_close_kind'] = body.monitor_close_kind;
+    for (const key of Object.keys(patch)) {
+      if (key === 'owner_uid' || key.startsWith('owner_')) delete patch[key];
+    }
     await this.firestore.updatePosition(uid, id, patch);
     return { ok: true };
   }
