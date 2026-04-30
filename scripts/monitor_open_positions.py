@@ -43,6 +43,11 @@ class Alert:
     confidence: int
     message: str
     atr_hold_est: int | None = field(default=None)
+    #: For STOP_HIT / TARGET_HIT: assume broker filled at bracket (not last close).
+    report_price: float | None = field(default=None)
+    #: Latest OHLC row (typically today's partial daily bar via Yahoo/Stooq).
+    session_high: float | None = field(default=None)
+    session_low: float | None = field(default=None)
 
 
 def _build_firestore_client() -> firestore.Client:
@@ -67,27 +72,61 @@ def _atr14_from_hist(df: pd.DataFrame) -> float | None:
     return float(val)
 
 
-def _last_close_and_atr(
+def _last_row_ohlc(hist: pd.DataFrame | None) -> tuple[float | None, float | None, float | None]:
+    """(close, high, low) from the most recent bar; high/low fall back to close when missing."""
+    if hist is None or hist.empty or "close" not in hist.columns:
+        return None, None, None
+    row = hist.iloc[-1]
+    raw_c = row["close"]
+    try:
+        close_v = float(raw_c)
+    except (TypeError, ValueError):
+        return None, None, None
+    if close_v is None or (isinstance(close_v, float) and math.isnan(close_v)):
+        return None, None, None
+
+    high_v = close_v
+    low_v = close_v
+    if "high" in hist.columns:
+        h = row["high"]
+        if pd.notna(h):
+            try:
+                high_v = float(h)
+            except (TypeError, ValueError):
+                pass
+    if "low" in hist.columns:
+        lo = row["low"]
+        if pd.notna(lo):
+            try:
+                low_v = float(lo)
+            except (TypeError, ValueError):
+                pass
+
+    return close_v, high_v, low_v
+
+
+def _last_close_and_session_range(
     *,
     ticker: str,
     providers: dict[str, Any],
     provider_order: list[str],
     lookback_days: int,
-) -> tuple[float | None, float | None]:
+) -> tuple[float | None, float | None, float | None, float | None]:
+    """close, session_high, session_low, atr14 from first working provider."""
     for name in provider_order:
         prov = providers.get(name)
         if not prov:
             continue
         try:
             hist = prov.get_history(ticker, lookback_days=lookback_days)
-            if hist is None or hist.empty:
+            last_close, sh, sl = _last_row_ohlc(hist)
+            if last_close is None:
                 continue
-            close_val = float(hist["close"].iloc[-1])
-            atr_val = _atr14_from_hist(hist)
-            return close_val, atr_val
+            atr_val = _atr14_from_hist(hist) if hist is not None else None
+            return last_close, sh, sl, atr_val
         except Exception:
             continue
-    return None, None
+    return None, None, None, None
 
 
 def _pnl_str(entry_f: float | None, spot: float) -> str:
@@ -135,6 +174,8 @@ def _eval_position(
     *,
     data: dict[str, Any],
     last_close: float | None,
+    session_high: float | None,
+    session_low: float | None,
     atr14: float | None,
     now_utc: datetime,
     market_tz: ZoneInfo,
@@ -146,6 +187,9 @@ def _eval_position(
             40,
             f"{ticker} — no price data yet. Waiting for market data.",
         )
+
+    low_for_brackets = session_low if session_low is not None else last_close
+    high_for_brackets = session_high if session_high is not None else last_close
 
     entry = data.get("entry_price")
     stop = data.get("stop_price")
@@ -170,40 +214,56 @@ def _eval_position(
         atr14=atr14, target_f=target_f, last_close=last_close, age_days=age_days,
     )
 
-    if stop_f is not None and last_close <= stop_f:
+    rng = ""
+    if (
+        session_high is not None
+        and session_low is not None
+        and (session_high != last_close or session_low != last_close)
+    ):
+        rng = f" Day range (partial bar) low ${session_low:.2f} / high ${session_high:.2f}."
+
+    stop_touched = stop_f is not None and low_for_brackets <= stop_f
+    target_touched = target_f is not None and high_for_brackets >= target_f
+
+    # If both bands traded through in the same bar/session, assume stop (risk) triggered first.
+    if stop_touched:
+        rp = float(stop_f)
+        pnl_rp = _pnl_str(entry_f, rp)
         return Alert(
             "STOP_HIT",
             88,
-            f"{ticker} hit your stop loss. "
-            f"Price ${last_close:.2f} fell to/below stop ${stop_f:.2f}.{pnl} "
-            f"Consider exiting to limit losses.",
+            f"{ticker} hit your stop loss.{rng} Session/trade low reached or breached stop "
+            f"${stop_f:.2f}; last close ${last_close:.2f}. Assuming fill at stop ${rp:.2f}.{pnl_rp} "
+            f"Consider exiting to limit losses (confirm broker execution).",
             atr_hold_est=atr_hold_est,
+            report_price=rp,
+            session_high=session_high,
+            session_low=session_low,
         )
 
-    if target_f is not None and last_close >= target_f:
-        excess = last_close - target_f
-        excess_pct = (excess / target_f) * 100.0 if target_f else 0
-
+    if target_touched:
+        rp = float(target_f)
+        pnl_rp = _pnl_str(entry_f, rp)
         momentum_ctx = ""
         if atr14 and atr14 > 0:
-            excess_in_atr = excess / atr14
-            if excess_pct > 5 or excess_in_atr > 1.5:
-                momentum_ctx = " Strong momentum — price moved well past target."
-            elif excess_pct > 2 or excess_in_atr > 0.5:
-                momentum_ctx = " Good momentum continues."
-
-        above_ctx = ""
-        if excess > 0.01:
-            above_ctx = f" Currently ${excess:.2f} ({excess_pct:.1f}%) above target."
+            excess_in_atr = (high_for_brackets - target_f) / atr14
+            hi_pct = ((high_for_brackets - target_f) / target_f) * 100.0 if target_f else 0
+            if hi_pct > 5 or excess_in_atr > 1.5:
+                momentum_ctx = " Strong momentum — high moved well past target."
+            elif hi_pct > 2 or excess_in_atr > 0.5:
+                momentum_ctx = " Good continuation past target."
 
         return Alert(
             "TARGET_HIT",
             80,
-            f"{ticker} reached your target! "
-            f"Price ${last_close:.2f} hit target ${target_f:.2f}.{pnl}"
-            f"{above_ctx}{momentum_ctx} "
-            f"Consider taking profit.",
+            f"{ticker} reached your target!{rng} Session/trade high ${high_for_brackets:.2f} "
+            f"reached or exceeded target ${target_f:.2f}; last close ${last_close:.2f}. "
+            f"Assuming fill at target ${rp:.2f}.{pnl_rp}{momentum_ctx} "
+            f"Consider taking profit (confirm broker execution).",
             atr_hold_est=atr_hold_est,
+            report_price=rp,
+            session_high=session_high,
+            session_low=session_low,
         )
 
     original_due = (
@@ -367,7 +427,8 @@ def _build_exit_attachment(
 ) -> dict:
     sector = data.get("sector", "")
     entry_f = float(data["entry_price"]) if isinstance(data.get("entry_price"), (int, float)) else None
-    pnl_pct = _compute_pnl_pct(data.get("entry_price"), last_close)
+    display_px = alert.report_price if alert.report_price is not None else last_close
+    pnl_pct = _compute_pnl_pct(data.get("entry_price"), display_px)
     hold_days = data.get("hold_days_from_signal")
     days_held = _compute_days_held(
         data.get("created_at_utc"), now_utc=now_utc, market_tz=market_tz
@@ -378,9 +439,18 @@ def _build_exit_attachment(
 
     lines = [f"{action_emoji} *{tag}* `{ticker}` — {alert.kind.replace('_', ' ').lower()}"]
 
-    if entry_f is not None and last_close is not None:
+    if entry_f is not None and display_px is not None:
         pnl_str = f"{pnl_pct:+.1f}%" if pnl_pct is not None else ""
-        lines.append(f"Entry: ${entry_f:.2f} → Spot: ${last_close:.2f} ({pnl_str})")
+        px_note = ""
+        if (
+            alert.report_price is not None
+            and last_close is not None
+            and abs(float(alert.report_price) - float(last_close)) > 1e-6
+        ):
+            px_note = f" | last close ${float(last_close):.2f}"
+        lines.append(
+            f"Entry: ${entry_f:.2f} → Assume exit: ${display_px:.2f} ({pnl_str}){px_note}"
+        )
 
     if days_held is not None and hold_days is not None:
         due_str = _due_date_str(
@@ -535,7 +605,7 @@ def main() -> int:
         if not ticker:
             continue
 
-        last_close, atr14 = _last_close_and_atr(
+        last_close, session_high, session_low, atr14 = _last_close_and_session_range(
             ticker=ticker,
             providers=providers,
             provider_order=order,
@@ -546,6 +616,8 @@ def main() -> int:
         alert = _eval_position(
             data=data,
             last_close=last_close,
+            session_high=session_high,
+            session_low=session_low,
             atr14=atr14,
             now_utc=now_utc,
             market_tz=market_tz,
@@ -557,18 +629,20 @@ def main() -> int:
         log_line = f"[{tag}] conf={alert.confidence} :: {alert.message}"
         print(log_line)
 
-        pnl_pct = _compute_pnl_pct(data.get("entry_price"), last_close)
+        fill_for_pnl = alert.report_price if alert.report_price is not None else last_close
+        pnl_pct = _compute_pnl_pct(data.get("entry_price"), fill_for_pnl)
         days_held = _compute_days_held(
             data.get("created_at_utc"), now_utc=now_utc, market_tz=market_tz
         )
 
+        bracket_exit_px = alert.report_price if alert.report_price is not None else None
         prev_status = str(data.get("status") or "open").strip().lower()
         auto_close = (
             auto_close_enabled
             and not args.dry_run
             and prev_status == "open"
             and alert.kind in AUTO_CLOSE_KINDS
-            and last_close is not None
+            and bracket_exit_px is not None
         )
 
         if not args.dry_run:
@@ -578,11 +652,19 @@ def main() -> int:
                 "last_alert_kind": alert.kind,
                 "last_alert_summary": alert.message,
                 "last_alert_ts_utc": ts,
-                "last_spot": last_close,
+                "last_spot": last_close if last_close is not None else bracket_exit_px,
             }
             if auto_close:
-                lc = float(last_close)
+                lc = float(bracket_exit_px)
                 pnl_rounded = round(pnl_pct, 4) if pnl_pct is not None else None
+                rng_txt = ""
+                if alert.session_low is not None and alert.session_high is not None:
+                    rng_txt = (
+                        f" Same-day bar approx. low/high ${alert.session_low:.2f}"
+                        f"–${alert.session_high:.2f} vs last ${last_close:.2f}."
+                        if last_close is not None
+                        else ""
+                    )
                 patch.update(
                     {
                         "status": "closed",
@@ -592,15 +674,17 @@ def main() -> int:
                         "pnl_pct": pnl_rounded,
                         "exit_notes": (
                             f"Auto-closed by position monitor ({alert.kind.replace('_', ' ')}). "
-                            f"Spot ${lc:.2f} vs stored bracket — confirm broker fill (SL/TP)."
+                            f"Assume limit fill at ${lc:.2f} (stored SL/TP)."
+                            f"{rng_txt} Confirm broker execution."
                         ),
                         "exit_origin": "position_monitor",
                         "monitor_close_kind": alert.kind,
                     }
                 )
+                lc_disp = f"{last_close:.2f}" if last_close is not None else "n/a"
                 print(
                     f"  AUTO_CLOSE {MY_POSITIONS_COLLECTION}/{snap.id} {ticker} kind={alert.kind} "
-                    f"spot={lc:.2f} pnl_pct={pnl_rounded}"
+                    f"exit_price={lc:.2f} pnl_pct={pnl_rounded} last_close={lc_disp}"
                 )
             ref.set(patch, merge=True)
             print(f"  updated {MY_POSITIONS_COLLECTION}/{snap.id} fields")
@@ -618,6 +702,12 @@ def main() -> int:
                 "pnl_pct": round(pnl_pct, 2) if pnl_pct is not None else None,
                 "days_held": days_held,
             }
+            if alert.report_price is not None:
+                check_data["monitor_assumed_exit_price"] = round(alert.report_price, 6)
+            if session_high is not None:
+                check_data["session_high"] = round(session_high, 6)
+            if session_low is not None:
+                check_data["session_low"] = round(session_low, 6)
             if auto_close:
                 check_data["auto_closed_position"] = True
             if atr14 is not None:
