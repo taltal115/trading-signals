@@ -11,8 +11,9 @@ function messageForOAuthError(code: string | null): string {
       return 'Google sign-in did not return an email. Try again or use a different Google account.';
     case 'nofirebase':
       return (
-        'This Google account is not registered in Firebase Authentication for this project. ' +
-        'In Firebase Console → Authentication → Users, add a user with this email (or enable Google provider and sign in once there).'
+        'The API could not match this Gmail to a Firebase Auth user. ' +
+          'If your email is on ALLOWED_SIGN_IN_EMAILS, redeploy the API and try again (first sign-in may create the Auth row). ' +
+          'UID-only allowlists need a manual user in Firebase Console or a matching email allowlist entry.'
       );
     case 'notallowlisted':
       return (

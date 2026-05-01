@@ -130,11 +130,41 @@ export class AuthService {
       const msg = e instanceof Error ? e.message : String(e);
       this.log.warn(`getUserByEmail(${email}) failed: ${code || 'no-code'} ${msg}`);
       if (code === 'auth/user-not-found') {
-        throw new UnauthorizedException('Firebase user not found for this email');
+        if (allowedEmails.length > 0 && !allowedEmails.includes(email)) {
+          throw new UnauthorizedException('This account is not authorized');
+        }
+        if (allowedEmails.length > 0 && allowedEmails.includes(email)) {
+          try {
+            userRecord = await this.firestore.auth().createUser({
+              email,
+              emailVerified: true,
+              disabled: false,
+            });
+            this.log.log(`JIT Firebase Auth uid=${userRecord.uid} email=${email}`);
+          } catch (ce: unknown) {
+            const c2 = (ce as { code?: string }).code;
+            if (c2 === 'auth/email-already-exists') {
+              userRecord = await this.firestore.auth().getUserByEmail(email);
+            } else {
+              const m2 = ce instanceof Error ? ce.message : String(ce);
+              this.log.error(`JIT createUser(${email}) failed: ${c2 || 'no-code'} ${m2}`);
+              throw new UnauthorizedException(
+                'Could not provision Firebase account for allowlisted email. Check Cloud Run firebaseauth.admin IAM and Firebase quota.',
+              );
+            }
+          }
+        } else if (allowedUids.length > 0) {
+          throw new UnauthorizedException(
+            'Firebase user not found for this email. Add ALLOWED_SIGN_IN_EMAILS for onboarding, then sign in once; or create this user manually in Firebase Console.',
+          );
+        } else {
+          throw new UnauthorizedException('Firebase user not found for this email');
+        }
+      } else {
+        throw new UnauthorizedException(
+          'Firebase Auth admin denied — grant the Cloud Run runtime service account role roles/firebaseauth.admin on this GCP project (or fix FIREBASE_SERVICE_ACCOUNT_JSON / ADC project).',
+        );
       }
-      throw new UnauthorizedException(
-        'Firebase Auth admin denied — grant the Cloud Run runtime service account role roles/firebaseauth.admin on this GCP project (or fix FIREBASE_SERVICE_ACCOUNT_JSON / ADC project).',
-      );
     }
 
     const ue = String(userRecord.email || email).trim().toLowerCase();
