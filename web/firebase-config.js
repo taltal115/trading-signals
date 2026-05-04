@@ -9,7 +9,7 @@ const firebaseConfig = {
   measurementId: "G-S21BNF9ENK",
 
   // Google sign-in allowlist (lowercase). Must match firestore.rules for my_positions.
-  allowedSignInEmails: ["taltal115@gmail.com"],
+  allowedSignInEmails: ["taltal115@gmail.com", "tal.david.shitrit@gmail.com", "idanchetrit@gmail.com"],
   // Optional: allow these Firebase Auth UIDs even if email matching is awkward (client-only; rules use owner_uid).
   allowedAuthUids: ["tgIBRfrP1ibiEi6P2LMsVoyvNaM2"],
 

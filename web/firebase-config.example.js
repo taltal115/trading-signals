@@ -9,7 +9,7 @@ const firebaseConfig = {
   messagingSenderId: "000000000000",
   appId: "1:000000000000:web:xxxxxxxxxxxxxxxx",
 
-  allowedSignInEmails: ["taltal115@gmail.com"],
+  allowedSignInEmails: ["taltal115@gmail.com", "tal.david.shitrit@gmail.com", "idanchetrit@gmail.com"],
   // Optional client allowlist by uid (Firestore rules only require owner_uid == auth.uid).
   allowedAuthUids: [],
 
