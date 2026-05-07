@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -18,7 +19,11 @@ from signals_bot.config import AppConfig, load_config
 from signals_bot.logging import get_logger
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
-from signals_bot.storage.firestore import read_recent_universe_symbols, write_universe_snapshot
+from signals_bot.storage.firestore import (
+    read_latest_universe_snapshot_doc,
+    read_recent_universe_symbols,
+    write_universe_snapshot,
+)
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy
 
 
@@ -91,6 +96,78 @@ def _select_batch(symbols: list[str], *, start: int, batch_size: int) -> tuple[l
     return batch, next_index
 
 
+def _evaluate_symbol(
+    *,
+    symbol: str,
+    providers: dict[str, Any],
+    provider_order: list[str],
+    lookback_days: int,
+    strategy: BreakoutMomentumStrategy,
+    asof_date,
+    log,
+) -> tuple[Any, str | None, str | None]:
+    """Run providers + strategy for one symbol.
+
+    Returns ``(signal_or_None, provider_used_or_None, error_reason_or_None)``. Error reason is
+    ``"no_history"`` / ``"strategy_none"`` / a provider exception text — used only for logs and
+    inactive_reason classification by the caller.
+    """
+    hist = None
+    provider_used: str | None = None
+    last_err: str | None = None
+    for prov_name in provider_order:
+        prov = providers.get(prov_name)
+        if not prov:
+            continue
+        try:
+            hist = prov.get_history(symbol, lookback_days=lookback_days)
+            provider_used = prov_name
+            break
+        except Exception as exc:  # noqa: BLE001
+            last_err = str(exc)
+            log.debug("%s provider=%s error=%s", symbol, prov_name, last_err)
+            continue
+    if hist is None or hist.empty:
+        return None, None, last_err or "no_history"
+    signal = strategy.generate_signal(
+        ticker=symbol,
+        hist=hist,
+        asof_date=asof_date,
+        data_provider=provider_used or "unknown",
+        open_buy=None,
+    )
+    if signal is None:
+        return None, provider_used, "strategy_none"
+    return signal, provider_used, None
+
+
+def _parse_iso_utc(raw: Any) -> datetime | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        s = raw.strip()
+        s = s.replace("Z", "+00:00") if s.endswith("Z") else s
+        dt = datetime.fromisoformat(s)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _is_stale(prev_entry: dict, *, now_utc: datetime, stale_runs: int, stale_days: int) -> bool:
+    if not prev_entry:
+        return False
+    streak = int(prev_entry.get("inactive_runs_streak") or 0)
+    if stale_runs > 0 and streak >= stale_runs:
+        return True
+    last_active_at = _parse_iso_utc(prev_entry.get("last_active_at"))
+    if last_active_at is not None and stale_days > 0:
+        if (now_utc - last_active_at).days >= stale_days:
+            return True
+    return False
+
+
 def main() -> int:
     p = argparse.ArgumentParser(
         description="Build dynamic universe from Finnhub symbols + strategy filters."
@@ -113,7 +190,43 @@ def main() -> int:
         "--merge-days",
         type=int,
         default=0,
-        help="Merge today's candidates with the last N Firestore universe snapshots (0 = off, overwrite only).",
+        help="Carry-over pool size: union the last N snapshots' symbols and re-validate them "
+        "this run (0 = today's batch only).",
+    )
+    p.add_argument(
+        "--top-k",
+        type=int,
+        default=200,
+        help="Cap the number of symbols flagged 'active' (sorted by confidence,score). "
+        "0 disables the cap.",
+    )
+    p.add_argument(
+        "--min-confidence",
+        type=int,
+        default=0,
+        help="Minimum signal confidence (0-100) for a symbol to be eligible for 'active'. "
+        "Below this → marked inactive_low_conf.",
+    )
+    p.add_argument(
+        "--stale-runs",
+        type=int,
+        default=5,
+        help="Mark a previously seen symbol inactive_stale once its inactive streak (consecutive "
+        "runs not active) hits this many. 0 disables.",
+    )
+    p.add_argument(
+        "--stale-days",
+        type=int,
+        default=14,
+        help="Mark a symbol inactive_stale once its last_active_at is older than this many days. "
+        "0 disables.",
+    )
+    p.add_argument(
+        "--revalidate-cap",
+        type=int,
+        default=1000,
+        help="Maximum prior-only carry-over symbols to re-evaluate against the strategy this run "
+        "(API budget guard). 0 = no cap.",
     )
     p.add_argument(
         "--symbols-csv",
@@ -220,44 +333,29 @@ def main() -> int:
     )
 
     strategy = BreakoutMomentumStrategy(cfg.strategy)
-    candidates: list[dict[str, Any]] = []
+
+    asof_date = cfg.asof_date().isoformat()
+    collection = args.firestore_collection or cfg.universe.firestore.collection
+    now_utc = datetime.now(timezone.utc)
+
+    today_results: dict[str, dict[str, Any]] = {}
+    today_failed: set[str] = set()
 
     for symbol in batch:
         log.debug("evaluate %s", symbol)
-        hist = None
-        provider_used = None
-        last_err: str | None = None
-        for prov_name in provider_order:
-            prov = providers.get(prov_name)
-            if not prov:
-                continue
-            try:
-                hist = prov.get_history(symbol, lookback_days=cfg.data.lookback_days)
-                provider_used = prov_name
-                break
-            except Exception as exc:  # noqa: BLE001
-                last_err = str(exc)
-                log.debug("%s provider=%s error=%s", symbol, prov_name, last_err)
-                continue
-        if hist is None or hist.empty:
-            log.debug(
-                "%s skip no_history last_err=%s",
-                symbol,
-                last_err or "-",
-            )
-            continue
-
-        signal = strategy.generate_signal(
-            ticker=symbol,
-            hist=hist,
+        signal, provider_used, err = _evaluate_symbol(
+            symbol=symbol,
+            providers=providers,
+            provider_order=provider_order,
+            lookback_days=cfg.data.lookback_days,
+            strategy=strategy,
             asof_date=cfg.asof_date(),
-            data_provider=provider_used or "unknown",
-            open_buy=None,
+            log=log,
         )
         if signal is None:
-            log.debug("%s skip strategy returned no signal (provider=%s)", symbol, provider_used)
+            log.debug("%s skip reason=%s", symbol, err or "-")
+            today_failed.add(symbol)
             continue
-
         log.debug(
             "%s candidate action=%s conf=%d score=%.3f provider=%s",
             symbol,
@@ -266,106 +364,253 @@ def main() -> int:
             float(signal.score),
             provider_used,
         )
-        candidates.append(
-            {
-                "symbol": symbol,
-                "confidence": signal.confidence,
-                "score": signal.score,
-                "name": symbol_base_details.get(symbol, {}).get("name", ""),
-            }
-        )
-
-    ranked = sorted(candidates, key=lambda x: (-x["confidence"], -x["score"], x["symbol"]))
-    if args.limit > 0:
-        top = ranked[: args.limit]
-    else:
-        top = ranked
-    log.info("Candidates in batch: %d (limit=%s)", len(top), args.limit or "unlimited")
-
-    symbol_details: dict[str, dict] = {}
-    for cand in top:
-        sym = cand["symbol"]
-        symbol_details[sym] = {
-            "name": cand.get("name", ""),
-            "confidence": cand.get("confidence", 0),
-            "score": cand.get("score", 0),
+        today_results[symbol] = {
+            "confidence": int(signal.confidence),
+            "score": float(signal.score),
+            "name": symbol_base_details.get(symbol, {}).get("name", ""),
         }
 
+    if args.limit > 0 and len(today_results) > args.limit:
+        ranked_today = sorted(
+            today_results.items(),
+            key=lambda kv: (-int(kv[1]["confidence"]), -float(kv[1]["score"]), kv[0]),
+        )
+        kept = dict(ranked_today[: args.limit])
+        log.info("Truncating today's batch results: kept=%d dropped=%d (--limit)",
+                 len(kept), len(today_results) - len(kept))
+        today_results = kept
+
+    log.info("Today's batch passes: %d (failures=%d)", len(today_results), len(today_failed))
+
+    prior_set: set[str] = set()
+    if args.merge_days > 0:
+        try:
+            prior_set = set(
+                read_recent_universe_symbols(collection=collection, limit=args.merge_days)
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not read prior universe snapshots: %s", exc)
+            prior_set = set()
+
+    prev_doc = None
+    try:
+        prev_doc = read_latest_universe_snapshot_doc(collection=collection)
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Could not read latest universe snapshot for streaks: %s", exc)
+    prev_details: dict[str, dict[str, Any]] = {}
+    if isinstance(prev_doc, dict):
+        raw_prev = prev_doc.get("symbol_details")
+        if isinstance(raw_prev, dict):
+            for k, v in raw_prev.items():
+                if isinstance(v, dict):
+                    prev_details[str(k).strip().upper()] = v
+
+    prior_only = sorted(prior_set - set(today_results.keys()) - today_failed)
+    if args.revalidate_cap and args.revalidate_cap > 0:
+        to_revalidate = prior_only[: args.revalidate_cap]
+    else:
+        to_revalidate = prior_only
+    unevaluated_prior = set(prior_only) - set(to_revalidate)
+
+    revalidate_results: dict[str, dict[str, Any]] = {}
+    revalidate_failures: set[str] = set()
+    if to_revalidate:
+        log.info("Re-validating %d carry-over symbols (cap=%d, prior_only=%d)",
+                 len(to_revalidate), args.revalidate_cap, len(prior_only))
+    for symbol in to_revalidate:
+        signal, _provider, err = _evaluate_symbol(
+            symbol=symbol,
+            providers=providers,
+            provider_order=provider_order,
+            lookback_days=cfg.data.lookback_days,
+            strategy=strategy,
+            asof_date=cfg.asof_date(),
+            log=log,
+        )
+        if signal is None:
+            log.debug("%s revalidate fail reason=%s", symbol, err or "-")
+            revalidate_failures.add(symbol)
+            continue
+        revalidate_results[symbol] = {
+            "confidence": int(signal.confidence),
+            "score": float(signal.score),
+            "name": prev_details.get(symbol, {}).get("name", "")
+            or symbol_base_details.get(symbol, {}).get("name", ""),
+        }
+
+    passing: dict[str, dict[str, Any]] = {**today_results, **revalidate_results}
+
+    low_conf: set[str] = set()
+    if args.min_confidence > 0:
+        for sym in list(passing.keys()):
+            if int(passing[sym]["confidence"]) < args.min_confidence:
+                low_conf.add(sym)
+                del passing[sym]
+
+    stale: set[str] = set()
+    for sym in list(passing.keys()):
+        prev_entry = prev_details.get(sym, {})
+        if _is_stale(prev_entry, now_utc=now_utc,
+                     stale_runs=args.stale_runs, stale_days=args.stale_days):
+            stale.add(sym)
+            del passing[sym]
+
+    ranked = sorted(
+        passing.items(),
+        key=lambda kv: (-int(kv[1]["confidence"]), -float(kv[1]["score"]), kv[0]),
+    )
+    if args.top_k and args.top_k > 0:
+        active_kv = ranked[: args.top_k]
+        capped_kv = ranked[args.top_k :]
+    else:
+        active_kv = ranked
+        capped_kv = []
+    active_syms = {kv[0] for kv in active_kv}
+    capped_syms = {kv[0] for kv in capped_kv}
+
+    all_symbols: set[str] = set()
+    all_symbols.update(today_results.keys())
+    all_symbols.update(revalidate_results.keys())
+    all_symbols.update(today_failed)
+    all_symbols.update(revalidate_failures)
+    all_symbols.update(low_conf)
+    all_symbols.update(stale)
+    all_symbols.update(capped_syms)
+    all_symbols.update(unevaluated_prior)
+
+    symbol_details: dict[str, dict[str, Any]] = {}
+    now_iso = now_utc.isoformat()
+
+    for sym in all_symbols:
+        prev = prev_details.get(sym, {})
+        new_entry: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
+
+        latest_score = passing.get(sym) or revalidate_results.get(sym) or today_results.get(sym)
+        if latest_score:
+            if latest_score.get("name"):
+                new_entry["name"] = latest_score["name"]
+            new_entry["last_score"] = float(latest_score["score"])
+            new_entry["last_confidence"] = int(latest_score["confidence"])
+            new_entry["last_evaluated_run_at"] = now_iso
+        elif sym in today_failed or sym in revalidate_failures:
+            new_entry["last_evaluated_run_at"] = now_iso
+
+        base_name = symbol_base_details.get(sym, {}).get("name", "")
+        if base_name and not new_entry.get("name"):
+            new_entry["name"] = base_name
+
+        if sym in active_syms:
+            status = "active"
+        elif sym in capped_syms:
+            status = "inactive_capped"
+        elif sym in stale:
+            status = "inactive_stale"
+        elif sym in low_conf:
+            status = "inactive_low_conf"
+        elif sym in revalidate_failures or sym in today_failed:
+            status = "inactive_failed"
+        else:
+            prev_status = str(prev.get("status") or "").strip()
+            status = prev_status if prev_status.startswith("inactive") else "inactive_stale"
+
+        new_entry["status"] = status
+        new_entry["active"] = status == "active"
+        new_entry["inactive_reason"] = "" if status == "active" else status
+
+        if status == "active":
+            new_entry["last_active_at"] = now_iso
+            new_entry["last_active_asof_date"] = asof_date
+            new_entry["inactive_runs_streak"] = 0
+            new_entry.pop("inactive_since_run_at", None)
+        else:
+            prev_streak = int(prev.get("inactive_runs_streak") or 0)
+            new_entry["inactive_runs_streak"] = prev_streak + 1
+            since = prev.get("inactive_since_run_at")
+            new_entry["inactive_since_run_at"] = since if since else now_iso
+
+        symbol_details[sym] = new_entry
+
     api_key = os.getenv("FINNHUB_API_KEY")
-    if api_key and top:
-        log.info("Fetching company profiles for %d candidates...", len(top))
+    if api_key and active_syms:
+        log.info("Fetching company profiles for %d active symbols...", len(active_syms))
         profile_client = finnhub.Client(api_key=api_key)
         import time
-        for i, cand in enumerate(top):
-            sym = cand["symbol"]
+        for i, sym in enumerate(sorted(active_syms)):
             try:
                 profile = profile_client.company_profile2(symbol=sym)
                 if profile:
-                    symbol_details[sym]["sector"] = profile.get("finnhubIndustry", "")
-                    symbol_details[sym]["name"] = profile.get("name", "") or symbol_details[sym].get("name", "")
-                    symbol_details[sym]["country"] = profile.get("country", "")
-                    symbol_details[sym]["market_cap"] = profile.get("marketCapitalization", 0)
+                    cur = symbol_details.setdefault(sym, {})
+                    cur["sector"] = profile.get("finnhubIndustry", "") or cur.get("sector", "")
+                    cur["name"] = profile.get("name", "") or cur.get("name", "")
+                    cur["country"] = profile.get("country", "") or cur.get("country", "")
+                    mc = profile.get("marketCapitalization")
+                    if mc is not None:
+                        cur["market_cap"] = mc
                 if i > 0 and i % 30 == 0:
                     time.sleep(1)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 log.debug("Failed to fetch profile for %s: %s", sym, exc)
 
-    asof_date = cfg.asof_date().isoformat()
-    collection = args.firestore_collection or cfg.universe.firestore.collection
-    new_symbols: set[str] = {str(row["symbol"]) for row in top}
-
-    if args.merge_days > 0:
-        try:
-            prior = read_recent_universe_symbols(
-                collection=collection,
-                limit=args.merge_days,
-            )
-        except Exception as exc:  # noqa: BLE001
-            log.warning("Could not read prior universe snapshots for merge: %s", exc)
-            prior = []
-        prior_set = set(prior)
-        merged = new_symbols | prior_set
-        log.info(
-            "Merge: today_new=%d prior_symbols=%d merged_total=%d (merge_days=%d)",
-            len(new_symbols),
-            len(prior_set),
-            len(merged),
-            args.merge_days,
-        )
-        symbol_list = sorted(merged)
-    else:
-        symbol_list = sorted(new_symbols)
+    all_list = sorted(all_symbols)
+    active_list = sorted(active_syms)
+    inactive_list = sorted(all_symbols - active_syms)
 
     try:
         write_universe_snapshot(
             asof_date=asof_date,
-            symbols=symbol_list,
+            symbols=all_list,
             collection=collection,
             source="finnhub_discovery",
             symbol_details=symbol_details,
+            active_symbols=active_list,
+            inactive_symbols=inactive_list,
         )
     except RuntimeError as exc:
         raise SystemExit(f"ERROR: Firestore universe write failed (check credentials): {exc}") from exc
 
-    if not symbol_list:
+    log.info(
+        "Universe summary asof_date=%s active=%d inactive=%d total=%d "
+        "(today_pass=%d revalidate_pass=%d today_fail=%d revalidate_fail=%d "
+        "low_conf=%d stale=%d capped=%d unevaluated_prior=%d)",
+        asof_date,
+        len(active_list),
+        len(inactive_list),
+        len(all_list),
+        len(today_results),
+        len(revalidate_results),
+        len(today_failed),
+        len(revalidate_failures),
+        len(low_conf),
+        len(stale),
+        len(capped_syms),
+        len(unevaluated_prior),
+    )
+
+    if not all_list:
         log.warning(
-            "No candidates in this batch (start_index=%d); wrote empty Firestore %s/%s",
+            "No symbols in this run (start_index=%d); wrote empty Firestore %s/%s",
             start_index,
             collection,
             asof_date,
         )
     else:
-        log.info("Firestore write collection=%s asof_date=%s count=%d", collection, asof_date, len(symbol_list))
+        log.info(
+            "Firestore write collection=%s asof_date=%s active=%d total=%d",
+            collection,
+            asof_date,
+            len(active_list),
+            len(all_list),
+        )
         if args.verbose:
-            preview = symbol_list[:40]
-            log.debug("Top symbols: %s%s", preview, " …" if len(symbol_list) > 40 else "")
+            preview = active_list[:40]
+            log.debug("Active head: %s%s", preview, " …" if len(active_list) > 40 else "")
 
     if args.output:
         out_path = Path(args.output).expanduser()
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        df = pd.DataFrame({"symbol": symbol_list}, columns=["symbol"])
+        df = pd.DataFrame({"symbol": active_list}, columns=["symbol"])
         df.to_csv(out_path, index=False)
-        log.info("CSV backup path=%s rows=%d", out_path, len(df))
+        log.info("CSV backup (active only) path=%s rows=%d", out_path, len(df))
 
     _save_state(state_path, next_index)
     log.info("Saved state next_index=%d", next_index)

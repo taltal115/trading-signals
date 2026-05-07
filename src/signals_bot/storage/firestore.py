@@ -150,19 +150,58 @@ def write_universe_snapshot(
     collection: str = "universe",
     source: str = "finnhub_discovery",
     symbol_details: dict[str, dict] | None = None,
+    active_symbols: Iterable[str] | None = None,
+    inactive_symbols: Iterable[str] | None = None,
 ) -> None:
+    """Write the daily universe doc.
+
+    ``symbols`` is the **full** list (active + inactive, kept for history / parity with old snapshots).
+    ``active_symbols`` / ``inactive_symbols`` (optional) carry the bot's working slice and the parked
+    rest. Counts are derived. Per-symbol status (``active``, ``status``, ``last_active_at``,
+    ``inactive_runs_streak`` …) belongs in ``symbol_details``.
+    """
     normalized = _normalize_universe_symbols(symbols)
     ts = datetime.now(timezone.utc).isoformat()
-    doc = {
+    doc: dict[str, Any] = {
         "asof_date": asof_date,
         "symbols": normalized,
         "ts_utc": ts,
         "source": source,
     }
+    if active_symbols is not None:
+        active_norm = _normalize_universe_symbols(active_symbols)
+        doc["active_symbols"] = active_norm
+        doc["active_count"] = len(active_norm)
+    if inactive_symbols is not None:
+        inactive_norm = _normalize_universe_symbols(inactive_symbols)
+        doc["inactive_symbols"] = inactive_norm
+        doc["inactive_count"] = len(inactive_norm)
     if symbol_details:
         doc["symbol_details"] = symbol_details
     db = _build_client()
     db.collection(collection).document(asof_date).set(doc)
+
+
+def read_latest_universe_snapshot_doc(
+    *,
+    collection: str = "universe",
+) -> dict[str, Any] | None:
+    """Return the most recent universe document (raw dict) or ``None`` when the collection is empty.
+
+    Used by discovery to inherit per-symbol streaks / ``last_active_at`` between runs without scanning
+    the whole history. Caller decides what to do when the previous doc lacks new fields.
+    """
+    db = _build_client()
+    docs = (
+        db.collection(collection)
+        .order_by("ts_utc", direction=firestore.Query.DESCENDING)
+        .limit(1)
+        .stream()
+    )
+    for snap in docs:
+        data = snap.to_dict() or {}
+        return data
+    return None
 
 
 def read_recent_universe_symbols(
@@ -190,6 +229,20 @@ def read_recent_universe_symbols(
     return sorted(merged)
 
 
+def _bot_symbols_from_doc(data: dict[str, Any]) -> list[str]:
+    """Return the bot's working slice from a universe doc.
+
+    Prefers ``active_symbols`` (the post-revalidation curated set) and falls back to ``symbols``
+    for legacy snapshots written before the active/inactive split.
+    """
+    raw = data.get("active_symbols")
+    if not isinstance(raw, list) or not raw:
+        raw = data.get("symbols") or []
+    if not isinstance(raw, list):
+        return []
+    return _normalize_universe_symbols(str(s) for s in raw)
+
+
 def read_universe_for_date(
     *,
     asof_date: str,
@@ -201,11 +254,9 @@ def read_universe_for_date(
     snap = ref.get()
     if snap.exists:
         data = snap.to_dict() or {}
-        raw = data.get("symbols") or []
-        if isinstance(raw, list) and raw:
-            got = _normalize_universe_symbols(str(s) for s in raw)
-            if got:
-                return got
+        got = _bot_symbols_from_doc(data)
+        if got:
+            return got
 
     if not fallback_latest:
         raise ValueError(
@@ -221,9 +272,9 @@ def read_universe_for_date(
     )
     for doc_snap in latest:
         data = doc_snap.to_dict() or {}
-        raw = data.get("symbols") or []
-        if isinstance(raw, list) and raw:
-            return _normalize_universe_symbols(str(s) for s in raw)
+        got = _bot_symbols_from_doc(data)
+        if got:
+            return got
         break
 
     raise ValueError(

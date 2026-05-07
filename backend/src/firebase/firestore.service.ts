@@ -163,16 +163,125 @@ export class FirestoreService implements OnModuleInit {
     throw new InternalServerErrorException('Firestore query failed');
   }
 
-  async listUniverse(limitN: number): Promise<{ id: string; data: DocumentData }[]> {
+  /**
+   * Paginated universe **snapshot list** (metadata only — no `symbols` / `symbol_details` in the response
+   * payload). Use `getUniverseSymbolPage` for symbol rows.
+   */
+  async listUniversePage(
+    pageSize: number,
+    cursorDocId?: string,
+  ): Promise<{
+    docs: {
+      id: string;
+      data: {
+        asof_date?: unknown;
+        ts_utc?: unknown;
+        source?: unknown;
+        symbol_count: number;
+        active_count: number;
+        inactive_count: number;
+      };
+    }[];
+    nextCursor: string | null;
+  }> {
     try {
-      const snap = await this.db
+      let q: admin.firestore.Query = this.db
         .collection('universe')
         .orderBy('ts_utc', 'desc')
-        .limit(limitN)
-        .get();
-      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+        .limit(pageSize + 1);
+      const cur = cursorDocId?.trim();
+      if (cur) {
+        const curSnap = await this.db.collection('universe').doc(cur).get();
+        if (!curSnap.exists) {
+          throw new NotFoundException('Invalid pagination cursor');
+        }
+        q = q.startAfter(curSnap);
+      }
+      const snap = await q.get();
+      const hasMore = snap.docs.length > pageSize;
+      const page = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+      const nextCursor = hasMore && page.length > 0 ? page[page.length - 1].id : null;
+      return {
+        docs: page.map((d) => {
+          const raw = toPlainDoc(d.data());
+          const syms = raw['symbols'];
+          const total = Array.isArray(syms) ? syms.length : 0;
+          let activeCount = Number.isFinite(Number(raw['active_count']))
+            ? Number(raw['active_count'])
+            : Array.isArray(raw['active_symbols'])
+              ? (raw['active_symbols'] as unknown[]).length
+              : -1;
+          let inactiveCount = Number.isFinite(Number(raw['inactive_count']))
+            ? Number(raw['inactive_count'])
+            : Array.isArray(raw['inactive_symbols'])
+              ? (raw['inactive_symbols'] as unknown[]).length
+              : -1;
+          // Legacy snapshot (no active/inactive split): treat all as active.
+          if (activeCount < 0 && inactiveCount < 0) {
+            activeCount = total;
+            inactiveCount = 0;
+          } else {
+            if (activeCount < 0) activeCount = Math.max(0, total - Math.max(0, inactiveCount));
+            if (inactiveCount < 0) inactiveCount = Math.max(0, total - Math.max(0, activeCount));
+          }
+          return {
+            id: d.id,
+            data: {
+              asof_date: raw['asof_date'],
+              ts_utc: raw['ts_utc'],
+              source: raw['source'],
+              symbol_count: total,
+              active_count: activeCount,
+              inactive_count: inactiveCount,
+            },
+          };
+        }),
+        nextCursor,
+      };
     } catch (e) {
-      this.handleFirestoreListError('listUniverse', e);
+      if (e instanceof NotFoundException) {
+        throw e;
+      }
+      this.handleFirestoreListError('listUniversePage', e);
+    }
+  }
+
+  /** One page of symbols for a universe snapshot document (full doc read; sliced in memory). */
+  async getUniverseSymbolPage(
+    docId: string,
+    offset: number,
+    limit: number,
+  ): Promise<{
+    total: number;
+    offset: number;
+    limit: number;
+    rows: { ticker: string; detail: DocumentData }[];
+  }> {
+    try {
+      const ref = this.db.collection('universe').doc(docId.trim());
+      const snap = await ref.get();
+      if (!snap.exists) {
+        throw new NotFoundException('Universe snapshot not found');
+      }
+      const data = toPlainDoc(snap.data());
+      const symbols = Array.isArray(data['symbols'])
+        ? (data['symbols'] as unknown[]).map((s) => String(s).trim().toUpperCase()).filter(Boolean)
+        : [];
+      const details =
+        data['symbol_details'] && typeof data['symbol_details'] === 'object' && !Array.isArray(data['symbol_details'])
+          ? (data['symbol_details'] as Record<string, unknown>)
+          : {};
+      const slice = symbols.slice(offset, offset + limit);
+      const rows = slice.map((ticker) => ({
+        ticker,
+        detail: toPlainDoc(details[ticker] as DocumentData | undefined) as DocumentData,
+      }));
+      return { total: symbols.length, offset, limit, rows };
+    } catch (e) {
+      if (e instanceof NotFoundException) {
+        throw e;
+      }
+      this.handleFirestoreListError('getUniverseSymbolPage', e);
     }
   }
 

@@ -136,18 +136,6 @@
         }
         @if (sidebarUser) {
           <span id="header-user-email" class="sidebar-user-email">{{ authSvc.displayEmail(sidebarUser) }}</span>
-        }
-        @if (!env.devAuthBypass) {
-          <a
-            routerLink="/login"
-            class="sidebar-auth-btn sidebar-auth-signin nav-link"
-            id="nav-sign-in"
-            [hidden]="!!sidebarUser"
-          >
-            Sign in with Google
-          </a>
-        }
-        @if (sidebarUser) {
           <button
             type="button"
             class="sidebar-auth-btn sidebar-auth-signout"
@@ -156,6 +144,14 @@
           >
             {{ env.devAuthBypass ? 'Clear session' : 'Sign out' }}
           </button>
+        } @else if (!env.devAuthBypass) {
+          <a
+            routerLink="/login"
+            class="sidebar-auth-btn sidebar-auth-signin nav-link"
+            id="nav-sign-in"
+          >
+            Sign in with Google
+          </a>
         }
       </div>
     </aside>

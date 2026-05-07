@@ -1505,6 +1505,207 @@ button.btn-ai-eval:disabled {
   cursor: default;
 }
 
+.sig-ai-toggle-cell {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.sig-ai-toggle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+button.btn-sig-ai-summary {
+  padding: 0.28rem 0.5rem;
+  font-size: 0.72rem;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+button.btn-sig-ai-summary:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+button.btn-sig-ai-summary.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button.btn-sig-ai-summary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.sig-ai-action-chip {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.sig-ai-action-chip.ai-action-buy {
+  color: var(--buy);
+  border-color: rgba(63, 185, 80, 0.55);
+  background: rgba(63, 185, 80, 0.12);
+}
+
+.sig-ai-action-chip.ai-action-sell {
+  color: var(--sell);
+  border-color: rgba(248, 81, 73, 0.55);
+  background: rgba(248, 81, 73, 0.12);
+}
+
+.sig-ai-action-chip.ai-action-wait {
+  color: var(--wait);
+  border-color: rgba(210, 153, 34, 0.55);
+  background: rgba(210, 153, 34, 0.12);
+}
+
+.sig-ai-action-chip.ai-action-other {
+  color: var(--accent);
+  border-color: rgba(61, 214, 198, 0.45);
+  background: rgba(61, 214, 198, 0.1);
+}
+
+tr.sig-ai-summary-tr > td.sig-ai-summary-cell {
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.sig-ai-summary-panel {
+  padding: 0.85rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  max-width: 56rem;
+}
+
+.sig-ai-summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.85rem;
+  font-size: 0.82rem;
+}
+
+.sig-ai-summary-ticker {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.sig-ai-summary-meta {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.sig-ai-summary-ts {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.sig-ai-summary-source {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--border);
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+}
+
+.sig-ai-summary-source.is-stub {
+  color: var(--wait);
+  border-color: rgba(210, 153, 34, 0.5);
+}
+
+.sig-ai-summary-text,
+.sig-ai-summary-why,
+.sig-ai-invalidation {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.sig-ai-summary-why,
+.sig-ai-invalidation {
+  color: var(--muted);
+}
+
+.sig-ai-summary-why strong,
+.sig-ai-invalidation strong {
+  color: var(--text);
+  margin-right: 0.25rem;
+}
+
+.sig-ai-scores-grid {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) 1fr;
+  gap: 0.3rem 1rem;
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.sig-ai-scores-grid dt {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.sig-ai-scores-grid dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.sig-ai-target-chip {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  margin-right: 0.4rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  font-size: 0.74rem;
+}
+
+.sig-ai-list-block {
+  font-size: 0.8rem;
+}
+
+.sig-ai-list-block strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--text);
+}
+
+.sig-ai-list-block ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sig-ai-empty {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
 .signals-main-table .muted-cell {
   color: var(--muted);
   font-size: 0.78rem;

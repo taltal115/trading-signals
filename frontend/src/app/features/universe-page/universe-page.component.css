@@ -1,10 +1,130 @@
+.universe-pagination,
+.universe-symbol-pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0 0 0.75rem;
+}
+
+.universe-symbol-pagination {
+  margin-bottom: 0.5rem;
+}
+
+.universe-page-btn {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface, #21262d);
+  color: var(--text, #e6edf3);
+  cursor: pointer;
+}
+
+.universe-page-btn:hover:not(:disabled) {
+  border-color: var(--accent, #58a6ff);
+  color: var(--accent, #58a6ff);
+}
+
+.universe-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.universe-page-meta {
+  font-size: 0.85rem;
+  color: var(--muted, #9aa0a6);
+}
+
+.universe-page-loading {
+  font-style: italic;
+}
+
+.universe-symbols-hint,
+.universe-symbols-err {
+  margin: 0 0 0.5rem;
+  font-size: 0.88rem;
+}
+
+.universe-symbols-err {
+  color: var(--sell, #f85149);
+}
+
 .universe-symbols-panel table td.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.universe-symbols-panel table thead th:nth-child(4),
 .universe-symbols-panel table thead th:nth-child(5),
-.universe-symbols-panel table thead th:nth-child(8) {
+.universe-symbols-panel table thead th:nth-child(6),
+.universe-symbols-panel table thead th:nth-child(9) {
   text-align: right;
+}
+
+.universe-active-count {
+  font-weight: 600;
+}
+
+.universe-total-count {
+  color: var(--muted, #9aa0a6);
+}
+
+.universe-inactive-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05em 0.4em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 4px;
+  background: rgba(110, 118, 129, 0.18);
+  color: var(--muted, #9aa0a6);
+  border: 1px solid var(--border, #444);
+}
+
+.universe-symbols-panel tr.is-inactive {
+  opacity: 0.7;
+}
+
+.universe-status-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.15em 0.45em;
+  border-radius: 4px;
+  line-height: 1.2;
+  border: 1px solid var(--border, #444);
+  color: var(--text, #e6edf3);
+  background: rgba(110, 118, 129, 0.15);
+}
+
+.universe-status-badge[data-status='active'] {
+  background: rgba(63, 185, 80, 0.2);
+  color: var(--buy, #3fb950);
+  border-color: rgba(63, 185, 80, 0.45);
+}
+
+.universe-status-badge[data-status='inactive_capped'] {
+  background: rgba(88, 166, 255, 0.18);
+  color: var(--accent, #58a6ff);
+  border-color: rgba(88, 166, 255, 0.42);
+}
+
+.universe-status-badge[data-status='inactive_low_conf'] {
+  background: rgba(247, 184, 75, 0.18);
+  color: var(--wait, #f7b84b);
+  border-color: rgba(247, 184, 75, 0.42);
+}
+
+.universe-status-badge[data-status='inactive_stale'] {
+  background: rgba(139, 148, 158, 0.22);
+  color: var(--muted, #9aa0a6);
+  border-color: rgba(139, 148, 158, 0.45);
+}
+
+.universe-status-badge[data-status='inactive_failed'] {
+  background: rgba(248, 81, 73, 0.18);
+  color: var(--sell, #f85149);
+  border-color: rgba(248, 81, 73, 0.42);
 }

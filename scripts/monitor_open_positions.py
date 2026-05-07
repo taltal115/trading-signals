@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -36,6 +37,12 @@ from signals_bot.trading_calendar import add_ny_sessions, xnys_sessions_between
 
 NEAR_THRESHOLD_PCT = 0.75
 
+# Checks subcollection lines look like: "YYYY-MM-DD TAG: $spot P/L=x.x% — summary"
+_TRAIL_LINE_RE = re.compile(
+    r"^(?P<d>\d{4}-\d{2}-\d{2}) (?P<tag>\w+):\s*\$(?P<spot>[\d.]+)"
+    r"(?: P/L=(?P<pnl>[+-]?[\d.]+)%)?\s*—\s*(?P<summary>.*)$"
+)
+
 
 @dataclass(frozen=True)
 class Alert:
@@ -48,6 +55,8 @@ class Alert:
     #: Latest OHLC row (typically today's partial daily bar via Yahoo/Stooq).
     session_high: float | None = field(default=None)
     session_low: float | None = field(default=None)
+    #: For DURATION_DUE: which deadline fired first — shorter Slack copy uses this.
+    duration_trigger: str | None = field(default=None)
 
 
 def _build_firestore_client() -> firestore.Client:
@@ -134,12 +143,6 @@ def _pnl_str(entry_f: float | None, spot: float) -> str:
         return ""
     pnl = ((spot - entry_f) / entry_f) * 100.0
     return f" ({pnl:+.1f}%)"
-
-
-def _dist_to_target_str(spot: float, target_f: float) -> str:
-    gap = target_f - spot
-    pct = (gap / target_f) * 100.0 if target_f else 0
-    return f"${gap:.2f} ({pct:.1f}%) away from target ${target_f:.2f}"
 
 
 def _compute_atr_hold_est(
@@ -276,25 +279,29 @@ def _eval_position(
     )
 
     if original_due or atr_due:
-        trigger = "original signal hold" if original_due else "ATR re-estimate"
-        hold_ctx = ""
-        if isinstance(hold_days, int) and age_days is not None:
+        trig_code = "original" if original_due else "atr"
+        trig_label = "signal hold plan" if original_due else "ATR-based timeline"
+        due_bit = ""
+        if isinstance(hold_days, int) and hold_days > 0:
             due_str = _due_date_str(created_s, hold_days, market_tz=market_tz)
-            hold_ctx = f" Original hold: {hold_days}d (due {due_str})."
-        atr_ctx = ""
-        if atr_hold_est is not None:
-            atr_ctx = f" ATR re-estimate: {atr_hold_est}d total needed."
-        target_ctx = ""
+            if due_str:
+                due_bit = f", due {due_str}"
+        target_bit = ""
         if target_f is not None and last_close < target_f:
-            target_ctx = f" Target ${target_f:.2f} still {_dist_to_target_str(last_close, target_f)}."
+            gap = target_f - last_close
+            pct = (gap / target_f) * 100.0 if target_f else 0.0
+            target_bit = f" Target still {pct:.1f}% above spot (${gap:.2f} below ${target_f:.2f})."
+        atr_bit = ""
+        if atr_hold_est is not None:
+            atr_bit = f" ATR calendar ≈{atr_hold_est}d to target."
 
         return Alert(
             "DURATION_DUE",
             72,
-            f"{ticker} signal hold period expired ({trigger}). "
-            f"Day {age_days} of {hold_days or '?'}. Price ${last_close:.2f}.{pnl}"
-            f"{hold_ctx}{atr_ctx}{target_ctx}",
+            f"{ticker}: max hold ({trig_label}) — {age_days}/{hold_days or '?'} sessions @ "
+            f"${last_close:.2f}{pnl}{due_bit}.{target_bit}{atr_bit}",
             atr_hold_est=atr_hold_est,
+            duration_trigger=trig_code,
         )
 
     earliest_deadline = None
@@ -312,12 +319,12 @@ def _eval_position(
         atr_ctx = ""
         if atr14 and target_f and last_close < target_f:
             est_left = (target_f - last_close) / atr14
-            atr_ctx = f" ATR suggests ~{est_left:.1f} more days to reach target."
+            atr_ctx = f" ~{est_left:.1f}d to target (ATR rough est.)."
         return Alert(
             "HOLD_REVIEW",
             60,
-            f"{ticker} hold expires tomorrow (day {age_days} of {hold_days or '?'}). "
-            f"Price ${last_close:.2f}.{pnl}{atr_ctx}",
+            f"{ticker}: last session before hold end — day {age_days}/{hold_days or '?'} @ "
+            f"${last_close:.2f}.{pnl}{atr_ctx}",
             atr_hold_est=atr_hold_est,
         )
 
@@ -415,6 +422,128 @@ def _load_reason_trail(ref: firestore.DocumentReference) -> list[str]:
         return []
 
 
+def _compress_reason_trail_for_slack(raw: list[str]) -> list[str]:
+    """Merge same-calendar-day WAIT checks; drop verbose SELL summaries (prices shown above)."""
+    if not raw:
+        return []
+
+    parsed: list[dict[str, Any]] = []
+    for ln in raw:
+        m = _TRAIL_LINE_RE.match(ln.strip())
+        if not m:
+            parsed.append({"raw": ln})
+            continue
+        pnl_v: float | None = None
+        if m.group("pnl"):
+            try:
+                pnl_v = float(m.group("pnl"))
+            except ValueError:
+                pass
+        parsed.append(
+            {
+                "date": m.group("d"),
+                "tag": m.group("tag"),
+                "spot": float(m.group("spot")),
+                "pnl": pnl_v,
+                "summary": (m.group("summary") or "").strip(),
+            }
+        )
+
+    out: list[str] = []
+    i = 0
+    while i < len(parsed):
+        p = parsed[i]
+        if "raw" in p:
+            out.append(f"  {p['raw']}")
+            i += 1
+            continue
+        tag = p["tag"]
+
+        if tag == "WAIT":
+            j = i
+            while j + 1 < len(parsed):
+                n = parsed[j + 1]
+                if "raw" in n or n.get("tag") != "WAIT" or n["date"] != p["date"]:
+                    break
+                j += 1
+            group = parsed[i : j + 1]
+            if len(group) == 1:
+                g = group[0]
+                sm = g["summary"]
+                if len(sm) > 52:
+                    sm = sm[:51] + "…"
+                pn = f" P/L={g['pnl']:+.1f}%" if g["pnl"] is not None else ""
+                out.append(f"  {g['date']} WAIT: ${g['spot']:.2f}{pn} — {sm}")
+            else:
+                spots = [x["spot"] for x in group]
+                pnls = [x["pnl"] for x in group if x["pnl"] is not None]
+                lo, hi = min(spots), max(spots)
+                ptxt = ""
+                if pnls:
+                    a, b = min(pnls), max(pnls)
+                    ptxt = f" · P/L {a:+.1f}%…{b:+.1f}%"
+                out.append(
+                    f"  {group[0]['date']} WAIT ({len(group)}× intraday):"
+                    f" ${lo:.2f}–${hi:.2f}{ptxt}"
+                )
+            i = j + 1
+            continue
+
+        if tag == "SELL":
+            pn = f" P/L={p['pnl']:+.1f}%" if p["pnl"] is not None else ""
+            out.append(f"  {p['date']} SELL: ${p['spot']:.2f}{pn}")
+            i += 1
+            continue
+
+        sm = p["summary"]
+        if len(sm) > 52:
+            sm = sm[:51] + "…"
+        pn = f" P/L={p['pnl']:+.1f}%" if p["pnl"] is not None else ""
+        out.append(f"  {p['date']} {tag}: ${p['spot']:.2f}{pn} — {sm}")
+        i += 1
+
+    max_lines = 8
+    if len(out) <= max_lines:
+        return out
+    head = max_lines // 2
+    tail = max_lines - head - 1
+    return (
+        out[:head]
+        + [f"  _…{len(out) - head - tail} earlier line(s) folded…_"]
+        + out[-tail:]
+    )
+
+
+def _slack_exit_summary_markdown(
+    alert: Alert,
+    data: dict[str, Any],
+    *,
+    last_close: float | None,
+) -> str:
+    """One or two sentences for Slack; avoids repeating the header lines above."""
+    if alert.kind == "DURATION_DUE":
+        rule = (
+            "The original signal hold length was reached first."
+            if alert.duration_trigger == "original"
+            else (
+                "The ATR-based hold horizon was reached first."
+                if alert.duration_trigger == "atr"
+                else "A max-hold rule fired."
+            )
+        )
+        parts: list[str] = [rule]
+        tgt_raw = data.get("target_price")
+        target_f = float(tgt_raw) if isinstance(tgt_raw, (int, float)) else None
+        if target_f is not None and last_close is not None and last_close < target_f:
+            gap = target_f - last_close
+            pct = (gap / target_f) * 100.0 if target_f else 0.0
+            parts.append(f"Target was still ~{pct:.1f}% away (${gap:.2f} to go).")
+        if alert.atr_hold_est is not None:
+            parts.append(f"ATR rough estimate had been ~{alert.atr_hold_est}d to target.")
+        return " ".join(parts)
+    return alert.message
+
+
 def _format_owner_tag(data: dict[str, Any]) -> str:
     """Identify which tenancy row this Slack/log line belongs to (multi-user monitors)."""
     name = str(data.get("owner_display_name") or "").strip()
@@ -478,19 +607,21 @@ def _build_exit_attachment(
         if due_str:
             hold_line += f" (was due {due_str})"
         if alert.atr_hold_est is not None:
-            hold_line += f" | ATR re-est: {alert.atr_hold_est}d"
+            hold_line += f" | ATR est ~{alert.atr_hold_est}d to target"
         lines.append(hold_line)
     elif days_held is not None:
         lines.append(f"Held: {days_held}d")
 
     lines.append("")
-    lines.append(f"*Reason:* {alert.message}")
+    summary = _slack_exit_summary_markdown(alert, data, last_close=last_close)
+    lines.append(f"*Summary:* {summary}")
 
     if reason_trail:
+        compact = _compress_reason_trail_for_slack(reason_trail)
         lines.append("")
-        lines.append("*Decision trail:*")
-        for entry in reason_trail[-8:]:
-            lines.append(f"  {entry}")
+        lines.append("*Recent checks (compressed):*")
+        for entry in compact:
+            lines.append(entry)
 
     body = "\n".join(lines)
     color = sector_color(str(sector)) if sector else "#e74c3c"

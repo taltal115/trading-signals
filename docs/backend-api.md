@@ -77,7 +77,8 @@ For real Google sign-in locally, set `AUTH_BYPASS_LOCAL=false`, provide `GOOGLE_
 - `GET /api/auth/google` — start OAuth.
 - `GET /api/auth/google/callback` — OAuth callback; sets session; redirects to `FRONTEND_URL/dashboard`.
 - `POST /api/auth/logout` — clears session.
-- `GET /api/universe`, `GET /api/signals` — public reads (mirrors previous client limits).
+- `GET /api/universe` — query `limit` (default 5, max 50), optional `cursor` (last snapshot doc id from previous page). Each row exposes `asof_date`, `ts_utc`, `source`, `symbol_count` (full list), and `active_count` / `inactive_count` derived from the snapshot's `active_symbols` / `inactive_symbols` (legacy snapshots count everything as active). Response also includes `nextCursor`. `GET /api/universe/:id/symbols` — query `offset` (default 0) and `limit` (default 3, max 100). Each row's `detail` includes Finnhub profile fields plus per-symbol status: `active`, `status` (`active`/`inactive_failed`/`inactive_low_conf`/`inactive_stale`/`inactive_capped`), `inactive_reason`, `last_score`, `last_confidence`, `last_active_at`, `inactive_runs_streak`.
+- `GET /api/signals` — public reads (mirrors previous client limits).
 - `GET|POST|PATCH /api/positions...`, `GET /api/monitor/checks` — session required (or bypass user).
 - `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**).
 - `POST /api/github/workflows/bot-scan` — body `{ "ticker": "AAPL" }`; dispatches `trading-bot-scan.yml` (**Re-eval**). Both require session + `GITHUB_PERSONAL_TOKEN` on the server.

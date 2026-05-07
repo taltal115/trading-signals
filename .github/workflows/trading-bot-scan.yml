@@ -1,9 +1,10 @@
-name: Hourly Trading Bot Scan
+name: Premarket trading bot scan
 
 on:
   schedule:
-    # Run every hour, Monday through Friday, during market hours (approx 14:00 - 21:00 UTC)
-    - cron: "0 14-21 * * 1-5"
+    # ~1 hour before US cash open (09:30 America/New_York). UTC crons + NY gate (see below).
+    - cron: "30 12 * * 1-5"
+    - cron: "30 13 * * 1-5"
   workflow_dispatch:
     inputs:
       ticker:
@@ -18,21 +19,49 @@ jobs:
       contents: write
 
     steps:
+      - name: Gate (~08:30 America/New_York, Mon–Fri) or manual dispatch
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "manual workflow_dispatch → run"
+            exit 0
+          fi
+          python3 <<'PY'
+          from datetime import datetime
+          from zoneinfo import ZoneInfo
+          import os
+
+          ny = datetime.now(ZoneInfo("America/New_York"))
+          if ny.weekday() >= 5:
+              print("run=false — weekend")
+              open(os.environ["GITHUB_OUTPUT"], "a").write("run=false\n")
+              raise SystemExit(0)
+          # Target ~1h before 09:30 ET open → 08:30 local.
+          ok = ny.hour == 8 and 5 <= ny.minute <= 55
+          print(f"NY={ny.isoformat()} gate_ok={ok} (want ~08:30 ET)")
+          open(os.environ["GITHUB_OUTPUT"], "a").write(f"run={'true' if ok else 'false'}\n")
+          PY
+
       - name: Checkout code
+        if: steps.gate.outputs.run == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Python
+        if: steps.gate.outputs.run == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
 
       - name: Install dependencies
+        if: steps.gate.outputs.run == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Check Firestore credentials secret
+        if: steps.gate.outputs.run == 'true'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
@@ -42,6 +71,7 @@ jobs:
           fi
 
       - name: Run Trading Bot
+        if: steps.gate.outputs.run == 'true'
         env:
           FLEX_API_KEY: ${{ secrets.FLEX_API_KEY }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
@@ -56,4 +86,3 @@ jobs:
             TICKER_ARG="--ticker ${{ github.event.inputs.ticker }}"
           fi
           PYTHONPATH=./src python -m signals_bot.main --config config.yaml $TICKER_ARG
-

@@ -42,7 +42,7 @@ flowchart LR
 
 | Collection / query | Usage |
 |--------------------|--------|
-| `universe` | `orderBy ts_utc desc limit 30` |
+| `universe` | API: `GET /api/universe?limit=&cursor=` returns lightweight rows including `active_count` / `inactive_count`; `GET /api/universe/:id/symbols?offset=&limit=` returns per-symbol detail with `status` / `active` flags. Firestore: `orderBy ts_utc desc` with cursor. |
 | `signals` | `orderBy ts_utc desc limit 25` |
 | `my_positions` | `where owner_uid == uid`, `orderBy created_at_utc desc limit 60` |
 | `my_positions/{id}/checks` | Monitor expand rows |

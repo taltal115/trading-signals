@@ -104,6 +104,105 @@ type StockDetailEntry =
   | { expanded: true; status: 'error'; message: string }
   | { expanded: true; status: 'ok'; data: StockSnapshot };
 
+/** Normalized payload mirroring `signals[i].ai_evaluation` (see scripts/ai_stock_eval/firestore_write.py). */
+export interface AiEvaluationView {
+  action: string;
+  actionClass: string;
+  convictionPct: number | null;
+  total: number | null;
+  candidate: number | null;
+  aiComponent: number | null;
+  summary: string;
+  whyNow: string;
+  timeframe: string;
+  source: string;
+  evaluatedAt: string;
+  entry: { min: number | null; ideal: number | null; max: number | null } | null;
+  stop: number | null;
+  targets: { label: string; price: number | null }[];
+  riskReward: number | null;
+  positionSize: string;
+  risks: string[];
+  invalidation: string;
+  confidenceFactors: string[];
+}
+
+function _num(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'string' ? Number(v.trim()) : Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function _str(v: unknown): string {
+  if (v == null) return '';
+  return String(v).trim();
+}
+
+function _strList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => _str(x)).filter((s) => s.length > 0);
+}
+
+function aiActionClassOf(action: string): string {
+  const a = action.trim().toUpperCase();
+  if (a === 'BUY' || a === 'STRONG_BUY') return 'ai-action-buy';
+  if (a === 'SELL' || a === 'STRONG_SELL') return 'ai-action-sell';
+  if (a === 'WAIT' || a === 'HOLD' || a === 'NEUTRAL') return 'ai-action-wait';
+  return 'ai-action-other';
+}
+
+function buildAiEvaluationView(raw: unknown): AiEvaluationView | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  const llm = r['llm'] as Record<string, unknown> | undefined;
+  const verdict = (llm?.['verdict'] as Record<string, unknown> | undefined) ?? {};
+  const scores = (r['scores'] as Record<string, unknown> | undefined) ?? {};
+  const breakdown = (scores['breakdown'] as Record<string, unknown> | undefined) ?? {};
+
+  const action = _str(verdict['action']) || '—';
+  const conviction = _num(verdict['conviction']);
+  const ez = verdict['entry_zone'] as Record<string, unknown> | undefined;
+  const targetsRaw = Array.isArray(verdict['targets']) ? (verdict['targets'] as unknown[]) : [];
+  const targets = targetsRaw
+    .map((t, i) => {
+      const o = t && typeof t === 'object' ? (t as Record<string, unknown>) : {};
+      return {
+        label: _str(o['label']) || `T${i + 1}`,
+        price: _num(o['price']),
+      };
+    })
+    .filter((t) => t.price != null);
+
+  return {
+    action,
+    actionClass: aiActionClassOf(action),
+    convictionPct:
+      conviction == null ? null : conviction <= 1 + 1e-9 ? conviction * 100 : conviction,
+    total: _num(scores['total']),
+    candidate: _num(scores['candidate_score']),
+    aiComponent: _num(breakdown['ai_component']),
+    summary: _str(verdict['summary']),
+    whyNow: _str(verdict['why_now']),
+    timeframe: _str(verdict['timeframe']),
+    source: _str(llm?.['source']) || 'unknown',
+    evaluatedAt: _str(r['evaluated_at_utc']),
+    entry: ez
+      ? {
+          min: _num(ez['min_price']),
+          ideal: _num(ez['ideal_price']),
+          max: _num(ez['max_price']),
+        }
+      : null,
+    stop: _num(verdict['stop_loss']),
+    targets,
+    riskReward: _num(verdict['risk_reward_ratio']),
+    positionSize: _str(verdict['position_size_suggestion']),
+    risks: _strList(verdict['risks']),
+    invalidation: _str(verdict['invalidation']),
+    confidenceFactors: _strList(verdict['confidence_factors']),
+  };
+}
+
 @Component({
   selector: 'app-signals-page',
   standalone: true,
@@ -149,6 +248,9 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
 
   /** Per signal row: expanded Finnhub quote + company profile. */
   readonly stockDetailByRow = signal<Record<string, StockDetailEntry>>({});
+
+  /** Per signal row (instanceKey): whether the inline AI summary panel is expanded. */
+  readonly aiSummaryOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
 
   readonly bracketPct = signal<BracketPct | null>(null);
   private signalMeta: {
@@ -761,6 +863,59 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   aiEvalDisabled(rowKey: string): boolean {
     const st = this.aiEvalState();
     return this.guestMode() || (st?.key === rowKey && st.phase === 'loading');
+  }
+
+  /** True when this signal row already has an `ai_evaluation` payload. */
+  hasAiEval(row: SigDisplayRow): boolean {
+    const v = row.s['ai_evaluation'];
+    return !!(v && typeof v === 'object');
+  }
+
+  aiSummaryOpen(instanceKey: string): boolean {
+    return this.aiSummaryOpenByRow().has(instanceKey);
+  }
+
+  toggleAiSummary(instanceKey: string, ev?: Event): void {
+    ev?.stopPropagation?.();
+    this.aiSummaryOpenByRow.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(instanceKey)) next.delete(instanceKey);
+      else next.add(instanceKey);
+      return next;
+    });
+  }
+
+  aiSummaryToggleLabel(row: SigDisplayRow): string {
+    if (this.aiSummaryOpen(row.instanceKey)) return 'Hide';
+    return this.hasAiEval(row) ? 'View' : '—';
+  }
+
+  /** Compact action chip text shown next to the toggle when an evaluation exists. */
+  aiActionChip(row: SigDisplayRow): { label: string; cls: string } | null {
+    const view = this.aiViewForRow(row);
+    if (!view) return null;
+    return { label: view.action, cls: view.actionClass };
+  }
+
+  aiViewForRow(row: SigDisplayRow): AiEvaluationView | null {
+    return buildAiEvaluationView(row.s['ai_evaluation']);
+  }
+
+  fmtAiPct(n: number | null): string {
+    if (n == null || !Number.isFinite(n)) return '—';
+    return fmtUiPercent(n) + '%';
+  }
+
+  fmtAiNumber(n: number | null, digits = 2): string {
+    if (n == null || !Number.isFinite(n)) return '—';
+    return n.toFixed(digits);
+  }
+
+  fmtAiTimestamp(iso: string): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
   }
 
   /** Angular templates cannot call global `String`. */

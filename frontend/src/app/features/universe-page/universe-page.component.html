@@ -4,9 +4,34 @@
     <p class="empty-state" id="universe-hint">Loading…</p>
   } @else if (error()) {
     <p class="empty-state" id="universe-hint">{{ error() }}</p>
-  } @else if (docs().length === 0) {
+  } @else if (snapshotPages().length === 0 || currentSnapshots().length === 0) {
     <p class="empty-state" id="universe-hint">No universe documents yet.</p>
   } @else {
+    <div class="universe-pagination" role="navigation" aria-label="Snapshot pages">
+      <button
+        type="button"
+        class="universe-page-btn"
+        (click)="prevSnapshotPage()"
+        [disabled]="!canPrevSnapshots() || loadingSnapshotPage()"
+      >
+        Previous
+      </button>
+      <span class="universe-page-meta"
+        >Page {{ snapshotPageLabel() }}
+        @if (loadingSnapshotPage()) {
+          <span class="universe-page-loading"> …</span>
+        }
+      </span>
+      <button
+        type="button"
+        class="universe-page-btn"
+        (click)="nextSnapshotPage()"
+        [disabled]="!canNextSnapshots() || loadingSnapshotPage()"
+      >
+        Next
+      </button>
+    </div>
+
     <div class="table-wrap" id="universe-table-wrap">
       <table>
         <thead>
@@ -14,53 +39,105 @@
             <th>asof_date</th>
             <th>ts_utc</th>
             <th>source</th>
-            <th># symbols</th>
+            <th>active / total</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="universe-body">
-          @for (d of docs(); track d.id) {
+          @for (d of currentSnapshots(); track d.id) {
             <tr class="universe-row" [class.is-open]="expandedId() === d.id" (click)="toggleRow(d.id)">
               <td class="code">{{ d.asof_date || d.id }}</td>
               <td class="code">{{ d.ts_utc || '' }}</td>
               <td>{{ d.source || '' }}</td>
-              <td>{{ d.symbols.length }}</td>
+              <td class="num">
+                <span class="universe-active-count">{{ d.active_count }}</span>
+                <span class="universe-total-count"> / {{ d.symbol_count }}</span>
+                @if (d.inactive_count > 0) {
+                  <span class="universe-inactive-badge" title="Symbols carried over but not active for the bot">
+                    {{ d.inactive_count }} inactive
+                  </span>
+                }
+              </td>
               <td class="col-expand" aria-hidden="true">▾</td>
             </tr>
             @if (expandedId() === d.id) {
               <tr class="universe-expand">
                 <td colspan="5">
                   <div class="universe-symbols-panel">
-                    <table>
-                      <caption>{{ d.symbols.length }} symbols · {{ d.asof_date || d.id }}</caption>
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Symbol</th>
-                          <th>Name</th>
-                          <th>Conf</th>
-                          <th>Score</th>
-                          <th>Sector</th>
-                          <th>Country</th>
-                          <th>Market cap</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (sym of d.symbols; track $index; let idx = $index) {
-                          @let det = d.symbol_details?.[sym] || {};
+                    @let st = symbolStateFor(d.id);
+                    @if (st?.loading) {
+                      <p class="universe-symbols-hint">Loading symbols…</p>
+                    } @else if (st?.error) {
+                      <p class="universe-symbols-err">{{ st.error }}</p>
+                    } @else if (st) {
+                      <div
+                        class="universe-symbol-pagination"
+                        role="navigation"
+                        aria-label="Symbol rows for this snapshot"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <button
+                          type="button"
+                          class="universe-page-btn"
+                          (click)="prevSymbolPage(d.id)"
+                          [disabled]="!canPrevSymbols(d.id)"
+                        >
+                          Prev symbols
+                        </button>
+                        <span class="universe-page-meta">
+                          {{ st.offset + 1 }}–{{ st.offset + st.rows.length }} of {{ st.total }}
+                        </span>
+                        <button
+                          type="button"
+                          class="universe-page-btn"
+                          (click)="nextSymbolPage(d.id)"
+                          [disabled]="!canNextSymbols(d.id)"
+                        >
+                          Next symbols
+                        </button>
+                      </div>
+                      <table>
+                        <caption>
+                          {{ d.active_count }} active / {{ st.total }} total · {{ d.asof_date || d.id }}
+                        </caption>
+                        <thead>
                           <tr>
-                            <td>{{ idx + 1 }}</td>
-                            <td class="code"><strong>{{ sym }}</strong></td>
-                            <td>{{ det.name || '' }}</td>
-                            <td class="num">{{ fmtConfidence(det.confidence) }}</td>
-                            <td class="num">{{ fmtUniverseScore(det.score) }}</td>
-                            <td><span class="sector-tag">{{ det.sector || '' }}</span></td>
-                            <td>{{ det.country || '' }}</td>
-                            <td class="num">{{ fmtMarketCapMillions(det.market_cap) }}</td>
+                            <th>#</th>
+                            <th>Symbol</th>
+                            <th>Status</th>
+                            <th>Name</th>
+                            <th>Conf</th>
+                            <th>Score</th>
+                            <th>Sector</th>
+                            <th>Country</th>
+                            <th>Market cap</th>
                           </tr>
-                        }
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          @for (row of st.rows; track row.ticker; let idx = $index) {
+                            @let det = row.detail;
+                            @let sk = statusKey(det);
+                            <tr [class.is-inactive]="sk !== 'active'">
+                              <td>{{ st.offset + idx + 1 }}</td>
+                              <td class="code"><strong>{{ row.ticker }}</strong></td>
+                              <td>
+                                <span class="universe-status-badge" [attr.data-status]="sk">
+                                  {{ statusLabel(sk) }}
+                                </span>
+                              </td>
+                              <td>{{ det.name || '' }}</td>
+                              <td class="num">{{ fmtConfidence(det.last_confidence ?? det.confidence) }}</td>
+                              <td class="num">{{ fmtUniverseScore(det.last_score ?? det.score) }}</td>
+                              <td><span class="sector-tag">{{ det.sector || '' }}</span></td>
+                              <td>{{ det.country || '' }}</td>
+                              <td class="num">{{ fmtMarketCapMillions(det.market_cap) }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    } @else {
+                      <p class="universe-symbols-hint">Loading…</p>
+                    }
                   </div>
                 </td>
               </tr>

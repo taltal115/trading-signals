@@ -36,6 +36,7 @@
           <th>target</th>
           <th>conf</th>
           <th>details</th>
+          <th>ai</th>
           <th>actions</th>
         </tr>
       </thead>
@@ -93,6 +94,26 @@
                 {{ stockDetailsOpen(row.instanceKey) ? 'Hide' : 'Info' }}
               </button>
             </td>
+            <td class="sig-ai-toggle-cell">
+              <div class="sig-ai-toggle-wrap">
+                <span
+                  *ngIf="aiActionChip(row) as chip"
+                  class="sig-ai-action-chip"
+                  [ngClass]="chip.cls"
+                  [title]="'AI verdict: ' + chip.label"
+                >{{ chip.label }}</span>
+                <button
+                  type="button"
+                  class="btn-sig-ai-summary"
+                  [class.is-open]="aiSummaryOpen(row.instanceKey)"
+                  [disabled]="!hasAiEval(row)"
+                  [title]="hasAiEval(row) ? 'Show AI evaluation summary' : 'Run AI eval first to see a summary'"
+                  (click)="toggleAiSummary(row.instanceKey, $event)"
+                >
+                  {{ aiSummaryToggleLabel(row) }}
+                </button>
+              </div>
+            </td>
             <td class="sig-actions-cell">
               <div class="sig-actions-row">
                 <button
@@ -126,7 +147,7 @@
             class="sig-stock-details-tr"
             [class.sig-stock-details-for-older]="row.role === 'older'"
           >
-            <td colspan="10" class="sig-stock-details-cell">
+            <td colspan="11" class="sig-stock-details-cell">
               <div *ngIf="stockDetailsLoading(row.instanceKey)" class="sig-stock-details-status">
                 Loading market data…
               </div>
@@ -191,8 +212,88 @@
               </div>
             </td>
           </tr>
+          <tr
+            *ngIf="row.kind === 'sig' && aiSummaryOpen(row.instanceKey)"
+            class="sig-ai-summary-tr"
+            [class.sig-stock-details-for-older]="row.role === 'older'"
+          >
+            <td colspan="11" class="sig-ai-summary-cell">
+              <ng-container *ngIf="aiViewForRow(row) as ai; else noAi">
+                <div class="sig-ai-summary-panel">
+                  <div class="sig-ai-summary-head">
+                    <span class="sig-ai-summary-ticker code">{{ row.s['ticker'] }}</span>
+                    <span class="sig-ai-action-chip" [ngClass]="ai.actionClass">{{ ai.action }}</span>
+                    <span class="sig-ai-summary-meta" *ngIf="ai.convictionPct != null">
+                      conviction {{ fmtAiPct(ai.convictionPct) }}
+                    </span>
+                    <span class="sig-ai-summary-meta" *ngIf="ai.timeframe">
+                      timeframe: {{ ai.timeframe }}
+                    </span>
+                    <span
+                      class="sig-ai-summary-source"
+                      [class.is-stub]="ai.source === 'stub'"
+                      [title]="ai.source === 'stub' ? 'Stub run — set OPENAI_API_KEY for real verdicts.' : 'Source of the LLM call.'"
+                    >source: {{ ai.source }}</span>
+                    <span class="sig-ai-summary-meta sig-ai-summary-ts">
+                      {{ fmtAiTimestamp(ai.evaluatedAt) }}
+                    </span>
+                  </div>
+                  <p class="sig-ai-summary-text" *ngIf="ai.summary">{{ ai.summary }}</p>
+                  <p class="sig-ai-summary-why" *ngIf="ai.whyNow">
+                    <strong>Why now:</strong> {{ ai.whyNow }}
+                  </p>
+                  <dl class="sig-ai-scores-grid">
+                    <dt>Total score</dt>
+                    <dd>{{ fmtAiNumber(ai.total, 2) }}</dd>
+                    <dt>Candidate score</dt>
+                    <dd>{{ fmtAiNumber(ai.candidate, 2) }}</dd>
+                    <dt>AI component</dt>
+                    <dd>{{ fmtAiNumber(ai.aiComponent, 2) }}</dd>
+                    <dt *ngIf="ai.entry">Entry zone</dt>
+                    <dd *ngIf="ai.entry">
+                      {{ ai.entry.min != null ? fmtUsd(ai.entry.min) : '—' }} →
+                      <strong>{{ ai.entry.ideal != null ? fmtUsd(ai.entry.ideal) : '—' }}</strong>
+                      → {{ ai.entry.max != null ? fmtUsd(ai.entry.max) : '—' }}
+                    </dd>
+                    <dt *ngIf="ai.stop != null">Stop loss</dt>
+                    <dd *ngIf="ai.stop != null">{{ fmtUsd(ai.stop) }}</dd>
+                    <dt *ngIf="ai.targets.length > 0">Targets</dt>
+                    <dd *ngIf="ai.targets.length > 0">
+                      <span *ngFor="let t of ai.targets; let i = index" class="sig-ai-target-chip">
+                        {{ t.label }}: {{ t.price != null ? fmtUsd(t.price) : '—' }}
+                      </span>
+                    </dd>
+                    <dt *ngIf="ai.riskReward != null">Risk / reward</dt>
+                    <dd *ngIf="ai.riskReward != null">{{ fmtAiNumber(ai.riskReward, 2) }} : 1</dd>
+                    <dt *ngIf="ai.positionSize">Position size</dt>
+                    <dd *ngIf="ai.positionSize">{{ ai.positionSize }}</dd>
+                  </dl>
+                  <div class="sig-ai-list-block" *ngIf="ai.confidenceFactors.length > 0">
+                    <strong>Confidence factors</strong>
+                    <ul>
+                      <li *ngFor="let c of ai.confidenceFactors">{{ c }}</li>
+                    </ul>
+                  </div>
+                  <div class="sig-ai-list-block" *ngIf="ai.risks.length > 0">
+                    <strong>Risks</strong>
+                    <ul>
+                      <li *ngFor="let r of ai.risks">{{ r }}</li>
+                    </ul>
+                  </div>
+                  <p class="sig-ai-invalidation" *ngIf="ai.invalidation">
+                    <strong>Invalidation:</strong> {{ ai.invalidation }}
+                  </p>
+                </div>
+              </ng-container>
+              <ng-template #noAi>
+                <p class="sig-ai-empty">
+                  No AI evaluation yet for this signal. Click <strong>AI eval</strong> to run one (results land here after the GitHub workflow finishes).
+                </p>
+              </ng-template>
+            </td>
+          </tr>
           <tr *ngIf="row.kind === 'form'" class="signals-inline-form-tr">
-            <td colspan="10" class="signals-inline-form-cell">
+            <td colspan="11" class="signals-inline-form-cell">
               <div
                 class="signals-inline-form-slide"
                 [class.is-expanded]="inlineExpanded()"
