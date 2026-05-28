@@ -158,7 +158,11 @@ def write_universe_snapshot(
     ``symbols`` is the **full** list (active + inactive, kept for history / parity with old snapshots).
     ``active_symbols`` / ``inactive_symbols`` (optional) carry the bot's working slice and the parked
     rest. Counts are derived. Per-symbol status (``active``, ``status``, ``last_active_at``,
-    ``inactive_runs_streak`` …) belongs in ``symbol_details``.
+    ``inactive_runs_streak`` …) is stored in the ``symbols`` **subcollection** (one doc per ticker)
+    so the parent doc stays under Firestore's per-document index-entry limit.
+
+    Legacy snapshots may still have an inline ``symbol_details`` map on the parent document; readers
+    fall back to that when the subcollection is empty.
     """
     normalized = _normalize_universe_symbols(symbols)
     ts = datetime.now(timezone.utc).isoformat()
@@ -167,6 +171,7 @@ def write_universe_snapshot(
         "symbols": normalized,
         "ts_utc": ts,
         "source": source,
+        "symbol_details_in_subcollection": True,
     }
     if active_symbols is not None:
         active_norm = _normalize_universe_symbols(active_symbols)
@@ -176,10 +181,98 @@ def write_universe_snapshot(
         inactive_norm = _normalize_universe_symbols(inactive_symbols)
         doc["inactive_symbols"] = inactive_norm
         doc["inactive_count"] = len(inactive_norm)
-    if symbol_details:
-        doc["symbol_details"] = symbol_details
     db = _build_client()
-    db.collection(collection).document(asof_date).set(doc)
+    parent_ref = db.collection(collection).document(asof_date)
+    parent_ref.set(doc)
+    if symbol_details:
+        _write_universe_symbol_details_subcollection(parent_ref, symbol_details)
+
+
+def _write_universe_symbol_details_subcollection(
+    parent_ref: firestore.DocumentReference,
+    symbol_details: dict[str, dict],
+) -> None:
+    """Write per-symbol detail docs (batched). Avoids INDEX_ENTRIES_COUNT_LIMIT on parent."""
+    sub = parent_ref.collection("symbols")
+    db = _build_client()
+    batch = db.batch()
+    pending = 0
+    for raw_sym, detail in symbol_details.items():
+        sym = str(raw_sym).strip().upper()
+        if not sym or not isinstance(detail, dict):
+            continue
+        batch.set(sub.document(sym), detail)
+        pending += 1
+        if pending >= 400:
+            batch.commit()
+            batch = db.batch()
+            pending = 0
+    if pending > 0:
+        batch.commit()
+
+
+def read_latest_universe_snapshot(
+    *,
+    collection: str = "universe",
+) -> tuple[str, dict[str, Any]] | None:
+    """Return ``(document_id, data)`` for the most recent universe snapshot, or ``None``."""
+    db = _build_client()
+    docs = (
+        db.collection(collection)
+        .order_by("ts_utc", direction=firestore.Query.DESCENDING)
+        .limit(1)
+        .stream()
+    )
+    for snap in docs:
+        return snap.id, snap.to_dict() or {}
+    return None
+
+
+def read_universe_symbol_details(
+    *,
+    doc_id: str,
+    collection: str = "universe",
+    symbols: Iterable[str] | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Load ``symbol_details`` from inline map (legacy) or ``symbols`` subcollection."""
+    db = _build_client()
+    ref = db.collection(collection).document(doc_id.strip())
+    snap = ref.get()
+    if not snap.exists:
+        return {}
+    data = snap.to_dict() or {}
+    wanted: set[str] | None = None
+    if symbols is not None:
+        wanted = {str(s).strip().upper() for s in symbols if str(s).strip()}
+
+    inline = data.get("symbol_details")
+    if isinstance(inline, dict) and inline:
+        out: dict[str, dict[str, Any]] = {}
+        for k, v in inline.items():
+            if not isinstance(v, dict):
+                continue
+            sym = str(k).strip().upper()
+            if not sym or (wanted is not None and sym not in wanted):
+                continue
+            out[sym] = v
+        return out
+
+    sub = ref.collection("symbols")
+    out = {}
+    if wanted is None:
+        for s in sub.stream():
+            sym = s.id.strip().upper()
+            if sym:
+                out[sym] = s.to_dict() or {}
+        return out
+
+    refs = [sub.document(sym) for sym in sorted(wanted)]
+    for s in db.get_all(refs):
+        if s.exists:
+            sym = s.id.strip().upper()
+            if sym:
+                out[sym] = s.to_dict() or {}
+    return out
 
 
 def read_latest_universe_snapshot_doc(
@@ -191,17 +284,8 @@ def read_latest_universe_snapshot_doc(
     Used by discovery to inherit per-symbol streaks / ``last_active_at`` between runs without scanning
     the whole history. Caller decides what to do when the previous doc lacks new fields.
     """
-    db = _build_client()
-    docs = (
-        db.collection(collection)
-        .order_by("ts_utc", direction=firestore.Query.DESCENDING)
-        .limit(1)
-        .stream()
-    )
-    for snap in docs:
-        data = snap.to_dict() or {}
-        return data
-    return None
+    got = read_latest_universe_snapshot(collection=collection)
+    return got[1] if got else None
 
 
 def read_recent_universe_symbols(

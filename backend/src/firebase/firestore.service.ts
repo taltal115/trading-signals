@@ -44,6 +44,96 @@ function toPlainDoc(data: DocumentData | undefined): DocumentData {
 /** Open positions (`created_at_utc`; deterministic ids after migrate). */
 const MY_POSITIONS_COLLECTION = 'my_positions';
 
+type SignalFlatInst = {
+  docId: string;
+  asofDate: string;
+  docTsUtc: string;
+  docTsMs: number;
+  signalIndex: number;
+  signal: DocumentData;
+  tickerU: string;
+  sigSortMs: number;
+};
+
+function signalParseTimeMs(s: Record<string, unknown>, index: number): number {
+  for (const k of ['ts_utc', 'signal_ts', 'updated_at', 'created_at']) {
+    const v = s[k];
+    if (typeof v === 'string' && v.trim()) {
+      const t = Date.parse(v);
+      if (Number.isFinite(t)) return t;
+    }
+  }
+  return index;
+}
+
+function signalDocTimestampMs(data: DocumentData): number {
+  const raw = data['ts_utc'];
+  if (typeof raw === 'string' && raw.trim()) {
+    const t = Date.parse(raw.trim());
+    if (Number.isFinite(t)) return t;
+  }
+  const ad = String(data['asof_date'] || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ad)) {
+    const t = Date.parse(`${ad}T12:00:00.000Z`);
+    if (Number.isFinite(t)) return t;
+  }
+  return 0;
+}
+
+function flattenSignalDoc(docId: string, data: DocumentData): SignalFlatInst[] {
+  const asofDate = String(data['asof_date'] || '');
+  const docTsUtc = String(data['ts_utc'] || '');
+  const docTsMs = signalDocTimestampMs(data);
+  const arr = Array.isArray(data['signals']) ? data['signals'] : [];
+  const out: SignalFlatInst[] = [];
+  for (let index = 0; index < arr.length; index++) {
+    const s = arr[index] as Record<string, unknown>;
+    const tickerU = String(s['ticker'] || '')
+      .trim()
+      .toUpperCase();
+    if (!tickerU) continue;
+    out.push({
+      docId,
+      asofDate,
+      docTsUtc,
+      docTsMs,
+      signalIndex: index,
+      signal: toPlainDoc(s as DocumentData),
+      tickerU,
+      sigSortMs: signalParseTimeMs(s, index),
+    });
+  }
+  return out;
+}
+
+function compareSignalInstances(a: SignalFlatInst, b: SignalFlatInst): number {
+  if (b.docTsMs !== a.docTsMs) return b.docTsMs - a.docTsMs;
+  const d = b.sigSortMs - a.sigSortMs;
+  if (d !== 0) return d;
+  if (b.signalIndex !== a.signalIndex) return b.signalIndex - a.signalIndex;
+  return a.docId < b.docId ? -1 : a.docId > b.docId ? 1 : 0;
+}
+
+function encodeSignalInstanceCursor(inst: SignalFlatInst): string {
+  return `${inst.docId}\t${inst.signalIndex}`;
+}
+
+function parseSignalInstanceCursor(
+  cursor: string,
+): { docId: string; signalIndex: number } | null {
+  const tab = cursor.indexOf('\t');
+  if (tab < 0) return null;
+  const docId = cursor.slice(0, tab).trim();
+  const signalIndex = Number.parseInt(cursor.slice(tab + 1).trim(), 10);
+  if (!docId || !Number.isFinite(signalIndex)) return null;
+  return { docId, signalIndex };
+}
+
+/** True when `inst` is strictly older than `cursorInst` (appears later in newest-first order). */
+function signalInstanceAfterCursor(inst: SignalFlatInst, cursorInst: SignalFlatInst): boolean {
+  return compareSignalInstances(inst, cursorInst) > 0;
+}
+
 /**
  * Resolve relative GOOGLE_APPLICATION_CREDENTIALS by walking up from cwd (e.g. backend/ → repo root).
  * ADC lazy-loads the file on first RPC; if the path stays relative, Node resolves it against cwd and breaks.
@@ -246,7 +336,7 @@ export class FirestoreService implements OnModuleInit {
     }
   }
 
-  /** One page of symbols for a universe snapshot document (full doc read; sliced in memory). */
+  /** One page of symbols for a universe snapshot (details from inline map or ``symbols`` subcollection). */
   async getUniverseSymbolPage(
     docId: string,
     offset: number,
@@ -267,15 +357,35 @@ export class FirestoreService implements OnModuleInit {
       const symbols = Array.isArray(data['symbols'])
         ? (data['symbols'] as unknown[]).map((s) => String(s).trim().toUpperCase()).filter(Boolean)
         : [];
-      const details =
+      const inline =
         data['symbol_details'] && typeof data['symbol_details'] === 'object' && !Array.isArray(data['symbol_details'])
           ? (data['symbol_details'] as Record<string, unknown>)
           : {};
+      const useSubcollection =
+        data['symbol_details_in_subcollection'] === true ||
+        (Object.keys(inline).length === 0 && symbols.length > 0);
       const slice = symbols.slice(offset, offset + limit);
-      const rows = slice.map((ticker) => ({
-        ticker,
-        detail: toPlainDoc(details[ticker] as DocumentData | undefined) as DocumentData,
-      }));
+      let rows: { ticker: string; detail: DocumentData }[];
+      if (!useSubcollection) {
+        rows = slice.map((ticker) => ({
+          ticker,
+          detail: toPlainDoc(inline[ticker] as DocumentData | undefined) as DocumentData,
+        }));
+      } else {
+        const subRefs = slice.map((ticker) => ref.collection('symbols').doc(ticker));
+        const subSnaps =
+          subRefs.length > 0 ? await this.db.getAll(...subRefs) : [];
+        const detailByTicker = new Map<string, DocumentData>();
+        for (const s of subSnaps) {
+          if (s.exists) {
+            detailByTicker.set(s.id.toUpperCase(), toPlainDoc(s.data()));
+          }
+        }
+        rows = slice.map((ticker) => ({
+          ticker,
+          detail: detailByTicker.get(ticker) ?? ({} as DocumentData),
+        }));
+      }
       return { total: symbols.length, offset, limit, rows };
     } catch (e) {
       if (e instanceof NotFoundException) {
@@ -285,19 +395,184 @@ export class FirestoreService implements OnModuleInit {
     }
   }
 
-  async listSignals(limitN: number): Promise<{ id: string; data: DocumentData }[]> {
+  async listSignalsPage(
+    pageSize: number,
+    cursorDocId?: string,
+  ): Promise<{ docs: { id: string; data: DocumentData }[]; nextCursor: string | null }> {
     // Canonical bot run collection only (do not gate on env — a stale FIRESTORE_SIGNALS_COLLECTION
     // silently yields an empty Signals page.)
     const coll = 'signals';
     try {
-      const snap = await this.db
+      let q: admin.firestore.Query = this.db
         .collection(coll)
         .orderBy('ts_utc', 'desc')
-        .limit(limitN)
-        .get();
-      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+        .limit(pageSize + 1);
+      const cur = cursorDocId?.trim();
+      if (cur) {
+        const curSnap = await this.db.collection(coll).doc(cur).get();
+        if (!curSnap.exists) {
+          throw new NotFoundException('Invalid pagination cursor');
+        }
+        q = q.startAfter(curSnap);
+      }
+      const snap = await q.get();
+      const hasMore = snap.docs.length > pageSize;
+      const page = hasMore ? snap.docs.slice(0, pageSize) : snap.docs;
+      const nextCursor = hasMore && page.length > 0 ? page[page.length - 1].id : null;
+      return {
+        docs: page.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) })),
+        nextCursor,
+      };
     } catch (e) {
-      this.handleFirestoreListError('listSignals', e);
+      if (e instanceof NotFoundException) {
+        throw e;
+      }
+      this.handleFirestoreListError('listSignalsPage', e);
+    }
+  }
+
+  async listSignals(limitN: number): Promise<{ id: string; data: DocumentData }[]> {
+    const page = await this.listSignalsPage(limitN);
+    return page.docs;
+  }
+
+  /**
+   * Paginate individual BUY rows (`signals[i]`), not run documents.
+   * Each bot run stores many tickers in one doc; page size applies to flattened rows.
+   */
+  async listSignalInstancesPage(
+    pageSize: number,
+    cursorStr?: string,
+  ): Promise<{
+    rows: {
+      docId: string;
+      asofDate: string;
+      docTsUtc: string;
+      docTsMs: number;
+      signalIndex: number;
+      signal: DocumentData;
+    }[];
+    nextCursor: string | null;
+    latestRun: { id: string; data: DocumentData } | null;
+  }> {
+    const coll = 'signals';
+    try {
+      let cursorInst: SignalFlatInst | null = null;
+      const curRaw = cursorStr?.trim();
+      if (curRaw) {
+        const parsed = parseSignalInstanceCursor(curRaw);
+        if (!parsed) {
+          throw new NotFoundException('Invalid pagination cursor');
+        }
+        const curSnap = await this.db.collection(coll).doc(parsed.docId).get();
+        if (!curSnap.exists) {
+          throw new NotFoundException('Invalid pagination cursor');
+        }
+        const flat = flattenSignalDoc(parsed.docId, toPlainDoc(curSnap.data()));
+        cursorInst =
+          flat.find((i) => i.signalIndex === parsed.signalIndex) ?? null;
+        if (!cursorInst) {
+          throw new NotFoundException('Invalid pagination cursor');
+        }
+      }
+
+      const latestSnap = await this.db
+        .collection(coll)
+        .orderBy('ts_utc', 'desc')
+        .limit(1)
+        .get();
+      const latestRun =
+        latestSnap.docs.length > 0
+          ? { id: latestSnap.docs[0].id, data: toPlainDoc(latestSnap.docs[0].data()) }
+          : null;
+
+      const DOC_BATCH = 15;
+      const MAX_DOCS = 200;
+      let docsScanned = 0;
+      let lastDoc: admin.firestore.QueryDocumentSnapshot | null = null;
+      const collected: SignalFlatInst[] = [];
+      let pageRows: SignalFlatInst[] = [];
+
+      while (docsScanned < MAX_DOCS) {
+        let q: admin.firestore.Query = this.db
+          .collection(coll)
+          .orderBy('ts_utc', 'desc')
+          .limit(DOC_BATCH);
+        if (lastDoc) {
+          q = q.startAfter(lastDoc);
+        }
+        const snap = await q.get();
+        if (snap.empty) break;
+
+        for (const d of snap.docs) {
+          collected.push(...flattenSignalDoc(d.id, toPlainDoc(d.data())));
+        }
+        docsScanned += snap.docs.length;
+        lastDoc = snap.docs[snap.docs.length - 1];
+
+        collected.sort(compareSignalInstances);
+        let candidates = collected;
+        if (cursorInst) {
+          candidates = collected.filter((inst) =>
+            signalInstanceAfterCursor(inst, cursorInst!),
+          );
+        }
+
+        if (candidates.length >= pageSize) {
+          pageRows = candidates.slice(0, pageSize);
+          break;
+        }
+
+        if (snap.docs.length < DOC_BATCH) break;
+      }
+
+      if (pageRows.length === 0 && collected.length > 0) {
+        let candidates = collected;
+        if (cursorInst) {
+          candidates = collected.filter((inst) =>
+            signalInstanceAfterCursor(inst, cursorInst!),
+          );
+        }
+        pageRows = candidates.slice(0, pageSize);
+      }
+
+      let nextCursor: string | null = null;
+      if (pageRows.length === pageSize) {
+        const last = pageRows[pageRows.length - 1];
+        let candidates = collected;
+        if (cursorInst) {
+          candidates = collected.filter((inst) =>
+            signalInstanceAfterCursor(inst, cursorInst!),
+          );
+        }
+        const lastIdx = candidates.findIndex(
+          (i) =>
+            i.docId === last.docId &&
+            i.signalIndex === last.signalIndex &&
+            i.tickerU === last.tickerU,
+        );
+        if (lastIdx >= 0 && lastIdx + 1 < candidates.length) {
+          nextCursor = encodeSignalInstanceCursor(last);
+        }
+      }
+
+      return {
+        rows: pageRows.map((r) => ({
+          docId: r.docId,
+          asofDate: r.asofDate,
+          docTsUtc: r.docTsUtc,
+          docTsMs: r.docTsMs,
+          signalIndex: r.signalIndex,
+          signal: r.signal,
+        })),
+        nextCursor,
+        latestRun,
+      };
+    } catch (e) {
+      if (e instanceof NotFoundException) {
+        throw e;
+      }
+      this.handleFirestoreListError('listSignalInstancesPage', e);
     }
   }
 

@@ -2,8 +2,39 @@
   <h2>Bot signals (BUY recommendations)</h2>
   <div
     class="signals-toolbar"
-    *ngIf="!loading() && !loadError() && docs().length > 0"
+    *ngIf="!loadError() && instanceRows().length > 0"
   >
+    <div class="signals-pagination" role="navigation" aria-label="Signals pages">
+      <label class="signals-page-size universe-page-meta">
+        Per page
+        <select
+          [value]="str(pageSize())"
+          (change)="onPageSizeChange($any($event.target).value)"
+        >
+          <option *ngFor="let n of pageSizeOptions" [value]="str(n)">{{ n }}</option>
+        </select>
+      </label>
+      <button
+        type="button"
+        class="universe-page-btn"
+        [disabled]="!canPrevPage() || loading() || loadingPage()"
+        (click)="prevPage()"
+      >
+        Previous
+      </button>
+      <span class="universe-page-meta"
+        >Page {{ pageLabel() }}
+        <span class="universe-page-loading" *ngIf="loading() || loadingPage()"> …</span>
+      </span>
+      <button
+        type="button"
+        class="universe-page-btn"
+        [disabled]="!canNextPage() || loading() || loadingPage()"
+        (click)="nextPage()"
+      >
+        Next
+      </button>
+    </div>
     <button
       type="button"
       class="btn-clear-signals-notifications"
@@ -13,17 +44,17 @@
       Clear notifications ({{ signalsBadge.count() }})
     </button>
   </div>
-  <p class="empty-state" *ngIf="loading()">Loading signals…</p>
+  <p class="empty-state" *ngIf="loading() && instanceRows().length === 0">Loading signals…</p>
   <p class="empty-state" *ngIf="!loading() && loadError()">{{ loadError() }}</p>
-  <p class="empty-state" *ngIf="!loading() && !loadError() && docs().length === 0">No signal runs yet.</p>
+  <p class="empty-state" *ngIf="!loading() && !loadError() && instanceRows().length === 0">No signal runs yet.</p>
   <p
     class="empty-state"
-    *ngIf="!loading() && !loadError() && docs().length > 0 && displayRows().length === 0"
+    *ngIf="!loading() && !loadError() && instanceRows().length > 0 && displayRows().length === 0"
   >
     These runs have no BUY rows in <code>signals[]</code> (only WAIT/SELL or an older document shape).
     Run the bot with BUY output or check Firestore <code>signals</code> run documents (legacy archive: <code>signals_old</code>).
   </p>
-  <div class="table-wrap" *ngIf="!loading() && !loadError() && docs().length > 0 && displayRows().length > 0">
+  <div class="table-wrap" *ngIf="!loadError() && instanceRows().length > 0 && displayRows().length > 0">
     <table class="signals-main-table">
       <thead>
         <tr>

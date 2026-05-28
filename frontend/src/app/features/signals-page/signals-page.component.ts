@@ -1,6 +1,7 @@
 import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { HttpParams } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Subscription, switchMap, catchError, of, tap } from 'rxjs';
@@ -25,7 +26,7 @@ import {
   type StockSnapshot,
 } from '../../core/market-data.service';
 import { environment } from '../../../environments/environment';
-import { normalizeSignalDocs, type SignalDoc } from '../../core/signal-docs-normalize';
+import { normalizeSignalDocs, normalizeSignalsApiResponse, type SignalDoc, type SignalInstanceRow } from '../../core/signal-docs-normalize';
 
 /** One flattened BUY line from any run document (for cross-doc grouping). */
 type FlatSigInst = {
@@ -58,6 +59,15 @@ type SigDisplayRow = {
 
 type DisplayRow = SigDisplayRow | { kind: 'form'; instanceKey: string };
 
+type SignalsPage = { rows: SignalInstanceRow[]; nextCursor: string | null };
+type SignalsListApiResponse = {
+  rows?: SignalInstanceRow[];
+  docs?: { id: string; data: SignalDoc }[];
+  nextCursor?: string | null;
+  latestRun?: { id: string; data: SignalDoc } | null;
+};
+const SIGNALS_PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50] as const;
+
 function parseSignalTimeMs(s: Record<string, unknown>): number | null {
   for (const k of ['ts_utc', 'signal_ts', 'updated_at', 'created_at']) {
     const v = s[k];
@@ -67,20 +77,6 @@ function parseSignalTimeMs(s: Record<string, unknown>): number | null {
     }
   }
   return null;
-}
-
-function docTimestampMs(data: SignalDoc): number {
-  const raw = data.ts_utc;
-  if (typeof raw === 'string' && raw.trim()) {
-    const t = Date.parse(raw.trim());
-    if (Number.isFinite(t)) return t;
-  }
-  const ad = String(data.asof_date || '').trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(ad)) {
-    const t = Date.parse(ad + 'T12:00:00.000Z');
-    if (Number.isFinite(t)) return t;
-  }
-  return 0;
 }
 
 function compareInstances(a: FlatSigInst, b: FlatSigInst): number {
@@ -229,7 +225,14 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   readonly allowedUser = toSignal(this.authSvc.allowedUser$, { initialValue: null });
   readonly loadError = signal('');
   readonly loading = signal(true);
-  readonly docs = signal<{ id: string; data: SignalDoc }[]>([]);
+  readonly loadingPage = signal(false);
+  /** Paginated flattened signal rows from `/api/signals`. */
+  readonly instanceRows = signal<SignalInstanceRow[]>([]);
+  /** Latest run doc (for new-badge even when paginated). */
+  readonly latestRunDoc = signal<{ id: string; data: SignalDoc } | null>(null);
+  readonly pageSize = signal<number>(10);
+  readonly signalsPages = signal<SignalsPage[]>([]);
+  readonly signalsPageIndex = signal(0);
   /** `groupKey` = ticker (uppercase). When present, superseded suggestions for that symbol are visible. */
   readonly expandedSignalGroups = signal<ReadonlySet<string>>(new Set<string>());
   /** Live price display per ticker (e.g. "$12.34" or "err"). */
@@ -271,6 +274,16 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   readonly guestMode = computed(
     () => !this.authSvc.devAuthBypass && !this.allowedUser()
   );
+  readonly pageSizeOptions = SIGNALS_PAGE_SIZE_OPTIONS;
+  readonly pageLabel = computed(() => this.signalsPageIndex() + 1);
+  readonly canPrevPage = computed(() => this.signalsPageIndex() > 0);
+  readonly canNextPage = computed(() => {
+    const pages = this.signalsPages();
+    const i = this.signalsPageIndex();
+    if (!pages.length) return false;
+    if (i + 1 < pages.length) return true;
+    return !!pages[i]?.nextCursor;
+  });
 
   readonly displayRows = computed(() => {
     const expanded = this.expandedSignalGroups();
@@ -285,26 +298,20 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     };
 
     const flat: FlatSigInst[] = [];
-    for (const doc of this.docs()) {
-      const arr = Array.isArray(doc.data.signals) ? doc.data.signals : [];
-      const asof = String(doc.data.asof_date || '');
-      const docTsMs = docTimestampMs(doc.data);
-      for (let index = 0; index < arr.length; index++) {
-        const s = arr[index] as Record<string, unknown>;
-        const tickerU = String(s['ticker'] || '')
-          .trim()
-          .toUpperCase();
-        if (!tickerU) continue;
-        flat.push({
-          docId: doc.id,
-          asofDate: asof,
-          docTsMs,
-          index,
-          s,
-          tickerU,
-          sigSortMs: sortKeyForInstance(s, index),
-        });
-      }
+    for (const r of this.instanceRows()) {
+      const tickerU = String(r.signal['ticker'] || '')
+        .trim()
+        .toUpperCase();
+      if (!tickerU) continue;
+      flat.push({
+        docId: r.docId,
+        asofDate: r.asofDate,
+        docTsMs: r.docTsMs,
+        index: r.signalIndex,
+        s: r.signal,
+        tickerU,
+        sigSortMs: sortKeyForInstance(r.signal, r.signalIndex),
+      });
     }
 
     const byTicker = new Map<string, FlatSigInst[]>();
@@ -397,17 +404,43 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     const docId = k.slice(0, tab).trim();
     const idx = parseInt(k.slice(tab + 1).trim(), 10);
     if (!Number.isFinite(idx)) return null;
-    const doc = this.docs().find((d) => d.id === docId);
-    const arr = Array.isArray(doc?.data.signals) ? doc!.data.signals : [];
-    const s = arr[idx];
-    const ticker =
-      s && typeof s === 'object' && s !== null
-        ? String((s as Record<string, unknown>)['ticker'] || '')
-            .trim()
-            .toUpperCase()
-        : '';
+    const row = this.instanceRows().find((r) => r.docId === docId && r.signalIndex === idx);
+    const ticker = row
+      ? String(row.signal['ticker'] || '')
+          .trim()
+          .toUpperCase()
+      : '';
     if (!docId || !ticker) return null;
     return { docId, ticker };
+  }
+
+  /** Docs shape for badge service (latest run + current page). */
+  private docsForBadge(): { id: string; data: SignalDoc }[] {
+    const latest = this.latestRunDoc();
+    if (latest) {
+      return normalizeSignalDocs([latest]);
+    }
+    return this.instanceRowsToDocs(this.instanceRows());
+  }
+
+  private instanceRowsToDocs(rows: SignalInstanceRow[]): { id: string; data: SignalDoc }[] {
+    const byDoc = new Map<string, { id: string; data: SignalDoc }>();
+    for (const r of rows) {
+      if (!byDoc.has(r.docId)) {
+        byDoc.set(r.docId, {
+          id: r.docId,
+          data: { asof_date: r.asofDate, ts_utc: r.docTsUtc, signals: [] },
+        });
+      }
+      byDoc.get(r.docId)!.data.signals!.push(r.signal);
+    }
+    return [...byDoc.values()];
+  }
+
+  private signalRow(docId: string, signalIndex: number): SignalInstanceRow | undefined {
+    return this.instanceRows().find(
+      (r) => r.docId === docId && r.signalIndex === signalIndex,
+    );
   }
 
   /** Ticker for the open Log Buy form (title + live price). */
@@ -416,52 +449,121 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    const base = environment.apiBaseUrl;
-    this.sub = of(0)
-      .pipe(
-        switchMap(() =>
-          this.http
-            .get<{ docs: { id: string; data: SignalDoc }[] }>(`${base}/api/signals`)
-            .pipe(
-              tap({ next: () => this.loadError.set('') }),
-              catchError((err) => {
-                this.loading.set(false);
-                this.loadError.set(formatApiErr(err));
-                return of({ docs: [] as { id: string; data: SignalDoc }[] });
-              })
-            )
-        )
-      )
-      .subscribe((r) => {
-        this.loading.set(false);
-        const normalized = normalizeSignalDocs(r.docs ?? []);
-        this.docs.set(normalized);
-        this.signalsBadge.recompute(normalized);
-        this.inlineKey.set(null);
-        this.inlineExpanded.set(false);
-        this.bracketPct.set(null);
-        this.fetchAllLivePrices(normalized);
-      });
+    this.fetchSignalsPage(undefined);
   }
 
   /**
    * Fetch live prices for all unique tickers in the loaded signals.
    * Called automatically after signals load to populate the table.
    */
-  private fetchAllLivePrices(docs: { id: string; data: SignalDoc }[]): void {
+  private fetchAllLivePrices(rows: SignalInstanceRow[]): void {
     const tickers = new Set<string>();
-    for (const doc of docs) {
-      const arr = Array.isArray(doc.data.signals) ? doc.data.signals : [];
-      for (const s of arr) {
-        const t = String((s as Record<string, unknown>)['ticker'] || '')
-          .trim()
-          .toUpperCase();
-        if (t) tickers.add(t);
-      }
+    for (const r of rows) {
+      const t = String(r.signal['ticker'] || '')
+        .trim()
+        .toUpperCase();
+      if (t) tickers.add(t);
     }
     for (const sym of tickers) {
       void this.refreshLive(sym);
     }
+  }
+
+  private fetchSignalsPage(cursor: string | undefined): void {
+    const base = environment.apiBaseUrl;
+    const first = cursor === undefined;
+    if (first) {
+      this.loading.set(true);
+    } else {
+      this.loadingPage.set(true);
+    }
+    this.loadError.set('');
+    this.sub?.unsubscribe();
+
+    const limit = this.pageSize();
+    let params = new HttpParams().set('limit', String(limit));
+    if (cursor) params = params.set('cursor', cursor);
+
+    this.sub = of(0)
+      .pipe(
+        switchMap(() =>
+          this.http.get<SignalsListApiResponse>(`${base}/api/signals`, { params }).pipe(
+            tap({ next: () => this.loadError.set('') }),
+            catchError((err) => {
+              this.loading.set(false);
+              this.loadingPage.set(false);
+              this.loadError.set(formatApiErr(err));
+              return of({} as SignalsListApiResponse);
+            }),
+          ),
+        ),
+      )
+      .subscribe((raw) => {
+        const r = normalizeSignalsApiResponse(raw, limit, cursor);
+        const page: SignalsPage = {
+          rows: r.rows,
+          nextCursor: r.nextCursor,
+        };
+        if (first) {
+          this.signalsPages.set([page]);
+          this.signalsPageIndex.set(0);
+          if (r.latestRun) {
+            this.latestRunDoc.set({
+              id: r.latestRun.id,
+              data: r.latestRun.data,
+            });
+          }
+        } else {
+          this.signalsPages.update((prev) => [...prev, page]);
+          this.signalsPageIndex.update((i) => i + 1);
+        }
+        this.applyPageRows(page.rows);
+        this.loading.set(false);
+        this.loadingPage.set(false);
+      });
+  }
+
+  /** Replace visible rows when the user changes page. */
+  private applyPageRows(rows: SignalInstanceRow[]): void {
+    this.instanceRows.set(rows);
+    this.expandedSignalGroups.set(new Set<string>());
+    this.inlineKey.set(null);
+    this.inlineExpanded.set(false);
+    this.bracketPct.set(null);
+    this.signalsBadge.recompute(this.docsForBadge());
+    this.fetchAllLivePrices(rows);
+  }
+
+  onPageSizeChange(raw: string): void {
+    const n = Number.parseInt(String(raw), 10);
+    if (!Number.isFinite(n) || n < 1) return;
+    if (n === this.pageSize()) return;
+    this.pageSize.set(n);
+    this.signalsPages.set([]);
+    this.signalsPageIndex.set(0);
+    this.instanceRows.set([]);
+    this.fetchSignalsPage(undefined);
+  }
+
+  nextPage(): void {
+    const pages = this.signalsPages();
+    const i = this.signalsPageIndex();
+    if (i + 1 < pages.length) {
+      this.signalsPageIndex.set(i + 1);
+      this.applyPageRows(pages[i + 1].rows);
+      return;
+    }
+    const cur = pages[i];
+    if (!cur?.nextCursor) return;
+    this.fetchSignalsPage(cur.nextCursor);
+  }
+
+  prevPage(): void {
+    const i = this.signalsPageIndex();
+    if (i <= 0) return;
+    const nextIndex = i - 1;
+    this.signalsPageIndex.set(nextIndex);
+    this.applyPageRows(this.signalsPages()[nextIndex]?.rows ?? []);
   }
 
   ngOnDestroy(): void {
@@ -489,7 +591,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     const tickerU = String(row.s['ticker'] || '')
       .trim()
       .toUpperCase();
-    return this.signalsBadge.isTickerUnreadOnLatestRun(tickerU, this.docs());
+    return this.signalsBadge.isTickerUnreadOnLatestRun(tickerU, this.docsForBadge());
   }
 
   toggleStockDetails(rowKey: string, ticker: string): void {
@@ -658,9 +760,8 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   }
 
   toggleInline(docId: string, signalIndex: number): void {
-    const doc = this.docs().find((d) => d.id === docId);
-    const arr = Array.isArray(doc?.data.signals) ? doc!.data.signals : [];
-    const s = arr[signalIndex] as Record<string, unknown> | undefined;
+    const row = this.signalRow(docId, signalIndex);
+    const s = row?.signal;
     if (!s) return;
     const ticker = String(s['ticker'] || '')
       .trim()

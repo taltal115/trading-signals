@@ -20,8 +20,10 @@ from signals_bot.logging import get_logger
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.storage.firestore import (
+    read_latest_universe_snapshot,
     read_latest_universe_snapshot_doc,
     read_recent_universe_symbols,
+    read_universe_symbol_details,
     write_universe_snapshot,
 )
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy
@@ -393,12 +395,24 @@ def main() -> int:
             prior_set = set()
 
     prev_doc = None
+    prev_doc_id: str | None = None
     try:
-        prev_doc = read_latest_universe_snapshot_doc(collection=collection)
+        prev_snap = read_latest_universe_snapshot(collection=collection)
+        if prev_snap:
+            prev_doc_id, prev_doc = prev_snap
     except Exception as exc:  # noqa: BLE001
         log.warning("Could not read latest universe snapshot for streaks: %s", exc)
     prev_details: dict[str, dict[str, Any]] = {}
-    if isinstance(prev_doc, dict):
+    if prev_doc_id:
+        try:
+            prev_details = read_universe_symbol_details(
+                doc_id=prev_doc_id,
+                collection=collection,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Could not read prior symbol details: %s", exc)
+            prev_details = {}
+    if not prev_details and isinstance(prev_doc, dict):
         raw_prev = prev_doc.get("symbol_details")
         if isinstance(raw_prev, dict):
             for k, v in raw_prev.items():
@@ -482,6 +496,8 @@ def main() -> int:
     now_iso = now_utc.isoformat()
 
     for sym in all_symbols:
+        if sym in unevaluated_prior:
+            continue
         prev = prev_details.get(sym, {})
         new_entry: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
 
