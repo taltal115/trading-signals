@@ -440,7 +440,28 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
         this.inlineKey.set(null);
         this.inlineExpanded.set(false);
         this.bracketPct.set(null);
+        this.fetchAllLivePrices(normalized);
       });
+  }
+
+  /**
+   * Fetch live prices for all unique tickers in the loaded signals.
+   * Called automatically after signals load to populate the table.
+   */
+  private fetchAllLivePrices(docs: { id: string; data: SignalDoc }[]): void {
+    const tickers = new Set<string>();
+    for (const doc of docs) {
+      const arr = Array.isArray(doc.data.signals) ? doc.data.signals : [];
+      for (const s of arr) {
+        const t = String((s as Record<string, unknown>)['ticker'] || '')
+          .trim()
+          .toUpperCase();
+        if (t) tickers.add(t);
+      }
+    }
+    for (const sym of tickers) {
+      void this.refreshLive(sym);
+    }
   }
 
   ngOnDestroy(): void {
@@ -547,6 +568,40 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   liveDisplay(ticker: string): string {
     const k = ticker.trim().toUpperCase();
     return this.liveByTicker()[k] ?? '—';
+  }
+
+  /**
+   * Calculate percentage change from signal price to live price.
+   * Returns null if either value is unavailable.
+   */
+  livePctChange(ticker: string, signalPrice: unknown): number | null {
+    const sym = String(ticker || '').trim().toUpperCase();
+    const liveN = this.livePriceNumByTicker()[sym];
+    if (liveN == null || !Number.isFinite(liveN)) return null;
+    const sigN = Number(signalPrice);
+    if (!Number.isFinite(sigN) || sigN === 0) return null;
+    return ((liveN - sigN) / sigN) * 100;
+  }
+
+  /**
+   * Formatted percentage change string (e.g., "+3.45%" or "-1.23%").
+   */
+  livePctChangeDisplay(ticker: string, signalPrice: unknown): string {
+    const pct = this.livePctChange(ticker, signalPrice);
+    if (pct == null) return '';
+    const sign = pct >= 0 ? '+' : '';
+    return sign + fmtUiPercent(pct) + '%';
+  }
+
+  /**
+   * CSS class for live price percentage: green for positive, red for negative.
+   */
+  livePctChangeClass(ticker: string, signalPrice: unknown): string {
+    const pct = this.livePctChange(ticker, signalPrice);
+    if (pct == null) return '';
+    if (pct > 0.01) return 'live-pct-up';
+    if (pct < -0.01) return 'live-pct-down';
+    return 'live-pct-flat';
   }
 
   /**

@@ -1,0 +1,32 @@
+.sig-live-cell {
+  white-space: nowrap;
+}
+
+.sig-live-val {
+  font-family: var(--font-mono, monospace);
+}
+
+.sig-live-pct {
+  display: inline-block;
+  margin-left: 0.35em;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  font-size: 0.85em;
+  font-family: var(--font-mono, monospace);
+  font-weight: 500;
+}
+
+.live-pct-up {
+  color: var(--buy, #3fb950);
+  background: rgba(63, 185, 80, 0.15);
+}
+
+.live-pct-down {
+  color: var(--sell, #f85149);
+  background: rgba(248, 81, 73, 0.15);
+}
+
+.live-pct-flat {
+  color: var(--muted, #8b949e);
+  background: rgba(139, 148, 158, 0.1);
+}

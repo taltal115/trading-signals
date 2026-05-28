@@ -14,6 +14,7 @@ export const environment = {
     'taltal115@gmail.com',
     'tal.david.shitrit@gmail.com',
     'idanchetrit@gmail.com',
+    'asherw.dev@gmail.com'
   ],
   allowedAuthUids: [
     'tgIBRfrP1ibiEi6P2LMsVoyvNaM2',

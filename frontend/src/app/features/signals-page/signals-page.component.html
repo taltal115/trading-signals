@@ -65,6 +65,11 @@
             <td>{{ fmtUsd(row.s['close']) }}</td>
             <td class="sig-live-cell">
               <span class="sig-live-val">{{ liveDisplay(str(row.s['ticker'])) }}</span>
+              <span
+                *ngIf="livePctChangeDisplay(str(row.s['ticker']), row.s['close']) as pctStr"
+                class="sig-live-pct"
+                [ngClass]="livePctChangeClass(str(row.s['ticker']), row.s['close'])"
+              >{{ pctStr }}</span>
               <button
                 type="button"
                 class="btn-sig-refresh"

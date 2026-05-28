@@ -20,6 +20,6 @@ export const environment = {
    * `{apiOrigin}/api/auth/google/callback` on the API host.
    */
   apiBaseUrl: '',
-  allowedSignInEmails: ['taltal115@gmail.com', 'tal.david.shitrit@gmail.com','idanchetrit@gmail.com'],
+  allowedSignInEmails: ['taltal115@gmail.com', 'tal.david.shitrit@gmail.com','idanchetrit@gmail.com', 'asherw.dev@gmail.com'],
   allowedAuthUids: ['tgIBRfrP1ibiEi6P2LMsVoyvNaM2'],
 };
