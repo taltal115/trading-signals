@@ -2,12 +2,12 @@
 
 > **Master doc (status + Phase 2 + backlog):** [`stock-events.md`](stock-events.md)
 
-Signal-only: upcoming financial events for the **top 200 universe symbols by `last_score`**, stored in Firestore and shown on the dashboard **Events** page.
+Signal-only: upcoming financial events for the **top 1000 universe symbols by `last_score`** (configurable), stored in Firestore and shown on the dashboard **Events** page.
 
 ## Data flow
 
 1. **Universe discovery** (`update_universe_finnhub.py`) writes scores to `universe/{asof_date}/symbols/{TICKER}`.
-2. **Events discovery** (`discover_stock_events.py`) reads top 200 by `last_score`, fetches calendars, writes `stock_events/{asof_date}`.
+2. **Events discovery** (`discover_stock_events.py`) reads top N (default 1000) by `last_score`, fetches calendars, writes `stock_events/{asof_date}`.
 3. **Nest** `GET /api/events/latest` returns the latest snapshot (session required).
 4. **Angular** `/events` renders a table.
 
@@ -45,7 +45,7 @@ Requires `FINNHUB_API_KEY` for Finnhub. Yahoo fallback works without extra keys.
 
 ```yaml
 events:
-  top_symbols: 200
+  top_symbols: 1000
   horizon_days: 21
   rank_by: last_score
   collection: stock_events

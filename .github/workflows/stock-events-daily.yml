@@ -69,8 +69,9 @@ jobs:
 
       - name: Run stock events discovery
         if: steps.gate.outputs.run == 'true'
+        timeout-minutes: 180
         env:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
-          PYTHONPATH=./src python scripts/discover_stock_events.py --config config.yaml
+          PYTHONPATH=./src python scripts/discover_stock_events.py --config config.yaml --top-symbols 1000

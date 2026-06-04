@@ -203,11 +203,20 @@ def _fetch_yahoo_events(
     meta: dict[str, dict[str, Any]],
     symbols_with_earnings: set[str],
     log: logging.Logger,
+    max_symbols: int,
 ) -> list[dict[str, Any]]:
+    candidates = [s for s in symbols if s not in symbols_with_earnings]
+    candidates.sort(key=lambda sym: (-_score_from_detail(meta.get(sym, {})), sym))
+    if max_symbols > 0 and len(candidates) > max_symbols:
+        log.info(
+            "Yahoo fallback: capping to %d of %d symbols (events.yahoo_fallback_max)",
+            max_symbols,
+            len(candidates),
+        )
+        candidates = candidates[:max_symbols]
+
     events: list[dict[str, Any]] = []
-    for sym in symbols:
-        if sym in symbols_with_earnings:
-            continue
+    for sym in candidates:
         time.sleep(YAHOO_FALLBACK_DELAY_SEC)
         try:
             cal = _yahoo_calendar_dict(sym)
@@ -327,6 +336,7 @@ def main(argv: list[str] | None = None) -> int:
         meta=meta,
         symbols_with_earnings=symbols_with_fh_earnings,
         log=log,
+        max_symbols=int(cfg.events.yahoo_fallback_max),
     )
     events.extend(yahoo_events)
 

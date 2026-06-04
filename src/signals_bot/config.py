@@ -123,7 +123,7 @@ class LoggingConfig:
 
 @dataclass(frozen=True)
 class EventsConfig:
-    top_symbols: int = 200
+    top_symbols: int = 1000
     horizon_days: int = 21
     rank_by: str = "last_score"
     collection: str = "stock_events"
@@ -136,6 +136,7 @@ class EventsConfig:
     pre_event_ret_10d_cap_pct: float = 20.0
     finnhub_symbol_gap_sec: float = 1.2
     vol_ratio_min: float = 1.5
+    yahoo_fallback_max: int = 200
 
 
 @dataclass(frozen=True)
@@ -342,7 +343,7 @@ def load_config(config_path: Path) -> AppConfig:
         ),
         logging=LoggingConfig(level=str(logging_raw.get("level", "INFO"))),
         events=EventsConfig(
-            top_symbols=int(events_raw.get("top_symbols", 200)),
+            top_symbols=int(events_raw.get("top_symbols", 1000)),
             horizon_days=int(events_raw.get("horizon_days", 21)),
             rank_by=str(events_raw.get("rank_by", "last_score")),
             collection=str(events_raw.get("collection", "stock_events")),
@@ -355,6 +356,7 @@ def load_config(config_path: Path) -> AppConfig:
             pre_event_ret_10d_cap_pct=float(events_raw.get("pre_event_ret_10d_cap_pct", 20.0)),
             finnhub_symbol_gap_sec=float(events_raw.get("finnhub_symbol_gap_sec", 1.2)),
             vol_ratio_min=float(events_raw.get("vol_ratio_min", 1.5)),
+            yahoo_fallback_max=int(events_raw.get("yahoo_fallback_max", 200)),
         ),
         ibkr=IbkrConfig(
             host=str(ibkr_raw.get("host", "127.0.0.1")),

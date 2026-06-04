@@ -8,7 +8,7 @@ Signal-only: recommendations are **SETUP / WATCH / AVOID** labels, not trade ord
 
 | Item | Phase | State |
 |------|-------|--------|
-| Calendar discovery (Finnhub + Yahoo) | MVP | Done |
+| Calendar discovery (Finnhub + Yahoo) | MVP | Done (top **1000** by `last_score`) |
 | Events table on `/events` | MVP | Done |
 | GitHub Action `stock-events-daily.yml` | MVP | Done |
 | OHLC setup metrics per symbol | 2 | Done |
@@ -17,6 +17,7 @@ Signal-only: recommendations are **SETUP / WATCH / AVOID** labels, not trade ord
 | Firestore `recommendations[]` | 2 | Done |
 | UI recommendations panel above table | 2 | Done |
 | Table columns: score, action, bias, RS/ext | 2 | Done |
+| All-events table pagination (50/page) | 2 | Done |
 | Unit tests `test_event_scoring.py` | 2 | Done |
 | AI eval `event_timing_score` from snapshot | 2.1 | Not started |
 | NYSE session-aligned post-earnings windows | 2.1 | Not started |
@@ -102,7 +103,11 @@ Thresholds in `config.yaml` → `events.setup_min_score`, `watch_min_score`, `mi
 
 1. **Top recommendations** panel above the table (rank, ticker, action badge, bias, score, date, summary).
 2. **Table** sorted by `event_score` DESC; recommended rows highlighted.
-3. Disclaimer: signal-only, not investment advice.
+3. **Info** toggle per row: expands event/score/setup/history from Firestore plus live Finnhub company profile & quote via `/api/market/snapshot`.
+4. **All events** table: client-side pages of **50** rows (Prev/Next), same controls as Universe symbol paging.
+5. Disclaimer: signal-only, not investment advice.
+
+`events.top_symbols` defaults to **1000**. Yahoo fallback is capped by `events.yahoo_fallback_max` (default 200, highest scores first) so CI stays within runtime limits.
 
 ## How to run
 

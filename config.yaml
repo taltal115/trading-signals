@@ -101,7 +101,7 @@ logging:
 
 # Upcoming financial events for top universe symbols (scripts/discover_stock_events.py).
 events:
-  top_symbols: 200
+  top_symbols: 1000
   horizon_days: 21
   rank_by: last_score
   collection: stock_events
@@ -114,4 +114,6 @@ events:
   pre_event_ret_10d_cap_pct: 20.0
   finnhub_symbol_gap_sec: 1.2
   vol_ratio_min: 1.5
+  # Cap Yahoo calendar fallback calls (top by score among symbols missing Finnhub earnings).
+  yahoo_fallback_max: 200
 
