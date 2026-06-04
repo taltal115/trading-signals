@@ -178,19 +178,19 @@ def write_universe_snapshot(
 ) -> None:
     """Write the daily universe doc.
 
-    The parent document holds **metadata only** (counts, ``active_symbols`` for the bot, timestamps).
-    Per-symbol status (``active``, ``status``, ``last_active_at``, ``inactive_runs_streak`` …) lives
-    in the ``symbols`` **subcollection** (one doc per ticker) so the parent stays under Firestore's
-    per-document index-entry limit (~40k).
+    Parent holds metadata + a compact ``symbols`` ticker list (for API pagination) and
+    ``active_symbols`` (bot scan list). Per-symbol fields live in the ``symbols`` **subcollection**
+    so the parent stays under Firestore's index-entry limit (~40k). Do not store inline
+    ``symbol_details`` or duplicate ``inactive_symbols`` on the parent.
 
-    Legacy snapshots may still have inline ``symbols`` / ``symbol_details`` on the parent; readers
-    fall back to those fields when the subcollection is empty.
+    Legacy snapshots may still have inline ``symbol_details``; readers fall back when needed.
     """
     del inactive_symbols  # counts only — full inactive list is not stored on the parent doc
     normalized = _normalize_universe_symbols(symbols)
     ts = datetime.now(timezone.utc).isoformat()
     doc: dict[str, Any] = {
         "asof_date": asof_date,
+        "symbols": normalized,
         "ts_utc": ts,
         "source": source,
         "symbol_count": len(normalized),
@@ -205,7 +205,7 @@ def write_universe_snapshot(
     parent_ref = db.collection(collection).document(asof_date)
     if symbol_details:
         _write_universe_symbol_details_subcollection(parent_ref, symbol_details)
-    # Full replace drops legacy inline ``symbol_details`` / ``symbols`` / ``inactive_symbols`` arrays.
+    # Full replace drops legacy inline ``symbol_details`` / ``inactive_symbols``.
     parent_ref.set(doc)
 
 

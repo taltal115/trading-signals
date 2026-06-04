@@ -39,7 +39,7 @@ class WriteUniverseSnapshotTests(unittest.TestCase):
         self.assertEqual(doc["inactive_count"], 2)
         self.assertTrue(doc["symbol_details_in_subcollection"])
         self.assertEqual(doc["active_symbols"], ["AAA"])
-        self.assertNotIn("symbols", doc)
+        self.assertEqual(doc["symbols"], ["AAA", "BBB", "CCC"])
         self.assertNotIn("inactive_symbols", doc)
         self.assertNotIn("symbol_details", doc)
 

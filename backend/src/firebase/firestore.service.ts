@@ -41,6 +41,117 @@ function toPlainDoc(data: DocumentData | undefined): DocumentData {
   return toPlainFirestoreValue(data) as DocumentData;
 }
 
+type UniverseSymbolSortField =
+  | 'ticker'
+  | 'score'
+  | 'confidence'
+  | 'status'
+  | 'name'
+  | 'sector'
+  | 'country'
+  | 'market_cap';
+
+const UNIVERSE_SYMBOL_SORT_FIELDS = new Set<string>([
+  'ticker',
+  'score',
+  'confidence',
+  'status',
+  'name',
+  'sector',
+  'country',
+  'market_cap',
+]);
+
+function parseUniverseSymbolSortField(raw?: string): UniverseSymbolSortField {
+  const s = String(raw ?? 'score').trim().toLowerCase();
+  return UNIVERSE_SYMBOL_SORT_FIELDS.has(s) ? (s as UniverseSymbolSortField) : 'score';
+}
+
+function parseUniverseSymbolSortDir(raw?: string): 'asc' | 'desc' {
+  return String(raw ?? 'desc').trim().toLowerCase() === 'asc' ? 'asc' : 'desc';
+}
+
+function universeSymbolFirestoreOrderField(
+  sort: UniverseSymbolSortField,
+): string | admin.firestore.FieldPath {
+  switch (sort) {
+    case 'score':
+      return 'last_score';
+    case 'confidence':
+      return 'last_confidence';
+    case 'ticker':
+      return admin.firestore.FieldPath.documentId();
+    default:
+      return sort;
+  }
+}
+
+function universeSymbolSortValue(
+  row: { ticker: string; detail: DocumentData },
+  sort: UniverseSymbolSortField,
+): string | number {
+  const det = row.detail;
+  switch (sort) {
+    case 'ticker':
+      return row.ticker;
+    case 'score': {
+      const v = det['last_score'] ?? det['score'];
+      const n = Number(v);
+      return Number.isFinite(n) ? n : Number.NEGATIVE_INFINITY;
+    }
+    case 'confidence': {
+      const v = det['last_confidence'] ?? det['confidence'];
+      const n = Number(v);
+      return Number.isFinite(n) ? n : Number.NEGATIVE_INFINITY;
+    }
+    case 'market_cap': {
+      const n = Number(det['market_cap']);
+      return Number.isFinite(n) ? n : Number.NEGATIVE_INFINITY;
+    }
+    case 'status':
+      return String(det['status'] ?? '');
+    case 'name':
+      return String(det['name'] ?? '');
+    case 'sector':
+      return String(det['sector'] ?? '');
+    case 'country':
+      return String(det['country'] ?? '');
+    default:
+      return '';
+  }
+}
+
+function compareUniverseSymbolRows(
+  a: { ticker: string; detail: DocumentData },
+  b: { ticker: string; detail: DocumentData },
+  sort: UniverseSymbolSortField,
+  dir: 'asc' | 'desc',
+): number {
+  const av = universeSymbolSortValue(a, sort);
+  const bv = universeSymbolSortValue(b, sort);
+  let cmp: number;
+  if (typeof av === 'number' && typeof bv === 'number') {
+    cmp = av - bv;
+  } else {
+    cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' });
+  }
+  if (cmp === 0) {
+    cmp = a.ticker.localeCompare(b.ticker);
+  }
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+function paginateUniverseSymbolRows(
+  rows: { ticker: string; detail: DocumentData }[],
+  offset: number,
+  limit: number,
+  sort: UniverseSymbolSortField,
+  dir: 'asc' | 'desc',
+): { ticker: string; detail: DocumentData }[] {
+  const sorted = [...rows].sort((a, b) => compareUniverseSymbolRows(a, b, sort, dir));
+  return sorted.slice(offset, offset + limit);
+}
+
 /** Open positions (`created_at_utc`; deterministic ids after migrate). */
 const MY_POSITIONS_COLLECTION = 'my_positions';
 
@@ -296,11 +407,6 @@ export class FirestoreService implements OnModuleInit {
           const raw = toPlainDoc(d.data());
           const syms = raw['symbols'];
           const totalFromField = Number(raw['symbol_count']);
-          const total = Number.isFinite(totalFromField)
-            ? totalFromField
-            : Array.isArray(syms)
-              ? syms.length
-              : 0;
           let activeCount = Number.isFinite(Number(raw['active_count']))
             ? Number(raw['active_count'])
             : Array.isArray(raw['active_symbols'])
@@ -311,6 +417,14 @@ export class FirestoreService implements OnModuleInit {
             : Array.isArray(raw['inactive_symbols'])
               ? (raw['inactive_symbols'] as unknown[]).length
               : -1;
+          let total = 0;
+          if (Number.isFinite(totalFromField) && totalFromField > 0) {
+            total = totalFromField;
+          } else if (Array.isArray(syms) && syms.length > 0) {
+            total = syms.length;
+          } else if (activeCount >= 0 && inactiveCount >= 0) {
+            total = activeCount + inactiveCount;
+          }
           // Legacy snapshot (no active/inactive split): treat all as active.
           if (activeCount < 0 && inactiveCount < 0) {
             activeCount = total;
@@ -346,10 +460,14 @@ export class FirestoreService implements OnModuleInit {
     docId: string,
     offset: number,
     limit: number,
+    sortRaw?: string,
+    dirRaw?: string,
   ): Promise<{
     total: number;
     offset: number;
     limit: number;
+    sort: string;
+    dir: 'asc' | 'desc';
     rows: { ticker: string; detail: DocumentData }[];
   }> {
     try {
@@ -362,52 +480,69 @@ export class FirestoreService implements OnModuleInit {
       const inlineSymbols = Array.isArray(data['symbols'])
         ? (data['symbols'] as unknown[]).map((s) => String(s).trim().toUpperCase()).filter(Boolean)
         : [];
-      const totalFromField = Number(data['symbol_count']);
-      const total = Number.isFinite(totalFromField)
-        ? totalFromField
-        : inlineSymbols.length;
+      const activeSymbols = Array.isArray(data['active_symbols'])
+        ? (data['active_symbols'] as unknown[]).map((s) => String(s).trim().toUpperCase()).filter(Boolean)
+        : [];
+      const symbolCountField = Number(data['symbol_count']);
+      const activeCountField = Number(data['active_count']);
+      const inactiveCountField = Number(data['inactive_count']);
+      let total = 0;
+      if (Number.isFinite(symbolCountField) && symbolCountField > 0) {
+        total = symbolCountField;
+      } else if (inlineSymbols.length > 0) {
+        total = inlineSymbols.length;
+      } else if (
+        Number.isFinite(activeCountField) &&
+        Number.isFinite(inactiveCountField) &&
+        activeCountField >= 0 &&
+        inactiveCountField >= 0
+      ) {
+        total = activeCountField + inactiveCountField;
+      } else if (activeSymbols.length > 0) {
+        total = activeSymbols.length;
+      }
       const inline =
         data['symbol_details'] && typeof data['symbol_details'] === 'object' && !Array.isArray(data['symbol_details'])
           ? (data['symbol_details'] as Record<string, unknown>)
           : {};
-      const useSubcollection =
+      const detailsInSubcollection =
         data['symbol_details_in_subcollection'] === true ||
         (Object.keys(inline).length === 0 && (inlineSymbols.length > 0 || total > 0));
+
+      const sort = parseUniverseSymbolSortField(sortRaw);
+      const dir = parseUniverseSymbolSortDir(dirRaw);
+
       let rows: { ticker: string; detail: DocumentData }[];
-      if (!useSubcollection) {
-        const slice = inlineSymbols.slice(offset, offset + limit);
-        rows = slice.map((ticker) => ({
-          ticker,
-          detail: toPlainDoc(inline[ticker] as DocumentData | undefined) as DocumentData,
-        }));
-      } else if (inlineSymbols.length > 0) {
-        const slice = inlineSymbols.slice(offset, offset + limit);
-        const subRefs = slice.map((ticker) => ref.collection('symbols').doc(ticker));
-        const subSnaps =
-          subRefs.length > 0 ? await this.db.getAll(...subRefs) : [];
-        const detailByTicker = new Map<string, DocumentData>();
-        for (const s of subSnaps) {
-          if (s.exists) {
-            detailByTicker.set(s.id.toUpperCase(), toPlainDoc(s.data()));
-          }
-        }
-        rows = slice.map((ticker) => ({
-          ticker,
-          detail: detailByTicker.get(ticker) ?? ({} as DocumentData),
-        }));
-      } else {
+      if (!detailsInSubcollection && Object.keys(inline).length > 0) {
+        rows = paginateUniverseSymbolRows(
+          Object.keys(inline).map((ticker) => ({
+            ticker: ticker.toUpperCase(),
+            detail: toPlainDoc(inline[ticker] as DocumentData | undefined) as DocumentData,
+          })),
+          offset,
+          limit,
+          sort,
+          dir,
+        );
+      } else if (detailsInSubcollection || inlineSymbols.length > 0 || activeSymbols.length > 0) {
         const subSnap = await ref
           .collection('symbols')
-          .orderBy(admin.firestore.FieldPath.documentId())
+          .orderBy(universeSymbolFirestoreOrderField(sort), dir)
           .offset(offset)
           .limit(limit)
           .get();
-        rows = subSnap.docs.map((s) => ({
-          ticker: s.id.toUpperCase(),
-          detail: toPlainDoc(s.data()) as DocumentData,
+        rows = subSnap.docs.map((d) => ({
+          ticker: d.id.toUpperCase(),
+          detail: toPlainDoc(d.data()) as DocumentData,
         }));
+      } else {
+        rows = [];
       }
-      return { total, offset, limit, rows };
+
+      if (total === 0 && rows.length > 0) {
+        total = rows.length;
+      }
+      return { total, offset, limit, sort, dir, rows };
     } catch (e) {
       if (e instanceof NotFoundException) {
         throw e;

@@ -52,16 +52,19 @@ strategy:
   # Filters
   price_min: 2.0
   price_max: 1000.0
-  avg_dollar_vol_min: 5_000_000
+  avg_dollar_vol_min: 10_000_000
   atr_pct_min: 3.0
-  atr_pct_max: 18.0
+  atr_pct_max: 14.0
 
-  # Breakout + momentum thresholds
+  # Breakout + momentum thresholds (stricter = fewer, higher-quality BUY setups)
   breakout_lookback_days: 20
   breakout_dist_pct_max: 0.8    # tighter = higher confidence
-  ret_5d_min_pct: 10.0          # >10% in ~1 week
-  ret_10d_min_pct: 15.0         # keep 2-week trend strong
-  vol_ratio_min: 2.5            # volume / avg20 volume
+  ret_5d_min_pct: 12.0
+  ret_10d_min_pct: 18.0
+  vol_ratio_min: 3.0            # volume / avg20 volume
+
+  # BUY must meet breakout rules AND reach this confidence (0 = disabled)
+  min_buy_confidence: 85
 
   # Position guidance (manual)
   max_hold_days: 5              # ceiling; actual hold is ATR-based per signal (2..max)
@@ -81,8 +84,8 @@ sqlite:
 slack:
   enabled: true
   channel: "#trading-signals"
-  post_top_n: 10
-  min_confidence: 75
+  post_top_n: 5
+  min_confidence: 85
 
 logging:
   level: "INFO"

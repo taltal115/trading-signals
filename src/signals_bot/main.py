@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from signals_bot.config import AppConfig, load_config
 from signals_bot.logging import get_logger, log_run_header, log_signal, print_action_table
@@ -15,7 +16,21 @@ from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.providers.ibkr_flex import fetch_holdings_and_latest_buys
 from signals_bot.storage.firestore import write_buy_signals
 from signals_bot.storage.sqlite import SqliteStore
-from signals_bot.strategy.breakout import BreakoutMomentumStrategy
+from signals_bot.strategy.breakout import BreakoutMomentumStrategy, Signal
+
+
+def _apply_min_buy_confidence(signal: Signal, min_conf: int) -> Signal:
+    """Downgrade weak BUY setups to WAIT so Firestore/Slack only see high-confidence entries."""
+    if min_conf <= 0 or signal.action != "BUY" or signal.confidence >= min_conf:
+        return signal
+    return replace(
+        signal,
+        action="WAIT",
+        notes=f"buy setup but confidence {signal.confidence} < min {min_conf}",
+        suggested_entry=None,
+        suggested_stop=None,
+        suggested_target=None,
+    )
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -36,6 +51,11 @@ def main() -> int:
     run_id = f"{cfg.run.name}-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
 
     log_run_header(logger, run_id=run_id, config_path=str(config_path))
+    if cfg.strategy.min_buy_confidence > 0:
+        logger.info(
+            "Min BUY confidence: %d (weaker BUY setups logged as WAIT)",
+            cfg.strategy.min_buy_confidence,
+        )
 
     store = SqliteStore(cfg.sqlite.path) if (cfg.sqlite.enabled and not args.dry_run) else None
     if store:
@@ -153,6 +173,8 @@ def main() -> int:
         )
         if signal is None:
             continue
+
+        signal = _apply_min_buy_confidence(signal, cfg.strategy.min_buy_confidence)
 
         yahoo_prov = providers.get("yahoo")
         if signal.action == "BUY" and isinstance(yahoo_prov, YahooProvider):

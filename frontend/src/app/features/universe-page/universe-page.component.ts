@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Subscription } from 'rxjs';
@@ -34,6 +34,8 @@ export type UniverseStatusKey =
   | 'inactive_capped'
   | 'unknown';
 
+export type UniverseStatusFilter = 'all' | UniverseStatusKey;
+
 const STATUS_LABELS: Record<UniverseStatusKey, string> = {
   active: 'Active',
   inactive_failed: 'Failed',
@@ -43,8 +45,47 @@ const STATUS_LABELS: Record<UniverseStatusKey, string> = {
   unknown: 'Unknown',
 };
 
+const STATUS_FILTER_OPTIONS: { value: UniverseStatusFilter; label: string }[] = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'inactive_failed', label: 'Failed' },
+  { value: 'inactive_low_conf', label: 'Low conf' },
+  { value: 'inactive_stale', label: 'Stale' },
+  { value: 'inactive_capped', label: 'Capped' },
+  { value: 'unknown', label: 'Unknown' },
+];
+
 const SNAP_PAGE_SIZE = 5;
-const SYMBOL_PAGE_SIZE = 3;
+const SYMBOL_PAGE_SIZE = 50;
+
+type SymbolRow = { ticker: string; detail: UniverseSymbolDetail };
+
+interface SymbolTableState {
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+  total: number;
+  offset: number;
+  rows: SymbolRow[];
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  statusFilter: UniverseStatusFilter;
+  search: string;
+}
+
+export interface SymbolTableView {
+  loading: boolean;
+  error: string | null;
+  total: number;
+  offset: number;
+  pageRows: SymbolRow[];
+  pageStart: number;
+  pageEnd: number;
+  statusFilter: UniverseStatusFilter;
+  search: string;
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+}
 
 export interface UniverseSnapshotLite {
   id: string;
@@ -88,6 +129,21 @@ function normalizeSymbolDetails(d: Record<string, unknown> | undefined): Univers
   return d as UniverseSymbolDetail;
 }
 
+function defaultSymbolTableState(): SymbolTableState {
+  return {
+    loading: false,
+    loaded: false,
+    error: null,
+    total: 0,
+    offset: 0,
+    rows: [],
+    sortKey: 'score',
+    sortDir: 'desc',
+    statusFilter: 'all',
+    search: '',
+  };
+}
+
 @Component({
   selector: 'app-universe-page',
   standalone: true,
@@ -104,43 +160,13 @@ export class UniversePageComponent implements OnInit, OnDestroy {
   readonly loadingSnapshotPage = signal(false);
   readonly error = signal<string | null>(null);
 
-  /** Fetched snapshot pages; index `snapshotPageIndex` is the visible slice. */
   readonly snapshotPages = signal<SnapshotPage[]>([]);
   readonly snapshotPageIndex = signal(0);
-
   readonly expandedId = signal<string | null>(null);
 
-  /** Per snapshot id: paginated symbol rows (lazy-loaded). */
-  readonly symbolState = signal<
-    Record<
-      string,
-      {
-        loading: boolean;
-        error: string | null;
-        total: number;
-        offset: number;
-        rows: { ticker: string; detail: UniverseSymbolDetail }[];
-      }
-    >
-  >({});
+  readonly symbolState = signal<Record<string, SymbolTableState>>({});
 
-  readonly snapshotPageLabel = computed(() => this.snapshotPageIndex() + 1);
-
-  readonly currentSnapshots = computed(() => {
-    const pages = this.snapshotPages();
-    const i = this.snapshotPageIndex();
-    return pages[i]?.docs ?? [];
-  });
-
-  readonly canPrevSnapshots = computed(() => this.snapshotPageIndex() > 0);
-
-  readonly canNextSnapshots = computed(() => {
-    const pages = this.snapshotPages();
-    const i = this.snapshotPageIndex();
-    if (!pages.length) return false;
-    if (i + 1 < pages.length) return true;
-    return !!pages[i]?.nextCursor;
-  });
+  readonly statusFilterOptions = STATUS_FILTER_OPTIONS;
 
   protected readonly fmtUiDecimal = fmtUiDecimal;
 
@@ -168,15 +194,13 @@ export class UniversePageComponent implements OnInit, OnDestroy {
       next: (r) => {
         const page: SnapshotPage = {
           docs: (r.docs ?? []).map((d) => {
-            const total = Number.isFinite(Number(d.data?.symbol_count))
-              ? Number(d.data?.symbol_count)
-              : 0;
             const activeRaw = Number(d.data?.active_count);
             const inactiveRaw = Number(d.data?.inactive_count);
-            const active = Number.isFinite(activeRaw) ? activeRaw : total;
-            const inactive = Number.isFinite(inactiveRaw)
-              ? inactiveRaw
-              : Math.max(0, total - active);
+            const active = Number.isFinite(activeRaw) ? activeRaw : 0;
+            const inactive = Number.isFinite(inactiveRaw) ? inactiveRaw : 0;
+            const countRaw = Number(d.data?.symbol_count);
+            const total =
+              Number.isFinite(countRaw) && countRaw > 0 ? countRaw : active + inactive;
             return {
               id: d.id,
               asof_date: d.data?.asof_date != null ? String(d.data.asof_date) : undefined,
@@ -210,6 +234,28 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     });
   }
 
+  snapshotPageLabel(): number {
+    return this.snapshotPageIndex() + 1;
+  }
+
+  currentSnapshots(): UniverseSnapshotLite[] {
+    const pages = this.snapshotPages();
+    const i = this.snapshotPageIndex();
+    return pages[i]?.docs ?? [];
+  }
+
+  canPrevSnapshots(): boolean {
+    return this.snapshotPageIndex() > 0;
+  }
+
+  canNextSnapshots(): boolean {
+    const pages = this.snapshotPages();
+    const i = this.snapshotPageIndex();
+    if (!pages.length) return false;
+    if (i + 1 < pages.length) return true;
+    return !!pages[i]?.nextCursor;
+  }
+
   nextSnapshotPage(): void {
     const pages = this.snapshotPages();
     const i = this.snapshotPageIndex();
@@ -232,65 +278,146 @@ export class UniversePageComponent implements OnInit, OnDestroy {
   toggleRow(id: string): void {
     const next = this.expandedId() === id ? null : id;
     this.expandedId.set(next);
-    if (next && !this.symbolState()[next]) {
+    if (!next) return;
+    const st = this.symbolState()[next];
+    if (!st?.loaded && !st?.loading) {
       this.loadSymbolPage(next, 0);
     }
   }
 
-  private loadSymbolPage(docId: string, offset: number): void {
-    const base = environment.apiBaseUrl;
+  private patchSymbolState(docId: string, patch: Partial<SymbolTableState>): void {
     this.symbolState.update((s) => ({
       ...s,
       [docId]: {
-        ...(s[docId] ?? { total: 0, offset: 0, rows: [], error: null, loading: false }),
-        loading: true,
-        error: null,
+        ...(s[docId] ?? defaultSymbolTableState()),
+        ...patch,
       },
     }));
+  }
 
-    const params = new HttpParams().set('offset', String(offset)).set('limit', String(SYMBOL_PAGE_SIZE));
+  private loadSymbolPage(docId: string, offset: number): void {
+    const st = this.symbolState()[docId] ?? defaultSymbolTableState();
+    if (st.loading) return;
+
+    const base = environment.apiBaseUrl;
+    this.patchSymbolState(docId, { loading: true, error: null, offset });
+
+    const params = new HttpParams()
+      .set('offset', String(offset))
+      .set('limit', String(SYMBOL_PAGE_SIZE))
+      .set('sort', st.sortKey)
+      .set('dir', st.sortDir);
 
     const sub = this.http
-      .get<SymbolPageApiResponse>(`${base}/api/universe/${encodeURIComponent(docId)}/symbols`, { params })
+      .get<SymbolPageApiResponse>(`${base}/api/universe/${encodeURIComponent(docId)}/symbols`, {
+        params,
+      })
       .subscribe({
         next: (r) => {
-          this.symbolState.update((s) => ({
-            ...s,
-            [docId]: {
-              loading: false,
-              error: null,
-              total: r.total,
-              offset: r.offset,
-              rows: (r.rows ?? []).map((row) => ({
-                ticker: row.ticker,
-                detail: normalizeSymbolDetails(row.detail),
-              })),
-            },
-          }));
+          this.patchSymbolState(docId, {
+            loading: false,
+            loaded: true,
+            error: null,
+            total: r.total,
+            offset: r.offset,
+            rows: (r.rows ?? []).map((row) => ({
+              ticker: row.ticker,
+              detail: normalizeSymbolDetails(row.detail),
+            })),
+          });
         },
         error: (err) => {
-          this.symbolState.update((s) => ({
-            ...s,
-            [docId]: {
-              loading: false,
-              error: formatApiErr(err),
-              total: s[docId]?.total ?? 0,
-              offset: s[docId]?.offset ?? 0,
-              rows: s[docId]?.rows ?? [],
-            },
-          }));
+          this.patchSymbolState(docId, {
+            loading: false,
+            loaded: true,
+            error: formatApiErr(err),
+          });
         },
       });
     this.subsSymbol.push(sub);
   }
 
-  symbolStateFor(id: string) {
-    return this.symbolState()[id] ?? null;
+  symbolViewFor(docId: string): SymbolTableView | null {
+    const st = this.symbolState()[docId];
+    if (!st) return null;
+    const pageRows = this.filteredRows(st);
+    return {
+      loading: st.loading,
+      error: st.error,
+      total: st.total,
+      offset: st.offset,
+      pageRows,
+      pageStart: pageRows.length === 0 ? 0 : st.offset + 1,
+      pageEnd: st.offset + pageRows.length,
+      statusFilter: st.statusFilter,
+      search: st.search,
+      sortKey: st.sortKey,
+      sortDir: st.sortDir,
+    };
+  }
+
+  private filteredRows(st: SymbolTableState): SymbolRow[] {
+    const q = st.search.trim().toUpperCase();
+    return st.rows.filter((row) => {
+      const sk = this.statusKey(row.detail);
+      if (st.statusFilter !== 'all' && sk !== st.statusFilter) {
+        return false;
+      }
+      if (!q) return true;
+      const det = row.detail;
+      return (
+        row.ticker.toUpperCase().includes(q) ||
+        String(det.name ?? '')
+          .toUpperCase()
+          .includes(q) ||
+        String(det.sector ?? '')
+          .toUpperCase()
+          .includes(q) ||
+        String(det.country ?? '')
+          .toUpperCase()
+          .includes(q)
+      );
+    });
+  }
+  onSymbolSortHeader(docId: string, key: string): void {
+    const st = this.symbolState()[docId];
+    if (!st || st.loading) return;
+    const sortDir =
+      st.sortKey === key ? (st.sortDir === 'asc' ? 'desc' : 'asc') : 'desc';
+    this.patchSymbolState(docId, { sortKey: key, sortDir, offset: 0 });
+    this.loadSymbolPage(docId, 0);
+  }
+
+  symbolThClass(docId: string, key: string): Record<string, boolean> {
+    const st = this.symbolState()[docId];
+    return {
+      'sort-asc': !!st && st.sortKey === key && st.sortDir === 'asc',
+      'sort-desc': !!st && st.sortKey === key && st.sortDir === 'desc',
+    };
+  }
+
+  setSymbolStatusFilter(docId: string, raw: string): void {
+    const value = raw as UniverseStatusFilter;
+    this.patchSymbolState(docId, { statusFilter: value });
+  }
+
+  setSymbolSearch(docId: string, value: string): void {
+    this.patchSymbolState(docId, { search: value });
+  }
+
+  clearSymbolFilters(docId: string): void {
+    this.patchSymbolState(docId, { statusFilter: 'all', search: '' });
+  }
+
+  symbolFiltersActive(docId: string): boolean {
+    const st = this.symbolState()[docId];
+    if (!st) return false;
+    return st.statusFilter !== 'all' || st.search.trim().length > 0;
   }
 
   nextSymbolPage(docId: string): void {
     const st = this.symbolState()[docId];
-    if (!st) return;
+    if (!st || st.loading) return;
     const nextOff = st.offset + SYMBOL_PAGE_SIZE;
     if (nextOff >= st.total) return;
     this.loadSymbolPage(docId, nextOff);
@@ -298,16 +425,14 @@ export class UniversePageComponent implements OnInit, OnDestroy {
 
   prevSymbolPage(docId: string): void {
     const st = this.symbolState()[docId];
-    if (!st) return;
-    const prevOff = Math.max(0, st.offset - SYMBOL_PAGE_SIZE);
-    if (prevOff === st.offset) return;
-    this.loadSymbolPage(docId, prevOff);
+    if (!st || st.loading || st.offset <= 0) return;
+    this.loadSymbolPage(docId, Math.max(0, st.offset - SYMBOL_PAGE_SIZE));
   }
 
   canNextSymbols(docId: string): boolean {
     const st = this.symbolState()[docId];
     if (!st || st.loading) return false;
-    return st.offset + st.rows.length < st.total;
+    return st.offset + SYMBOL_PAGE_SIZE < st.total;
   }
 
   canPrevSymbols(docId: string): boolean {
@@ -316,7 +441,6 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     return st.offset > 0;
   }
 
-  /** Finnhub ``market_cap`` is USD millions (same as signals live snapshot). */
   fmtMarketCapMillions(millions: number | null | undefined): string {
     if (millions == null || !Number.isFinite(Number(millions))) return '—';
     const m = Number(millions);
@@ -340,7 +464,6 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     return String(Math.round(Number(c)));
   }
 
-  /** Resolve the status key from a `symbol_details` entry; legacy snapshots default to `active`. */
   statusKey(det: UniverseSymbolDetail | null | undefined): UniverseStatusKey {
     if (!det) return 'unknown';
     const raw = String(det.status ?? '').trim().toLowerCase();

@@ -92,7 +92,9 @@ jobs:
             --config config.yaml \
             --state data/universe_state.json \
             --max-calls 2000 \
-            --merge-days 7
+            --merge-days 7 \
+            --min-confidence 85 \
+            --top-k 100
 
       - name: Save Finnhub batch rotation state
         if: steps.gate.outputs.run == 'true'

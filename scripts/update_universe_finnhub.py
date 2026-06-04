@@ -198,14 +198,14 @@ def main() -> int:
     p.add_argument(
         "--top-k",
         type=int,
-        default=200,
+        default=100,
         help="Cap the number of symbols flagged 'active' (sorted by confidence,score). "
         "0 disables the cap.",
     )
     p.add_argument(
         "--min-confidence",
         type=int,
-        default=0,
+        default=85,
         help="Minimum signal confidence (0-100) for a symbol to be eligible for 'active'. "
         "Below this → marked inactive_low_conf.",
     )
@@ -567,7 +567,14 @@ def main() -> int:
             except Exception as exc:  # noqa: BLE001
                 log.debug("Failed to fetch profile for %s: %s", sym, exc)
 
-    all_list = sorted(all_symbols)
+    all_list = sorted(
+        all_symbols,
+        key=lambda sym: (
+            -int(symbol_details.get(sym, {}).get("last_confidence") or symbol_details.get(sym, {}).get("confidence") or -1),
+            -float(symbol_details.get(sym, {}).get("last_score") or symbol_details.get(sym, {}).get("score") or -1.0),
+            sym,
+        ),
+    )
     active_list = sorted(active_syms)
     inactive_list = sorted(all_symbols - active_syms)
 

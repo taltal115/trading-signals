@@ -56,6 +56,92 @@
   font-variant-numeric: tabular-nums;
 }
 
+.universe-symbol-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.universe-filter-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.78rem;
+}
+
+.universe-filter-caption {
+  color: var(--muted, #9aa0a6);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.universe-filter-input,
+.universe-filter-select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface, #21262d);
+  color: var(--text, #e6edf3);
+  min-width: 10rem;
+}
+
+.universe-filter-input {
+  min-width: 14rem;
+}
+
+.universe-filter-clear {
+  align-self: flex-end;
+}
+
+.universe-filter-summary {
+  align-self: flex-end;
+  font-size: 0.82rem;
+  color: var(--muted, #9aa0a6);
+  margin-left: auto;
+}
+
+.universe-symbols-empty {
+  text-align: center;
+  color: var(--muted, #9aa0a6);
+  font-style: italic;
+  padding: 0.75rem 0;
+}
+
+.universe-symbols-table th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.universe-symbols-table th[data-sort]:hover {
+  color: var(--accent, #58a6ff);
+}
+
+.universe-symbols-table th[data-sort]::after {
+  content: '';
+  display: inline-block;
+  width: 0.55rem;
+  margin-left: 0.25rem;
+  opacity: 0.35;
+}
+
+.universe-symbols-table th[data-sort].sort-asc::after {
+  content: '▲';
+  opacity: 1;
+  color: var(--accent, #58a6ff);
+}
+
+.universe-symbols-table th[data-sort].sort-desc::after {
+  content: '▼';
+  opacity: 1;
+  color: var(--accent, #58a6ff);
+}
+
 .universe-symbols-panel table thead th:nth-child(5),
 .universe-symbols-panel table thead th:nth-child(6),
 .universe-symbols-panel table thead th:nth-child(9) {

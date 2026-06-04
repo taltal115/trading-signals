@@ -86,6 +86,7 @@ class StrategyConfig:
     max_hold_days: int = 5
     stop_atr_mult: float = 1.5
     target_atr_mult: float = 3.0
+    min_buy_confidence: int = 0
     weights: StrategyWeights = StrategyWeights()
 
 
@@ -250,6 +251,7 @@ def load_config(config_path: Path) -> AppConfig:
         max_hold_days=int(strategy_raw.get("max_hold_days", 5)),
         stop_atr_mult=float(strategy_raw.get("stop_atr_mult", 1.5)),
         target_atr_mult=float(strategy_raw.get("target_atr_mult", 3.0)),
+        min_buy_confidence=int(strategy_raw.get("min_buy_confidence", 0)),
         weights=strategy_weights,
     )
 
