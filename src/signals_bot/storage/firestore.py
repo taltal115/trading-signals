@@ -354,6 +354,8 @@ def _bot_symbols_from_doc(data: dict[str, Any]) -> list[str]:
 
 
 STOCK_EVENTS_COLLECTION = "stock_events"
+IBKR_PORTFOLIO_COLLECTION = "ibkr_portfolio"
+IBKR_PORTFOLIO_LATEST_DOC = "latest"
 
 
 def read_top_universe_symbols_by_score(
@@ -526,3 +528,91 @@ def write_buy_signals(
     db = _build_client()
     new_id = signals_run_document_id(asof_date=asof_date, ts_utc=str(doc["ts_utc"]), run_id=run_id)
     db.collection(SIGNALS_COLLECTION).document(new_id).set(doc)
+
+def _holdings_from_portfolio_doc(data: dict[str, Any]) -> tuple[set[str], dict[str, dict[str, Any]]]:
+    holdings: set[str] = set()
+    merged: dict[str, dict[str, Any]] = {}
+    positions = data.get("positions")
+    if not isinstance(positions, list):
+        return holdings, merged
+    for raw in positions:
+        if not isinstance(raw, dict):
+            continue
+        ticker = str(raw.get("ticker") or "").strip().upper()
+        if not ticker:
+            continue
+        qty = raw.get("qty")
+        try:
+            qty_f = float(qty) if qty is not None else 0.0
+        except (TypeError, ValueError):
+            qty_f = 0.0
+        if abs(qty_f) < 1e-12:
+            continue
+        holdings.add(ticker)
+        merged[ticker] = {
+            "price": raw.get("avg_cost"),
+            "time": None,
+            "qty": qty_f,
+            "mkt_value": raw.get("mkt_value"),
+            "unrealized_pnl": raw.get("unrealized_pnl"),
+            "conid": raw.get("conid"),
+        }
+    return holdings, merged
+
+
+def write_ibkr_portfolio_snapshot(
+    doc: dict[str, Any],
+    *,
+    collection: str = IBKR_PORTFOLIO_COLLECTION,
+) -> str:
+    """Write portfolio snapshot to ``{collection}/{account_id}`` and ``{collection}/latest``."""
+    account_id = str(doc.get("account_id") or "").strip()
+    if not account_id:
+        raise ValueError("IBKR portfolio snapshot missing account_id")
+    db = _build_client()
+    coll = db.collection(collection)
+    coll.document(account_id).set(doc)
+    coll.document(IBKR_PORTFOLIO_LATEST_DOC).set(doc)
+    return account_id
+
+
+def read_ibkr_portfolio_doc(
+    *,
+    collection: str = IBKR_PORTFOLIO_COLLECTION,
+    account_id: str | None = None,
+) -> dict[str, Any] | None:
+    db = _build_client()
+    coll = db.collection(collection)
+    if account_id:
+        snap = coll.document(account_id.strip()).get()
+        return snap.to_dict() if snap.exists else None
+    snap = coll.document(IBKR_PORTFOLIO_LATEST_DOC).get()
+    return snap.to_dict() if snap.exists else None
+
+
+def read_ibkr_portfolio_holdings(
+    *,
+    collection: str = IBKR_PORTFOLIO_COLLECTION,
+    account_id: str | None = None,
+    max_age_min: int = 30,
+) -> tuple[set[str], dict[str, dict[str, Any]]]:
+    """Return holdings if snapshot exists and is younger than ``max_age_min`` (0 = any age)."""
+    data = read_ibkr_portfolio_doc(collection=collection, account_id=account_id)
+    if not data:
+        return set(), {}
+    ts_raw = str(data.get("ts_utc") or "").strip()
+    if max_age_min > 0 and ts_raw:
+        try:
+            tnorm = ts_raw.replace("Z", "+00:00") if ts_raw.endswith("Z") else ts_raw
+            ts = datetime.fromisoformat(tnorm)
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            else:
+                ts = ts.astimezone(timezone.utc)
+            age_min = (datetime.now(timezone.utc) - ts).total_seconds() / 60.0
+            if age_min > max_age_min:
+                return set(), {}
+        except ValueError:
+            return set(), {}
+    return _holdings_from_portfolio_doc(data)
+

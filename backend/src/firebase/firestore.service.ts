@@ -873,7 +873,9 @@ export class FirestoreService implements OnModuleInit {
     top_symbols_n: number;
     rank_by: string;
     horizon_days: number;
+    source: string;
     events: DocumentData[];
+    recommendations: DocumentData[];
   }> {
     try {
       const snap = await this.db
@@ -890,6 +892,10 @@ export class FirestoreService implements OnModuleInit {
       const events = Array.isArray(rawEvents)
         ? rawEvents.map((e) => toPlainDoc(e as DocumentData))
         : [];
+      const rawRecs = data['recommendations'];
+      const recommendations = Array.isArray(rawRecs)
+        ? rawRecs.map((r) => toPlainDoc(r as DocumentData))
+        : [];
       return {
         docId: doc.id,
         asof_date: String(data['asof_date'] ?? doc.id),
@@ -898,7 +904,9 @@ export class FirestoreService implements OnModuleInit {
         top_symbols_n: Number(data['top_symbols_n'] ?? 0),
         rank_by: String(data['rank_by'] ?? 'last_score'),
         horizon_days: Number(data['horizon_days'] ?? 0),
+        source: String(data['source'] ?? ''),
         events,
+        recommendations,
       };
     } catch (e) {
       if (e instanceof NotFoundException) {

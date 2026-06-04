@@ -45,11 +45,23 @@ class IbkrScannerConfig:
 
 
 @dataclass(frozen=True)
+class IbkrClientPortalConfig:
+    enabled: bool = False
+    base_url: str = "https://localhost:5000/v1/api"
+    verify_ssl: bool = False
+    account_id: str = ""
+    collection: str = "ibkr_portfolio"
+    snapshot_max_age_min: int = 30
+    sync_interval_min: int = 5
+
+
+@dataclass(frozen=True)
 class IbkrConfig:
     host: str = "127.0.0.1"
     port: int = 7497
     client_id: int = 7
     connect_timeout_sec: int = 5
+    client_portal: IbkrClientPortalConfig = field(default_factory=IbkrClientPortalConfig)
 
 
 @dataclass(frozen=True)
@@ -115,6 +127,15 @@ class EventsConfig:
     horizon_days: int = 21
     rank_by: str = "last_score"
     collection: str = "stock_events"
+    recommendations_top_n: int = 8
+    min_recommendation_score: int = 55
+    setup_min_score: int = 70
+    watch_min_score: int = 55
+    history_quarters: int = 8
+    pre_event_ret_5d_cap_pct: float = 12.0
+    pre_event_ret_10d_cap_pct: float = 20.0
+    finnhub_symbol_gap_sec: float = 1.2
+    vol_ratio_min: float = 1.5
 
 
 @dataclass(frozen=True)
@@ -218,6 +239,25 @@ def _coerce_weights(d: dict[str, Any] | None) -> StrategyWeights:
     )
 
 
+
+def _load_ibkr_client_portal_config(raw: dict[str, Any]) -> IbkrClientPortalConfig:
+    import os
+
+    env_url = os.environ.get("IBKR_CP_GATEWAY_URL", "").strip()
+    env_account = os.environ.get("IBKR_CP_ACCOUNT_ID", "").strip()
+    base_url = env_url or str(raw.get("base_url", "https://localhost:5000/v1/api"))
+    account_id = env_account or str(raw.get("account_id", "") or "")
+    return IbkrClientPortalConfig(
+        enabled=bool(raw.get("enabled", False)),
+        base_url=base_url.strip(),
+        verify_ssl=bool(raw.get("verify_ssl", False)),
+        account_id=account_id.strip(),
+        collection=str(raw.get("collection", "ibkr_portfolio")),
+        snapshot_max_age_min=int(raw.get("snapshot_max_age_min", 30)),
+        sync_interval_min=int(raw.get("sync_interval_min", 5)),
+    )
+
+
 def load_config(config_path: Path) -> AppConfig:
     raw = yaml.safe_load(config_path.read_text()) or {}
 
@@ -306,12 +346,22 @@ def load_config(config_path: Path) -> AppConfig:
             horizon_days=int(events_raw.get("horizon_days", 21)),
             rank_by=str(events_raw.get("rank_by", "last_score")),
             collection=str(events_raw.get("collection", "stock_events")),
+            recommendations_top_n=int(events_raw.get("recommendations_top_n", 8)),
+            min_recommendation_score=int(events_raw.get("min_recommendation_score", 55)),
+            setup_min_score=int(events_raw.get("setup_min_score", 70)),
+            watch_min_score=int(events_raw.get("watch_min_score", 55)),
+            history_quarters=int(events_raw.get("history_quarters", 8)),
+            pre_event_ret_5d_cap_pct=float(events_raw.get("pre_event_ret_5d_cap_pct", 12.0)),
+            pre_event_ret_10d_cap_pct=float(events_raw.get("pre_event_ret_10d_cap_pct", 20.0)),
+            finnhub_symbol_gap_sec=float(events_raw.get("finnhub_symbol_gap_sec", 1.2)),
+            vol_ratio_min=float(events_raw.get("vol_ratio_min", 1.5)),
         ),
         ibkr=IbkrConfig(
             host=str(ibkr_raw.get("host", "127.0.0.1")),
             port=int(ibkr_raw.get("port", 7497)),
             client_id=int(ibkr_raw.get("client_id", 7)),
             connect_timeout_sec=int(ibkr_raw.get("connect_timeout_sec", 5)),
+            client_portal=_load_ibkr_client_portal_config(ibkr_raw.get("client_portal") or {}),
         ),
         ibkr_scanner=IbkrScannerConfig(
             enabled=bool((universe_raw.get("ibkr_scanner") or {}).get("enabled", False)),

@@ -25,27 +25,101 @@
         <span class="events-stale"> (snapshot may be stale)</span>
       }
     </p>
+
+    <section id="events-recommendations" class="events-recommendations" aria-label="Top recommendations">
+      <h3 class="events-rec-title">Top recommendations</h3>
+      <p class="events-disclaimer">Signal-only labels (SETUP / WATCH / AVOID) — not trade instructions.</p>
+      @if (!hasPhase2()) {
+        <p class="empty-state">
+          Run discovery with Phase 2 scoring (<code>discover_stock_events.py</code> without
+          <code>--skip-enrichment</code>) to populate recommendations.
+        </p>
+      } @else if (recommendations().length === 0) {
+        <p class="empty-state">
+          No names met the minimum event score. Lower <code>events.min_recommendation_score</code> in
+          config.yaml and re-run discovery.
+        </p>
+      } @else {
+        <div class="table-wrap events-rec-table-wrap">
+          <table class="events-rec-table monitor-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Ticker</th>
+                <th>Action</th>
+                <th>Bias</th>
+                <th>Score</th>
+                <th>Event</th>
+                <th>Date</th>
+                <th>Days</th>
+                <th>Summary</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rec of recommendations(); track trackRec($index, rec)) {
+                <tr class="events-rec-row">
+                  <td>{{ rec.rank }}</td>
+                  <td class="code"><strong>{{ rec.symbol }}</strong></td>
+                  <td>
+                    <span [class]="actionClass(rec.action)">{{ rec.action }}</span>
+                  </td>
+                  <td class="events-bias">{{ rec.bias }}</td>
+                  <td>{{ rec.event_score }}</td>
+                  <td>{{ rec.event_type }}</td>
+                  <td>{{ rec.event_date }}</td>
+                  <td>
+                    @let du = daysUntil(rec);
+                    @if (du !== null) {
+                      {{ du === 0 ? 'Today' : du === 1 ? '1d' : du + 'd' }}
+                    } @else {
+                      —
+                    }
+                  </td>
+                  <td class="events-rec-summary">{{ rec.summary }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
     @if (sortedEvents().length === 0) {
       <p class="empty-state">No upcoming events in the horizon for the current top symbols.</p>
     } @else {
+      <h3 class="events-all-title">All events</h3>
       <div class="table-wrap" id="events-table-wrap">
         <table class="events-table monitor-table">
           <thead>
             <tr>
               <th>Ticker</th>
-              <th>Score</th>
-              <th>Confidence</th>
+              <th>Event score</th>
+              <th>Action</th>
+              <th>Bias</th>
+              <th>Univ. score</th>
+              <th>Conf.</th>
               <th>Event</th>
               <th>Date</th>
-              <th>Days until</th>
+              <th>Days</th>
+              <th>RS 20d</th>
+              <th>Ext.</th>
               <th>Source</th>
             </tr>
           </thead>
           <tbody id="events-body">
-            @for (r of sortedEvents(); track r.symbol + r.event_date + r.event_type) {
-              <tr>
+            @for (r of sortedEvents(); track trackEvent($index, r)) {
+              <tr [class.events-row-highlight]="isRecommended(r)">
                 <td class="code"><strong>{{ r.symbol }}</strong></td>
-                <td>{{ formatScore(r.last_score) }}</td>
+                <td>{{ formatEventScore(r.event_score) }}</td>
+                <td>
+                  @if (r.action) {
+                    <span [class]="actionClass(r.action)">{{ r.action }}</span>
+                  } @else {
+                    —
+                  }
+                </td>
+                <td class="events-bias">{{ r.bias || '—' }}</td>
+                <td>{{ formatUniverseScore(r.last_score) }}</td>
                 <td>{{ r.last_confidence != null ? r.last_confidence : '—' }}</td>
                 <td>
                   <span class="events-type">{{ r.event_type }}</span>
@@ -61,6 +135,22 @@
                   @let du = daysUntil(r);
                   @if (du !== null) {
                     {{ du === 0 ? 'Today' : du === 1 ? '1 day' : du + ' days' }}
+                  } @else {
+                    —
+                  }
+                </td>
+                <td>
+                  @if (r.setup?.spy_rel_20d_pct != null) {
+                    {{ r.setup!.spy_rel_20d_pct! > 0 ? '+' : '' }}{{ r.setup!.spy_rel_20d_pct }}%
+                  } @else {
+                    —
+                  }
+                </td>
+                <td>
+                  @if (r.setup?.pre_event_extended) {
+                    <span class="events-ext-yes" title="Extended pre-event">Yes</span>
+                  } @else if (r.setup) {
+                    No
                   } @else {
                     —
                   }

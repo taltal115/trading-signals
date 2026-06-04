@@ -16,7 +16,7 @@ def main() -> int:
     p.add_argument("--symbol", default="AAPL", help="Ticker symbol (default: AAPL).")
     p.add_argument(
         "--endpoint",
-        choices=["quote", "profile", "us-stocks", "earnings-calendar"],
+        choices=["quote", "profile", "us-stocks", "earnings-calendar", "company-earnings"],
         default="quote",
         help="API call to test (default: quote).",
     )
@@ -47,6 +47,8 @@ def main() -> int:
                 symbol=symbol if symbol else "",
                 international=False,
             )
+        elif args.endpoint == "company-earnings":
+            data = client.company_earnings(symbol)
         else:
             data = client.company_profile2(symbol=symbol)
     except Exception as e:  # noqa: BLE001

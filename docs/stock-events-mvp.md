@@ -1,5 +1,7 @@
 # Stock events MVP (discover + display)
 
+> **Master doc (status + Phase 2 + backlog):** [`stock-events.md`](stock-events.md)
+
 Signal-only: upcoming financial events for the **top 200 universe symbols by `last_score`**, stored in Firestore and shown on the dashboard **Events** page.
 
 ## Data flow
@@ -80,3 +82,5 @@ Workflow [`.github/workflows/stock-events-daily.yml`](../.github/workflows/stock
 ## Out of scope (this MVP)
 
 Post-event trend prediction, LLM scoring, Slack alerts, bot scan integration.
+
+Phase 2 (scoring + recommendations panel) is documented in [`stock-events.md`](stock-events.md).

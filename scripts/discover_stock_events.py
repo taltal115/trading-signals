@@ -19,6 +19,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from signals_bot.config import load_config
+from signals_bot.events import build_recommendations, enrich_events, score_event
 from signals_bot.storage.firestore import (
     read_latest_universe_snapshot,
     read_top_universe_symbols_by_score,
@@ -254,6 +255,11 @@ def main(argv: list[str] | None = None) -> int:
         help="Universe snapshot doc id (default: latest by ts_utc)",
     )
     p.add_argument("--dry-run", action="store_true", help="Log only; do not write Firestore")
+    p.add_argument(
+        "--skip-enrichment",
+        action="store_true",
+        help="Calendar only (no OHLC/history/scoring)",
+    )
     args = p.parse_args(argv)
 
     load_dotenv(override=False)
@@ -326,25 +332,48 @@ def main(argv: list[str] | None = None) -> int:
 
     events.sort(key=lambda e: (e.get("event_date", ""), e.get("symbol", ""), e.get("event_type", "")))
 
+    fh_client = finnhub.Client(api_key=api_key) if api_key else None
+    recommendations: list[dict[str, Any]] = []
+    source = "discover_stock_events"
+
+    if not args.skip_enrichment and events:
+        log.info("Enriching %d event rows (%d symbols)", len(events), len({e["symbol"] for e in events}))
+        events = enrich_events(events, cfg=cfg, log=log, finnhub_client=fh_client)
+        events = [score_event(ev, cfg=cfg, today=today) for ev in events]
+        recommendations = build_recommendations(events, cfg=cfg, today=today)
+        source = "discover_stock_events_v2"
+        for rec in recommendations[:3]:
+            log.info(
+                "REC #%d %s %s %s score=%s — %s",
+                rec.get("rank"),
+                rec.get("symbol"),
+                rec.get("action"),
+                rec.get("event_date"),
+                rec.get("event_score"),
+                rec.get("summary"),
+            )
+
     asof_date = today.isoformat()
     doc = {
         "asof_date": asof_date,
         "ts_utc": datetime.now(timezone.utc).isoformat(),
-        "source": "discover_stock_events",
+        "source": source,
         "universe_doc_id": universe_doc_id,
         "top_symbols_n": len(symbol_set),
         "rank_by": cfg.events.rank_by,
         "horizon_days": horizon,
         "events": events,
+        "recommendations": recommendations,
     }
 
     symbols_with_events = len({e["symbol"] for e in events})
     log.info(
-        "EVENTS summary: %d events for %d symbols (horizon %s → %s)",
+        "EVENTS summary: %d events for %d symbols (horizon %s → %s), %d recommendations",
         len(events),
         symbols_with_events,
         today.isoformat(),
         end.isoformat(),
+        len(recommendations),
     )
 
     if args.dry_run:
