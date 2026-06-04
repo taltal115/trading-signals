@@ -36,7 +36,11 @@ sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from google.cloud import firestore
 
-from signals_bot.storage.firestore import get_firestore_client
+from signals_bot.storage.firestore import (
+    get_firestore_client,
+    read_universe_symbol_details,
+    write_universe_symbol_details_subcollection,
+)
 
 
 def _normalize_details_keys(details: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -174,13 +178,17 @@ def main() -> int:
             return 2
 
     data = snap.to_dict() or {}
-    raw_symbols = data.get("symbols") or []
-    if not isinstance(raw_symbols, list):
-        print("ERROR: document has no symbols[] list", file=sys.stderr)
+    details = read_universe_symbol_details(doc_id=doc_ref.id, collection=coll)
+    if not details:
+        details = _normalize_details_keys(data.get("symbol_details"))
+    symbols = sorted(details.keys())
+    if not symbols:
+        raw_symbols = data.get("symbols") or []
+        if isinstance(raw_symbols, list):
+            symbols = sorted({str(s).strip().upper() for s in raw_symbols if str(s).strip()})
+    if not symbols:
+        print("ERROR: document has no symbols (subcollection, symbols[], or symbol_details)", file=sys.stderr)
         return 2
-
-    symbols = sorted({str(s).strip().upper() for s in raw_symbols if str(s).strip()})
-    details = _normalize_details_keys(data.get("symbol_details"))
 
     to_fetch: list[str] = []
     for sym in symbols:
@@ -269,9 +277,17 @@ def main() -> int:
         )
         return 0
 
-    doc_ref.update({"symbol_details": details})
+    write_universe_symbol_details_subcollection(doc_ref, details)
+    doc_ref.set(
+        {
+            "symbol_details_in_subcollection": True,
+            "symbol_count": len(symbols),
+        },
+        merge=True,
+    )
+    doc_ref.update({"symbol_details": firestore.DELETE_FIELD, "symbols": firestore.DELETE_FIELD})
     print(
-        f"Wrote {coll}/{doc_ref.id} symbol_details entries={len(details)} "
+        f"Wrote {coll}/{doc_ref.id} symbols subcollection entries={len(details)} "
         f"rows_fully_filled_from_profile={filled}"
     )
     if hit_rate_limit:

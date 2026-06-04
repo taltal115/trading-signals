@@ -143,6 +143,29 @@ def signals_run_document_id(*, asof_date: str, ts_utc: str, run_id: str) -> str:
     return f"{date_part}T{clock}.{dt.microsecond:06d}Z"
 
 
+def _universe_symbol_list_from_doc(
+    ref: firestore.DocumentReference,
+    data: dict[str, Any],
+) -> list[str]:
+    """Return the full ticker list for a universe snapshot (legacy arrays or subcollection ids)."""
+    raw = data.get("symbols")
+    if isinstance(raw, list) and raw:
+        return _normalize_universe_symbols(str(s) for s in raw)
+
+    if data.get("symbol_details_in_subcollection"):
+        out: list[str] = []
+        for snap in ref.collection("symbols").stream():
+            sym = snap.id.strip().upper()
+            if sym:
+                out.append(sym)
+        return sorted(out)
+
+    inline = data.get("symbol_details")
+    if isinstance(inline, dict) and inline:
+        return sorted(str(k).strip().upper() for k in inline if str(k).strip())
+    return []
+
+
 def write_universe_snapshot(
     *,
     asof_date: str,
@@ -155,37 +178,43 @@ def write_universe_snapshot(
 ) -> None:
     """Write the daily universe doc.
 
-    ``symbols`` is the **full** list (active + inactive, kept for history / parity with old snapshots).
-    ``active_symbols`` / ``inactive_symbols`` (optional) carry the bot's working slice and the parked
-    rest. Counts are derived. Per-symbol status (``active``, ``status``, ``last_active_at``,
-    ``inactive_runs_streak`` …) is stored in the ``symbols`` **subcollection** (one doc per ticker)
-    so the parent doc stays under Firestore's per-document index-entry limit.
+    The parent document holds **metadata only** (counts, ``active_symbols`` for the bot, timestamps).
+    Per-symbol status (``active``, ``status``, ``last_active_at``, ``inactive_runs_streak`` …) lives
+    in the ``symbols`` **subcollection** (one doc per ticker) so the parent stays under Firestore's
+    per-document index-entry limit (~40k).
 
-    Legacy snapshots may still have an inline ``symbol_details`` map on the parent document; readers
-    fall back to that when the subcollection is empty.
+    Legacy snapshots may still have inline ``symbols`` / ``symbol_details`` on the parent; readers
+    fall back to those fields when the subcollection is empty.
     """
+    del inactive_symbols  # counts only — full inactive list is not stored on the parent doc
     normalized = _normalize_universe_symbols(symbols)
     ts = datetime.now(timezone.utc).isoformat()
     doc: dict[str, Any] = {
         "asof_date": asof_date,
-        "symbols": normalized,
         "ts_utc": ts,
         "source": source,
+        "symbol_count": len(normalized),
         "symbol_details_in_subcollection": True,
     }
     if active_symbols is not None:
         active_norm = _normalize_universe_symbols(active_symbols)
         doc["active_symbols"] = active_norm
         doc["active_count"] = len(active_norm)
-    if inactive_symbols is not None:
-        inactive_norm = _normalize_universe_symbols(inactive_symbols)
-        doc["inactive_symbols"] = inactive_norm
-        doc["inactive_count"] = len(inactive_norm)
+        doc["inactive_count"] = max(0, len(normalized) - len(active_norm))
     db = _build_client()
     parent_ref = db.collection(collection).document(asof_date)
-    parent_ref.set(doc)
     if symbol_details:
         _write_universe_symbol_details_subcollection(parent_ref, symbol_details)
+    # Full replace drops legacy inline ``symbol_details`` / ``symbols`` / ``inactive_symbols`` arrays.
+    parent_ref.set(doc)
+
+
+def write_universe_symbol_details_subcollection(
+    parent_ref: firestore.DocumentReference,
+    symbol_details: dict[str, dict],
+) -> None:
+    """Write per-symbol detail docs (batched). Avoids INDEX_ENTRIES_COUNT_LIMIT on parent."""
+    _write_universe_symbol_details_subcollection(parent_ref, symbol_details)
 
 
 def _write_universe_symbol_details_subcollection(
@@ -304,12 +333,9 @@ def read_recent_universe_symbols(
     merged: set[str] = set()
     for snap in docs:
         data = snap.to_dict() or {}
-        raw = data.get("symbols") or []
-        if isinstance(raw, list):
-            for s in raw:
-                sym = str(s).strip().upper()
-                if sym:
-                    merged.add(sym)
+        ref = db.collection(collection).document(snap.id)
+        for sym in _universe_symbol_list_from_doc(ref, data):
+            merged.add(sym)
     return sorted(merged)
 
 

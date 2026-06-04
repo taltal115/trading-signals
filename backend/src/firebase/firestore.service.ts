@@ -295,7 +295,12 @@ export class FirestoreService implements OnModuleInit {
         docs: page.map((d) => {
           const raw = toPlainDoc(d.data());
           const syms = raw['symbols'];
-          const total = Array.isArray(syms) ? syms.length : 0;
+          const totalFromField = Number(raw['symbol_count']);
+          const total = Number.isFinite(totalFromField)
+            ? totalFromField
+            : Array.isArray(syms)
+              ? syms.length
+              : 0;
           let activeCount = Number.isFinite(Number(raw['active_count']))
             ? Number(raw['active_count'])
             : Array.isArray(raw['active_symbols'])
@@ -354,24 +359,29 @@ export class FirestoreService implements OnModuleInit {
         throw new NotFoundException('Universe snapshot not found');
       }
       const data = toPlainDoc(snap.data());
-      const symbols = Array.isArray(data['symbols'])
+      const inlineSymbols = Array.isArray(data['symbols'])
         ? (data['symbols'] as unknown[]).map((s) => String(s).trim().toUpperCase()).filter(Boolean)
         : [];
+      const totalFromField = Number(data['symbol_count']);
+      const total = Number.isFinite(totalFromField)
+        ? totalFromField
+        : inlineSymbols.length;
       const inline =
         data['symbol_details'] && typeof data['symbol_details'] === 'object' && !Array.isArray(data['symbol_details'])
           ? (data['symbol_details'] as Record<string, unknown>)
           : {};
       const useSubcollection =
         data['symbol_details_in_subcollection'] === true ||
-        (Object.keys(inline).length === 0 && symbols.length > 0);
-      const slice = symbols.slice(offset, offset + limit);
+        (Object.keys(inline).length === 0 && (inlineSymbols.length > 0 || total > 0));
       let rows: { ticker: string; detail: DocumentData }[];
       if (!useSubcollection) {
+        const slice = inlineSymbols.slice(offset, offset + limit);
         rows = slice.map((ticker) => ({
           ticker,
           detail: toPlainDoc(inline[ticker] as DocumentData | undefined) as DocumentData,
         }));
-      } else {
+      } else if (inlineSymbols.length > 0) {
+        const slice = inlineSymbols.slice(offset, offset + limit);
         const subRefs = slice.map((ticker) => ref.collection('symbols').doc(ticker));
         const subSnaps =
           subRefs.length > 0 ? await this.db.getAll(...subRefs) : [];
@@ -385,8 +395,19 @@ export class FirestoreService implements OnModuleInit {
           ticker,
           detail: detailByTicker.get(ticker) ?? ({} as DocumentData),
         }));
+      } else {
+        const subSnap = await ref
+          .collection('symbols')
+          .orderBy(admin.firestore.FieldPath.documentId())
+          .offset(offset)
+          .limit(limit)
+          .get();
+        rows = subSnap.docs.map((s) => ({
+          ticker: s.id.toUpperCase(),
+          detail: toPlainDoc(s.data()) as DocumentData,
+        }));
       }
-      return { total: symbols.length, offset, limit, rows };
+      return { total, offset, limit, rows };
     } catch (e) {
       if (e instanceof NotFoundException) {
         throw e;
