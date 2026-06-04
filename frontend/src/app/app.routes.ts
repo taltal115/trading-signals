@@ -50,6 +50,11 @@ export const routes: Routes = [
           import('./features/monitor-page/monitor-page.component').then((m) => m.MonitorPageComponent),
       },
       {
+        path: 'events',
+        loadComponent: () =>
+          import('./features/events-page/events-page.component').then((m) => m.EventsPageComponent),
+      },
+      {
         path: 'about',
         loadComponent: () =>
           import('./features/about-index/about-index.component').then((m) => m.AboutIndexComponent),

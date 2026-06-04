@@ -353,6 +353,96 @@ def _bot_symbols_from_doc(data: dict[str, Any]) -> list[str]:
     return _normalize_universe_symbols(str(s) for s in raw)
 
 
+STOCK_EVENTS_COLLECTION = "stock_events"
+
+
+def read_top_universe_symbols_by_score(
+    *,
+    doc_id: str,
+    collection: str = "universe",
+    limit: int = 200,
+) -> list[tuple[str, dict[str, Any]]]:
+    """Return up to ``limit`` symbols from a universe snapshot, sorted by ``last_score`` DESC.
+
+    Each item is ``(ticker, detail_dict)`` with at least ``last_score`` / ``last_confidence`` when present.
+    """
+    db = _build_client()
+    ref = db.collection(collection).document(doc_id.strip())
+    snap = ref.get()
+    if not snap.exists:
+        return []
+    data = snap.to_dict() or {}
+    inline = data.get("symbol_details")
+    if isinstance(inline, dict) and inline:
+        rows: list[tuple[str, dict[str, Any]]] = []
+        for k, v in inline.items():
+            if not isinstance(v, dict):
+                continue
+            sym = str(k).strip().upper()
+            if not sym:
+                continue
+            rows.append((sym, v))
+        rows.sort(
+            key=lambda kv: (
+                -float(kv[1].get("last_score") or kv[1].get("score") or -1.0),
+                kv[0],
+            ),
+        )
+        return rows[: max(1, int(limit))]
+
+    sub = ref.collection("symbols")
+    try:
+        docs = (
+            sub.order_by("last_score", direction=firestore.Query.DESCENDING)
+            .limit(max(1, int(limit)))
+            .stream()
+        )
+    except Exception:
+        docs = sub.stream()
+        rows = []
+        for s in docs:
+            sym = s.id.strip().upper()
+            if sym:
+                rows.append((sym, s.to_dict() or {}))
+        rows.sort(
+            key=lambda kv: (
+                -float(kv[1].get("last_score") or kv[1].get("score") or -1.0),
+                kv[0],
+            ),
+        )
+        return rows[: max(1, int(limit))]
+
+    return [(s.id.strip().upper(), s.to_dict() or {}) for s in docs if s.id.strip()]
+
+
+def write_stock_events_snapshot(
+    *,
+    asof_date: str,
+    doc: dict[str, Any],
+    collection: str = STOCK_EVENTS_COLLECTION,
+) -> None:
+    """Write ``stock_events/{asof_date}`` (full replace)."""
+    db = _build_client()
+    db.collection(collection).document(asof_date.strip()).set(doc)
+
+
+def read_latest_stock_events(
+    *,
+    collection: str = STOCK_EVENTS_COLLECTION,
+) -> tuple[str, dict[str, Any]] | None:
+    """Return ``(document_id, data)`` for the most recent stock events snapshot."""
+    db = _build_client()
+    docs = (
+        db.collection(collection)
+        .order_by("ts_utc", direction=firestore.Query.DESCENDING)
+        .limit(1)
+        .stream()
+    )
+    for snap in docs:
+        return snap.id, snap.to_dict() or {}
+    return None
+
+
 def read_universe_for_date(
     *,
     asof_date: str,

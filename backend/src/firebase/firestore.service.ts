@@ -863,4 +863,48 @@ export class FirestoreService implements OnModuleInit {
       this.handleFirestoreListError('listMonitorChecks', e);
     }
   }
+
+  /** Latest ``stock_events`` snapshot written by ``discover_stock_events.py``. */
+  async getLatestStockEvents(): Promise<{
+    docId: string;
+    asof_date: string;
+    ts_utc: string;
+    universe_doc_id: string;
+    top_symbols_n: number;
+    rank_by: string;
+    horizon_days: number;
+    events: DocumentData[];
+  }> {
+    try {
+      const snap = await this.db
+        .collection('stock_events')
+        .orderBy('ts_utc', 'desc')
+        .limit(1)
+        .get();
+      if (snap.empty) {
+        throw new NotFoundException('No stock events snapshot found');
+      }
+      const doc = snap.docs[0];
+      const data = toPlainDoc(doc.data());
+      const rawEvents = data['events'];
+      const events = Array.isArray(rawEvents)
+        ? rawEvents.map((e) => toPlainDoc(e as DocumentData))
+        : [];
+      return {
+        docId: doc.id,
+        asof_date: String(data['asof_date'] ?? doc.id),
+        ts_utc: String(data['ts_utc'] ?? ''),
+        universe_doc_id: String(data['universe_doc_id'] ?? ''),
+        top_symbols_n: Number(data['top_symbols_n'] ?? 0),
+        rank_by: String(data['rank_by'] ?? 'last_score'),
+        horizon_days: Number(data['horizon_days'] ?? 0),
+        events,
+      };
+    } catch (e) {
+      if (e instanceof NotFoundException) {
+        throw e;
+      }
+      this.handleFirestoreListError('getLatestStockEvents', e);
+    }
+  }
 }

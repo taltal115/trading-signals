@@ -5,6 +5,8 @@ import json
 import os
 import sys
 
+from datetime import date, timedelta
+
 import finnhub
 from dotenv import load_dotenv
 
@@ -14,10 +16,12 @@ def main() -> int:
     p.add_argument("--symbol", default="AAPL", help="Ticker symbol (default: AAPL).")
     p.add_argument(
         "--endpoint",
-        choices=["quote", "profile", "us-stocks"],
+        choices=["quote", "profile", "us-stocks", "earnings-calendar"],
         default="quote",
         help="API call to test (default: quote).",
     )
+    p.add_argument("--from-date", default="", help="earnings-calendar start YYYY-MM-DD (default: today UTC)")
+    p.add_argument("--to-date", default="", help="earnings-calendar end YYYY-MM-DD (default: +21 days)")
     args = p.parse_args()
 
     load_dotenv(override=False)
@@ -34,6 +38,15 @@ def main() -> int:
             data = client.quote(symbol)
         elif args.endpoint == "us-stocks":
             data = client.stock_symbols("US")
+        elif args.endpoint == "earnings-calendar":
+            start = (args.from_date or "").strip() or date.today().isoformat()
+            end = (args.to_date or "").strip() or (date.today() + timedelta(days=21)).isoformat()
+            data = client.earnings_calendar(
+                _from=start,
+                to=end,
+                symbol=symbol if symbol else "",
+                international=False,
+            )
         else:
             data = client.company_profile2(symbol=symbol)
     except Exception as e:  # noqa: BLE001

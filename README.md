@@ -84,6 +84,10 @@ Workflow [`.github/workflows/universe-discovery-daily.yml`](.github/workflows/un
 
 **Secrets:** `FINNHUB_API_KEY` and **`GOOGLE_APPLICATION_CREDENTIALS`** (full service account JSON as the secret value). Use **Actions → Daily universe discovery → Run workflow** to run manually.
 
+### Scheduled stock events (GitHub Actions)
+
+Workflow [`.github/workflows/stock-events-daily.yml`](.github/workflows/stock-events-daily.yml) runs **Monday–Friday** about **08:00 America/New_York** (after universe discovery). It runs [`scripts/discover_stock_events.py`](scripts/discover_stock_events.py): top **200** symbols by **`last_score`** from the latest universe snapshot, Finnhub earnings calendar + Yahoo fallback → Firestore `stock_events/{asof_date}`. The dashboard **Events** page reads `GET /api/events/latest`. Details: [`docs/stock-events-mvp.md`](docs/stock-events-mvp.md).
+
 The **main bot scan** workflow [`.github/workflows/trading-bot-scan.yml`](.github/workflows/trading-bot-scan.yml) runs **weekdays** about **1 hour before the US cash open** (08:30 `America/New_York`), with the same “two UTC crons + NY time gate” pattern. **`workflow_dispatch`** (and the dashboard **Re-eval** button) can run it any time, optionally for a single `--ticker`.
 
 ### Firestore universe (optional but recommended)

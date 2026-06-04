@@ -90,3 +90,10 @@ slack:
 logging:
   level: "INFO"
 
+# Upcoming financial events for top universe symbols (scripts/discover_stock_events.py).
+events:
+  top_symbols: 200
+  horizon_days: 21
+  rank_by: last_score
+  collection: stock_events
+

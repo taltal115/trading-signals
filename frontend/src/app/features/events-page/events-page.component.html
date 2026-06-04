@@ -1,0 +1,76 @@
+<section id="panel-events" class="panel active" aria-label="Upcoming stock events">
+  <h2>Upcoming events</h2>
+  @if (!(authSvc.allowedUser$ | async)) {
+    <p id="events-gate" class="positions-gate">
+      @if (env.devAuthBypass) {
+        Local dev: no session yet — run Nest with AUTH_BYPASS_LOCAL so /api/auth/me returns a user.
+      } @else {
+        Sign in with Google to view upcoming events.
+      }
+    </p>
+  } @else if (loading()) {
+    <p class="empty-state" id="events-hint">Loading events…</p>
+  } @else if (loadError()) {
+    <p class="empty-state" id="events-hint">Events error: {{ loadError() }}</p>
+  } @else if (!snapshot()) {
+    <p class="empty-state" id="events-hint">No events snapshot yet. Run the stock events discovery job.</p>
+  } @else {
+    @let snap = snapshot()!;
+    <p class="events-meta" id="events-meta">
+      Universe <span class="code">{{ snap.universe_doc_id }}</span> · top
+      {{ snap.top_symbols_n }} by {{ snap.rank_by }} · horizon {{ snap.horizon_days }}d ·
+      {{ snap.events.length }} event{{ snap.events.length === 1 ? '' : 's' }} · updated
+      {{ snap.ts_utc || '—' }}
+      @if (staleHint()) {
+        <span class="events-stale"> (snapshot may be stale)</span>
+      }
+    </p>
+    @if (sortedEvents().length === 0) {
+      <p class="empty-state">No upcoming events in the horizon for the current top symbols.</p>
+    } @else {
+      <div class="table-wrap" id="events-table-wrap">
+        <table class="events-table monitor-table">
+          <thead>
+            <tr>
+              <th>Ticker</th>
+              <th>Score</th>
+              <th>Confidence</th>
+              <th>Event</th>
+              <th>Date</th>
+              <th>Days until</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody id="events-body">
+            @for (r of sortedEvents(); track r.symbol + r.event_date + r.event_type) {
+              <tr>
+                <td class="code"><strong>{{ r.symbol }}</strong></td>
+                <td>{{ formatScore(r.last_score) }}</td>
+                <td>{{ r.last_confidence != null ? r.last_confidence : '—' }}</td>
+                <td>
+                  <span class="events-type">{{ r.event_type }}</span>
+                  @if (r.title) {
+                    <span class="events-title">{{ r.title }}</span>
+                  }
+                  @if (r.event_time) {
+                    <span class="events-time">{{ r.event_time }}</span>
+                  }
+                </td>
+                <td>{{ r.event_date }}</td>
+                <td>
+                  @let du = daysUntil(r);
+                  @if (du !== null) {
+                    {{ du === 0 ? 'Today' : du === 1 ? '1 day' : du + ' days' }}
+                  } @else {
+                    —
+                  }
+                </td>
+                <td>{{ r.data_source }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</section>

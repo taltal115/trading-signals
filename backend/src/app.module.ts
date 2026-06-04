@@ -8,6 +8,7 @@ import configuration from './config/configuration';
 import { RequestLoggingInterceptor } from './common/request-logging.interceptor';
 import { FirebaseModule } from './firebase/firebase.module';
 import { MonitorModule } from './monitor/monitor.module';
+import { EventsModule } from './events/events.module';
 import { PositionsModule } from './positions/positions.module';
 import { SignalsModule } from './signals/signals.module';
 import { UniverseModule } from './universe/universe.module';
@@ -29,6 +30,7 @@ import { GithubWorkflowModule } from './github-workflow/github-workflow.module';
     SignalsModule,
     PositionsModule,
     MonitorModule,
+    EventsModule,
     GithubWorkflowModule,
   ],
   controllers: [AppController],

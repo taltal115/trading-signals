@@ -1,0 +1,28 @@
+.events-meta {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: var(--muted, #6b7280);
+}
+
+.events-stale {
+  color: #b45309;
+}
+
+.events-type {
+  display: inline-block;
+  margin-right: 0.35rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.events-title {
+  color: var(--muted, #6b7280);
+  font-size: 0.85rem;
+}
+
+.events-time {
+  margin-left: 0.35rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: var(--muted, #6b7280);
+}

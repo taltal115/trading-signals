@@ -110,6 +110,14 @@ class LoggingConfig:
 
 
 @dataclass(frozen=True)
+class EventsConfig:
+    top_symbols: int = 200
+    horizon_days: int = 21
+    rank_by: str = "last_score"
+    collection: str = "stock_events"
+
+
+@dataclass(frozen=True)
 class RunSummary:
     run: RunConfig
     universe: UniverseConfig
@@ -130,6 +138,7 @@ class AppConfig:
     sqlite: SqliteConfig
     slack: SlackConfig
     logging: LoggingConfig
+    events: EventsConfig
     ibkr: IbkrConfig
     ibkr_scanner: IbkrScannerConfig
 
@@ -226,6 +235,7 @@ def load_config(config_path: Path) -> AppConfig:
     sqlite_raw = raw.get("sqlite", {}) or {}
     slack_raw = raw.get("slack", {}) or {}
     logging_raw = raw.get("logging", {}) or {}
+    events_raw = raw.get("events", {}) or {}
 
     data_provider_order = data_raw.get("provider_order") or ["yahoo", "stooq"]
     _raw_stooq = data_raw.get("stooq_api_key")
@@ -291,6 +301,12 @@ def load_config(config_path: Path) -> AppConfig:
             min_confidence=int(slack_raw.get("min_confidence", 75)),
         ),
         logging=LoggingConfig(level=str(logging_raw.get("level", "INFO"))),
+        events=EventsConfig(
+            top_symbols=int(events_raw.get("top_symbols", 200)),
+            horizon_days=int(events_raw.get("horizon_days", 21)),
+            rank_by=str(events_raw.get("rank_by", "last_score")),
+            collection=str(events_raw.get("collection", "stock_events")),
+        ),
         ibkr=IbkrConfig(
             host=str(ibkr_raw.get("host", "127.0.0.1")),
             port=int(ibkr_raw.get("port", 7497)),

@@ -99,6 +99,16 @@
           <span class="sidebar-nav-text">Monitor</span>
         </a>
         <a
+          routerLink="/events"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link"
+          data-abbr="Ev"
+          title="Events"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">Events</span>
+        </a>
+        <a
           routerLink="/about"
           routerLinkActive="active"
           [routerLinkActiveOptions]="{ exact: false }"
