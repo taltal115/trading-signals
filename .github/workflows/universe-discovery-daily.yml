@@ -1,15 +1,12 @@
 # Daily Finnhub → strategy-filtered universe snapshot to Firestore (`universe/{asof_date}`).
 # Persists `data/universe_state.json` via workflow artifacts so batch rotation continues across runs.
 #
-# Schedule: weekdays ~2 hours before US cash equity open (09:30 America/New_York).
-# GitHub `schedule` is UTC-only; we trigger at 11:30 and 12:30 UTC and keep the run only when
-# local NY time is ~07:30 (covers EDT vs EST). Manual `workflow_dispatch` always runs.
+# Schedule: weekdays ~07:30 America/New_York (11:30 UTC during EDT, 06:30 during EST).
 name: Daily universe discovery
 
 on:
   schedule:
     - cron: "30 11 * * 1-5"
-    - cron: "30 12 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -20,49 +17,21 @@ jobs:
   discovery:
     runs-on: ubuntu-latest
     steps:
-      - name: Gate (~07:30 America/New_York, Mon–Fri) or manual dispatch
-        id: gate
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "manual workflow_dispatch → run"
-            exit 0
-          fi
-          python3 <<'PY'
-          from datetime import datetime
-          from zoneinfo import ZoneInfo
-          import os
-
-          ny = datetime.now(ZoneInfo("America/New_York"))
-          if ny.weekday() >= 5:
-              print("run=false — weekend")
-              open(os.environ["GITHUB_OUTPUT"], "a").write("run=false\n")
-              raise SystemExit(0)
-          # Target ~2h before 09:30 ET open → 07:30 local (GitHub may be a few minutes late).
-          ok = ny.hour == 7 and 5 <= ny.minute <= 55
-          print(f"NY={ny.isoformat()} gate_ok={ok} (want ~07:30 ET)")
-          open(os.environ["GITHUB_OUTPUT"], "a").write(f"run={'true' if ok else 'false'}\n")
-          PY
-
       - name: Checkout
-        if: steps.gate.outputs.run == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Python
-        if: steps.gate.outputs.run == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
 
       - name: Install dependencies
-        if: steps.gate.outputs.run == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Check Firestore credentials secret
-        if: steps.gate.outputs.run == 'true'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
         run: |
@@ -72,7 +41,6 @@ jobs:
           fi
 
       - name: Restore Finnhub batch rotation state
-        if: steps.gate.outputs.run == 'true'
         uses: dawidd6/action-download-artifact@v6
         with:
           workflow: universe-discovery-daily.yml
@@ -82,7 +50,6 @@ jobs:
           if_no_artifact_found: ignore
 
       - name: Run universe discovery
-        if: steps.gate.outputs.run == 'true'
         env:
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
@@ -97,7 +64,6 @@ jobs:
             --top-k 100
 
       - name: Save Finnhub batch rotation state
-        if: steps.gate.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: universe-discovery-state
