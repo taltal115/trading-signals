@@ -60,7 +60,7 @@ jobs:
             --state data/universe_state.json \
             --max-calls 2000 \
             --merge-days 7 \
-            --min-confidence 85 \
+            --min-confidence 50 \
             --top-k 100
 
       - name: Save Finnhub batch rotation state

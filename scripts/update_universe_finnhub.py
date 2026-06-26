@@ -6,7 +6,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import finnhub
 import pandas as pd
@@ -26,7 +26,7 @@ from signals_bot.storage.firestore import (
     read_universe_symbol_details,
     write_universe_snapshot,
 )
-from signals_bot.strategy.breakout import BreakoutMomentumStrategy
+from signals_bot.strategy.breakout import BreakoutMomentumStrategy, Signal
 
 
 US_MICS = {
@@ -143,6 +143,31 @@ def _evaluate_symbol(
     return signal, provider_used, None
 
 
+def _universe_eval_entry(signal: Signal, *, name: str = "") -> dict[str, Any]:
+    return {
+        "confidence": int(signal.confidence),
+        "score": float(signal.score),
+        "action": signal.action,
+        "name": name,
+    }
+
+
+def _classify_universe_signal(
+    signal: Signal | None,
+    *,
+    min_confidence: int,
+) -> tuple[Literal["failed", "not_buy", "low_conf", "buy"], dict[str, Any] | None]:
+    """Classify one evaluation for universe active eligibility (BUY-only)."""
+    if signal is None:
+        return "failed", None
+    entry = _universe_eval_entry(signal)
+    if signal.action != "BUY":
+        return "not_buy", entry
+    if min_confidence > 0 and int(signal.confidence) < min_confidence:
+        return "low_conf", entry
+    return "buy", entry
+
+
 def _parse_iso_utc(raw: Any) -> datetime | None:
     if not isinstance(raw, str) or not raw.strip():
         return None
@@ -205,9 +230,9 @@ def main() -> int:
     p.add_argument(
         "--min-confidence",
         type=int,
-        default=85,
-        help="Minimum signal confidence (0-100) for a symbol to be eligible for 'active'. "
-        "Below this → marked inactive_low_conf.",
+        default=50,
+        help="Minimum BUY signal confidence (0-100) for a symbol to be eligible for 'active'. "
+        "Non-BUY signals (WAIT/SELL) are never active. Below this → marked inactive_low_conf.",
     )
     p.add_argument(
         "--stale-runs",
@@ -341,7 +366,10 @@ def main() -> int:
     now_utc = datetime.now(timezone.utc)
 
     today_results: dict[str, dict[str, Any]] = {}
+    today_evaluated: dict[str, dict[str, Any]] = {}
     today_failed: set[str] = set()
+    today_not_buy: set[str] = set()
+    today_low_conf: set[str] = set()
 
     for symbol in batch:
         log.debug("evaluate %s", symbol)
@@ -354,23 +382,32 @@ def main() -> int:
             asof_date=cfg.asof_date(),
             log=log,
         )
-        if signal is None:
+        bucket, entry = _classify_universe_signal(
+            signal, min_confidence=args.min_confidence
+        )
+        if bucket == "failed":
             log.debug("%s skip reason=%s", symbol, err or "-")
             today_failed.add(symbol)
             continue
+        assert entry is not None
+        entry["name"] = symbol_base_details.get(symbol, {}).get("name", "")
+        today_evaluated[symbol] = entry
         log.debug(
-            "%s candidate action=%s conf=%d score=%.3f provider=%s",
+            "%s candidate action=%s conf=%d score=%.3f provider=%s bucket=%s",
             symbol,
-            signal.action,
-            int(signal.confidence),
-            float(signal.score),
+            entry["action"],
+            int(entry["confidence"]),
+            float(entry["score"]),
             provider_used,
+            bucket,
         )
-        today_results[symbol] = {
-            "confidence": int(signal.confidence),
-            "score": float(signal.score),
-            "name": symbol_base_details.get(symbol, {}).get("name", ""),
-        }
+        if bucket == "not_buy":
+            today_not_buy.add(symbol)
+            continue
+        if bucket == "low_conf":
+            today_low_conf.add(symbol)
+            continue
+        today_results[symbol] = entry
 
     if args.limit > 0 and len(today_results) > args.limit:
         ranked_today = sorted(
@@ -382,7 +419,13 @@ def main() -> int:
                  len(kept), len(today_results) - len(kept))
         today_results = kept
 
-    log.info("Today's batch passes: %d (failures=%d)", len(today_results), len(today_failed))
+    log.info(
+        "Today's batch BUY passes: %d (not_buy=%d low_conf=%d failures=%d)",
+        len(today_results),
+        len(today_not_buy),
+        len(today_low_conf),
+        len(today_failed),
+    )
 
     prior_set: set[str] = set()
     if args.merge_days > 0:
@@ -419,7 +462,7 @@ def main() -> int:
                 if isinstance(v, dict):
                     prev_details[str(k).strip().upper()] = v
 
-    prior_only = sorted(prior_set - set(today_results.keys()) - today_failed)
+    prior_only = sorted(prior_set - set(today_evaluated.keys()) - today_failed)
     if args.revalidate_cap and args.revalidate_cap > 0:
         to_revalidate = prior_only[: args.revalidate_cap]
     else:
@@ -427,7 +470,10 @@ def main() -> int:
     unevaluated_prior = set(prior_only) - set(to_revalidate)
 
     revalidate_results: dict[str, dict[str, Any]] = {}
+    revalidate_evaluated: dict[str, dict[str, Any]] = {}
     revalidate_failures: set[str] = set()
+    revalidate_not_buy: set[str] = set()
+    revalidate_low_conf: set[str] = set()
     if to_revalidate:
         log.info("Re-validating %d carry-over symbols (cap=%d, prior_only=%d)",
                  len(to_revalidate), args.revalidate_cap, len(prior_only))
@@ -441,25 +487,30 @@ def main() -> int:
             asof_date=cfg.asof_date(),
             log=log,
         )
-        if signal is None:
+        bucket, entry = _classify_universe_signal(
+            signal, min_confidence=args.min_confidence
+        )
+        if bucket == "failed":
             log.debug("%s revalidate fail reason=%s", symbol, err or "-")
             revalidate_failures.add(symbol)
             continue
-        revalidate_results[symbol] = {
-            "confidence": int(signal.confidence),
-            "score": float(signal.score),
-            "name": prev_details.get(symbol, {}).get("name", "")
-            or symbol_base_details.get(symbol, {}).get("name", ""),
-        }
+        assert entry is not None
+        entry["name"] = (
+            prev_details.get(symbol, {}).get("name", "")
+            or symbol_base_details.get(symbol, {}).get("name", "")
+        )
+        revalidate_evaluated[symbol] = entry
+        if bucket == "not_buy":
+            revalidate_not_buy.add(symbol)
+            continue
+        if bucket == "low_conf":
+            revalidate_low_conf.add(symbol)
+            continue
+        revalidate_results[symbol] = entry
 
     passing: dict[str, dict[str, Any]] = {**today_results, **revalidate_results}
 
-    low_conf: set[str] = set()
-    if args.min_confidence > 0:
-        for sym in list(passing.keys()):
-            if int(passing[sym]["confidence"]) < args.min_confidence:
-                low_conf.add(sym)
-                del passing[sym]
+    low_conf: set[str] = set(today_low_conf) | set(revalidate_low_conf)
 
     stale: set[str] = set()
     for sym in list(passing.keys()):
@@ -483,13 +534,10 @@ def main() -> int:
     capped_syms = {kv[0] for kv in capped_kv}
 
     all_symbols: set[str] = set()
-    all_symbols.update(today_results.keys())
-    all_symbols.update(revalidate_results.keys())
+    all_symbols.update(today_evaluated.keys())
     all_symbols.update(today_failed)
+    all_symbols.update(revalidate_evaluated.keys())
     all_symbols.update(revalidate_failures)
-    all_symbols.update(low_conf)
-    all_symbols.update(stale)
-    all_symbols.update(capped_syms)
     all_symbols.update(unevaluated_prior)
 
     symbol_details: dict[str, dict[str, Any]] = {}
@@ -501,7 +549,11 @@ def main() -> int:
         prev = prev_details.get(sym, {})
         new_entry: dict[str, Any] = dict(prev) if isinstance(prev, dict) else {}
 
-        latest_score = passing.get(sym) or revalidate_results.get(sym) or today_results.get(sym)
+        latest_score = (
+            passing.get(sym)
+            or today_evaluated.get(sym)
+            or revalidate_evaluated.get(sym)
+        )
         if latest_score:
             if latest_score.get("name"):
                 new_entry["name"] = latest_score["name"]
@@ -521,7 +573,7 @@ def main() -> int:
             status = "inactive_capped"
         elif sym in stale:
             status = "inactive_stale"
-        elif sym in low_conf:
+        elif sym in low_conf or sym in today_not_buy or sym in revalidate_not_buy:
             status = "inactive_low_conf"
         elif sym in revalidate_failures or sym in today_failed:
             status = "inactive_failed"
@@ -593,14 +645,17 @@ def main() -> int:
 
     log.info(
         "Universe summary asof_date=%s active=%d inactive=%d total=%d "
-        "(today_pass=%d revalidate_pass=%d today_fail=%d revalidate_fail=%d "
-        "low_conf=%d stale=%d capped=%d unevaluated_prior=%d)",
+        "(today_buy=%d revalidate_buy=%d today_not_buy=%d revalidate_not_buy=%d "
+        "today_fail=%d revalidate_fail=%d low_conf=%d stale=%d capped=%d "
+        "unevaluated_prior=%d)",
         asof_date,
         len(active_list),
         len(inactive_list),
         len(all_list),
         len(today_results),
         len(revalidate_results),
+        len(today_not_buy),
+        len(revalidate_not_buy),
         len(today_failed),
         len(revalidate_failures),
         len(low_conf),
