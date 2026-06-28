@@ -94,6 +94,10 @@ class StrategyConfig:
     breakout_dist_pct_max: float = 1.0
     ret_5d_min_pct: float = 8.0
     ret_10d_min_pct: float = 12.0
+    # Overextension guards: reject BUYs that already ran too far (mean-revert in hold window).
+    # 0 disables the cap.
+    ret_5d_max_pct: float = 0.0
+    ret_10d_max_pct: float = 0.0
     vol_ratio_min: float = 2.0
     max_hold_days: int = 5
     stop_atr_mult: float = 1.5
@@ -298,6 +302,8 @@ def load_config(config_path: Path) -> AppConfig:
         breakout_dist_pct_max=float(strategy_raw.get("breakout_dist_pct_max", 1.0)),
         ret_5d_min_pct=float(strategy_raw.get("ret_5d_min_pct", 8.0)),
         ret_10d_min_pct=float(strategy_raw.get("ret_10d_min_pct", 12.0)),
+        ret_5d_max_pct=float(strategy_raw.get("ret_5d_max_pct", 0.0)),
+        ret_10d_max_pct=float(strategy_raw.get("ret_10d_max_pct", 0.0)),
         vol_ratio_min=float(strategy_raw.get("vol_ratio_min", 2.0)),
         max_hold_days=int(strategy_raw.get("max_hold_days", 5)),
         stop_atr_mult=float(strategy_raw.get("stop_atr_mult", 1.5)),

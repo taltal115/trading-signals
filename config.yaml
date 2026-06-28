@@ -61,24 +61,33 @@ strategy:
   # Filters
   price_min: 2.0
   price_max: 1000.0
-  avg_dollar_vol_min: 10_000_000
-  atr_pct_min: 3.0
-  atr_pct_max: 14.0
+  avg_dollar_vol_min: 5_000_000   # was 10M; loosened for more tradable names
+  atr_pct_min: 2.0
+  atr_pct_max: 12.0               # backtest: >7% ATR (pump names) underperform
 
-  # Breakout + momentum thresholds (stricter = fewer, higher-quality BUY setups)
+  # Breakout + momentum thresholds.
+  # Backtest (113 BUYs, Jan–Jun 2026): tighter thresholds did NOT improve quality —
+  # extreme momentum (ret_5d>30, ret_10d>60) and high confidence were net-negative.
+  # Lowered the floors to add traffic without chasing overextended breakouts.
   breakout_lookback_days: 20
-  breakout_dist_pct_max: 0.8    # tighter = higher confidence
-  ret_5d_min_pct: 12.0
-  ret_10d_min_pct: 18.0
-  vol_ratio_min: 3.0            # volume / avg20 volume
+  breakout_dist_pct_max: 2.0    # was 0.8; allow near-breakouts (more traffic)
+  ret_5d_min_pct: 8.0           # was 12.0
+  ret_10d_min_pct: 12.0         # was 18.0
+  # Overextension caps (0 = disabled). Backtest: capping ret_5d<=30 & ret_10d<=60
+  # lifted win-rate 47%->51% and avg return +0.09%->+1.31% (PF 1.02->1.46).
+  ret_5d_max_pct: 30.0
+  ret_10d_max_pct: 60.0
+  vol_ratio_min: 2.0            # was 3.0; volume / avg20 volume
 
-  # BUY must meet breakout rules AND reach this confidence (0 = disabled)
-  min_buy_confidence: 85
+  # BUY must meet breakout rules AND reach this confidence (0 = disabled).
+  # Backtest showed confidence is NOT predictive of returns, so the high 85 floor
+  # only throttled traffic. Lowered to 70.
+  min_buy_confidence: 70
 
   # Position guidance (manual)
   max_hold_days: 5              # ceiling; actual hold is ATR-based per signal (2..max)
   stop_atr_mult: 1.5
-  target_atr_mult: 3.0
+  target_atr_mult: 2.5         # was 3.0; 3x ATR target was hit in only 13/110 trades
 
   # Ranking weights
   weights:
@@ -94,7 +103,7 @@ slack:
   enabled: true
   channel: "#trading-signals"
   post_top_n: 5
-  min_confidence: 85
+  min_confidence: 70
 
 logging:
   level: "INFO"

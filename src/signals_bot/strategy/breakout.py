@@ -165,8 +165,14 @@ class BreakoutMomentumStrategy:
         # Action rules.
         meets_momentum = (ret_5d >= self.cfg.ret_5d_min_pct) and (ret_10d >= self.cfg.ret_10d_min_pct)
         meets_volume = (vol_ratio >= self.cfg.vol_ratio_min) if not np.isnan(vol_ratio) else False
+        # Overextension guard: a name that already ran too far tends to mean-revert
+        # inside the hold window (backtest-derived). 0 disables each cap.
+        overextended = (
+            (self.cfg.ret_5d_max_pct > 0 and ret_5d > self.cfg.ret_5d_max_pct)
+            or (self.cfg.ret_10d_max_pct > 0 and ret_10d > self.cfg.ret_10d_max_pct)
+        )
 
-        if is_breakout and meets_momentum and meets_volume:
+        if is_breakout and meets_momentum and meets_volume and not overextended:
             action: SignalAction = "BUY"
             notes = "breakout + momentum + volume"
         else:
@@ -178,6 +184,8 @@ class BreakoutMomentumStrategy:
                 missing.append("weak momentum")
             if not meets_volume:
                 missing.append("low volume")
+            if overextended:
+                missing.append("overextended")
             notes = ", ".join(missing) if missing else "watch"
 
         suggested_entry = close if action == "BUY" else None
