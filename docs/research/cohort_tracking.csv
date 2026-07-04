@@ -1,0 +1,2 @@
+run_ts_utc,cohort_from,cohort_to,n_tickers,win_rate_3d_pct,avg_ret_3d_pct,win_rate_5d_pct,avg_ret_5d_pct,win_rate_managed_pct,avg_ret_managed_pct,profit_factor_managed
+2026-07-04T16:33:02.177853+00:00,2026-06-28,2026-06-28,54,66.0,2.15,,,66.0,2.2,2.52

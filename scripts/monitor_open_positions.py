@@ -120,8 +120,13 @@ def _last_close_and_session_range(
     providers: dict[str, Any],
     provider_order: list[str],
     lookback_days: int,
-) -> tuple[float | None, float | None, float | None, float | None]:
-    """close, session_high, session_low, atr14 from first working provider."""
+) -> tuple[float | None, float | None, float | None, float | None, float | None]:
+    """close, session_high, session_low, atr14, prior_session_low from first working provider.
+
+    ``prior_session_low`` is the low of the bar *before* the latest one — used for the
+    trailing-exit check (research: 2026-07 — extend a profitable hold instead of forcing a
+    fixed-schedule exit, as long as price stays above the prior session's low).
+    """
     for name in provider_order:
         prov = providers.get(name)
         if not prov:
@@ -132,10 +137,18 @@ def _last_close_and_session_range(
             if last_close is None:
                 continue
             atr_val = _atr14_from_hist(hist) if hist is not None else None
-            return last_close, sh, sl, atr_val
+            prior_low: float | None = None
+            if hist is not None and "low" in hist.columns and len(hist) >= 2:
+                try:
+                    prior_v = hist.iloc[-2]["low"]
+                    if pd.notna(prior_v):
+                        prior_low = float(prior_v)
+                except (TypeError, ValueError):
+                    prior_low = None
+            return last_close, sh, sl, atr_val, prior_low
         except Exception:
             continue
-    return None, None, None, None
+    return None, None, None, None, None
 
 
 def _pnl_str(entry_f: float | None, spot: float) -> str:
@@ -182,6 +195,9 @@ def _eval_position(
     atr14: float | None,
     now_utc: datetime,
     market_tz: ZoneInfo,
+    prior_session_low: float | None = None,
+    trailing_min_hold_days: int = 0,
+    max_hold_days: int = 0,
 ) -> Alert:
     ticker = str(data.get("ticker", ""))
     if last_close is None:
@@ -269,10 +285,35 @@ def _eval_position(
             session_low=session_low,
         )
 
-    original_due = (
+    original_due_raw = (
         isinstance(hold_days, int) and hold_days > 0
         and age_days is not None and age_days >= hold_days
     )
+
+    # Trailing exit (research: 2026-07 — 74% of the 2026-06-28 cohort exited on the fixed
+    # schedule, and several winners kept improving past their original hold day). Once the
+    # position has reached the signal's hold plan, keep riding it — up to max_hold_days — as
+    # long as it's profitable and hasn't broken the prior session's low.
+    trailing_enabled = 0 < trailing_min_hold_days < max_hold_days
+    trailing_extended = False
+    if trailing_enabled and age_days is not None and age_days >= max_hold_days:
+        original_due = True
+    elif (
+        trailing_enabled
+        and original_due_raw
+        and age_days is not None
+        and age_days >= trailing_min_hold_days
+    ):
+        in_profit = entry_f is not None and last_close > entry_f
+        trail_broken = prior_session_low is not None and last_close < prior_session_low
+        if in_profit and not trail_broken:
+            original_due = False
+            trailing_extended = True
+        else:
+            original_due = True
+    else:
+        original_due = original_due_raw
+
     atr_due = (
         atr_hold_est is not None
         and age_days is not None and age_days >= atr_hold_est
@@ -281,6 +322,8 @@ def _eval_position(
     if original_due or atr_due:
         trig_code = "original" if original_due else "atr"
         trig_label = "signal hold plan" if original_due else "ATR-based timeline"
+        if trailing_enabled and trig_code == "original" and age_days is not None and age_days >= max_hold_days:
+            trig_label = "max hold ceiling"
         due_bit = ""
         if isinstance(hold_days, int) and hold_days > 0:
             due_str = _due_date_str(created_s, hold_days, market_tz=market_tz)
@@ -362,6 +405,8 @@ def _eval_position(
         if due_str:
             hold_ctx += f", due {due_str}"
         hold_ctx += "."
+        if trailing_extended:
+            hold_ctx += f" Trailing: past hold plan but profitable and above prior low — riding to day {max_hold_days} max."
 
     target_ctx = ""
     if target_f is not None and last_close < target_f:
@@ -758,7 +803,7 @@ def main() -> int:
         if not ticker:
             continue
 
-        last_close, session_high, session_low, atr14 = _last_close_and_session_range(
+        last_close, session_high, session_low, atr14, prior_low = _last_close_and_session_range(
             ticker=ticker,
             providers=providers,
             provider_order=order,
@@ -774,6 +819,9 @@ def main() -> int:
             atr14=atr14,
             now_utc=now_utc,
             market_tz=market_tz,
+            prior_session_low=prior_low,
+            trailing_min_hold_days=cfg.strategy.trailing_min_hold_days,
+            max_hold_days=cfg.strategy.max_hold_days,
         )
         prev_kind = data.get("last_alert_kind")
         ts = now_utc.isoformat()

@@ -63,7 +63,10 @@ strategy:
   price_max: 1000.0
   avg_dollar_vol_min: 5_000_000   # was 10M; loosened for more tradable names
   atr_pct_min: 2.0
-  atr_pct_max: 12.0               # backtest: >7% ATR (pump names) underperform
+  # Backtest: ATR 3-5% was best (56% win, PF 1.75); 5-7% was worst (38% win). Tightened the
+  # standard ceiling to 10 to cut the volatile tail. High-volume fresh breakouts / ignition
+  # (STAK-style, e.g. 13% ATR) still get in via ignite_atr_pct_max below.
+  atr_pct_max: 10.0
 
   # Breakout + momentum thresholds.
   # Backtest (113 BUYs, Jan–Jun 2026): tighter thresholds did NOT improve quality —
@@ -77,6 +80,14 @@ strategy:
   # lifted win-rate 47%->51% and avg return +0.09%->+1.31% (PF 1.02->1.46).
   ret_5d_max_pct: 30.0
   ret_10d_max_pct: 60.0
+  # STAK 2026-06-03: high 5d/10d returns but fresh breakout + vol_ratio 5.4× — allow through.
+  overextension_bypass_vol_ratio: 5.0
+  # STAK 2026-06-02: +95% 1-day surge, 9× volume, 22% below 20d high — buy before breakout day.
+  ignite_vol_ratio_min: 8.0
+  ignite_ret_1d_min_pct: 50.0
+  ignite_prior_high_dist_pct_max: 25.0
+  ignite_atr_pct_max: 20.0
+  ignite_price_min: 1.0           # STAK was $1.90 on ignition day (below standard price_min 2.0)
   vol_ratio_min: 2.0            # was 3.0; volume / avg20 volume
 
   # BUY must meet breakout rules AND reach this confidence (0 = disabled).
@@ -86,6 +97,11 @@ strategy:
 
   # Position guidance (manual)
   max_hold_days: 5              # ceiling; actual hold is ATR-based per signal (2..max)
+  # Trailing exit (research: 2026-06-28 cohort — 74% of trades exited on a fixed time limit;
+  # winners like ODD/PAR/MAX kept improving from day 3 to day 5). Once held >= this many
+  # sessions AND still above entry AND above the prior session's low, keep riding up to
+  # max_hold_days instead of forcing a time exit. 0 disables (fixed exit at max_hold_days).
+  trailing_min_hold_days: 3
   stop_atr_mult: 1.5
   target_atr_mult: 2.5         # was 3.0; 3x ATR target was hit in only 13/110 trades
 

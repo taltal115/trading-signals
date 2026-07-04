@@ -19,6 +19,20 @@ from signals_bot.storage.sqlite import SqliteStore
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy, Signal
 
 
+def _signal_rank_key(signal: Signal) -> tuple[int, float, float, float]:
+    """Sort key for Slack/Firestore ordering: BUY first, then least overextended.
+
+    Research (2026-07): confidence did not predict returns (mid-tier 80-89 beat 95-99 on the
+    2026-06-28 cohort), while lower ``ret_5d`` among BUYs consistently outperformed. Rank BUYs
+    by ascending ``ret_5d_pct`` (least-chased first) instead of confidence; confidence is kept
+    only as a tiebreaker.
+    """
+    action_rank = 0 if signal.action == "BUY" else (1 if signal.action == "SELL" else 2)
+    ret_5d = signal.metrics.get("ret_5d_pct") if signal.action == "BUY" else None
+    overextension_rank = float(ret_5d) if ret_5d is not None else 0.0
+    return (action_rank, overextension_rank, -float(signal.confidence), -float(signal.score))
+
+
 def _apply_min_buy_confidence(signal: Signal, min_conf: int) -> Signal:
     """Downgrade weak BUY setups to WAIT so Firestore/Slack only see high-confidence entries."""
     if min_conf <= 0 or signal.action != "BUY" or signal.confidence >= min_conf:
@@ -184,15 +198,9 @@ def main() -> int:
         if store:
             store.insert_signal(run_id=run_id, asof_date=cfg.asof_date(), signal=signal)
 
-    # Rank for Slack: prioritize BUY then high confidence
-    signals_sorted = sorted(
-        signals,
-        key=lambda s: (
-            0 if s.action == "BUY" else (1 if s.action == "SELL" else 2),
-            -s.confidence,
-            -s.score,
-        ),
-    )
+    # Rank for Slack/Firestore: BUY first, then least-overextended BUYs first (see
+    # _signal_rank_key — research-backed, confidence is only a tiebreaker).
+    signals_sorted = sorted(signals, key=_signal_rank_key)
 
     if store:
         store.finish_run(run_id=run_id, status="ok", summary_json=asdict(cfg.to_summary()))

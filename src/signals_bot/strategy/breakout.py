@@ -89,12 +89,49 @@ class BreakoutMomentumStrategy:
         breakout_dist_pct = float(((prior_high_n - close) / prior_high_n) * 100.0) if prior_high_n else np.nan
         is_breakout = bool(close >= prior_high_n) if prior_high_n else False
 
+        # High-volume fresh breakout: at/above the N-day high with volume confirming continuation
+        # (STAK 2026-06-03: 13% ATR, 5.4x volume). Used both to relax the ATR ceiling below and to
+        # bypass the overextension caps further down.
+        high_volume_breakout = (
+            is_breakout
+            and self.cfg.overextension_bypass_vol_ratio > 0
+            and not np.isnan(vol_ratio)
+            and vol_ratio >= self.cfg.overextension_bypass_vol_ratio
+        )
+
         # Baseline filters (for new ideas; we still manage open buys even if they drift).
         avg_dollar_vol = float(close * avg20_vol) if avg20_vol and not np.isnan(avg20_vol) else np.nan
-        passes_filters = (
-            (self.cfg.price_min <= close <= self.cfg.price_max)
-            and (avg_dollar_vol >= self.cfg.avg_dollar_vol_min if not np.isnan(avg_dollar_vol) else False)
-            and (self.cfg.atr_pct_min <= atr_pct <= self.cfg.atr_pct_max if not np.isnan(atr_pct) else False)
+        passes_price = self.cfg.price_min <= close <= self.cfg.price_max
+        passes_dollar_vol = (
+            avg_dollar_vol >= self.cfg.avg_dollar_vol_min if not np.isnan(avg_dollar_vol) else False
+        )
+        passes_standard_atr = (
+            self.cfg.atr_pct_min <= atr_pct <= self.cfg.atr_pct_max if not np.isnan(atr_pct) else False
+        )
+        # Higher ATR ceiling for high-volume fresh breakouts (reuses the ignition ceiling —
+        # both represent "volatility is acceptable because volume confirms the move").
+        passes_high_vol_atr = (
+            self.cfg.atr_pct_min <= atr_pct <= self.cfg.ignite_atr_pct_max
+            if not np.isnan(atr_pct)
+            else False
+        )
+
+        # Volume ignition: violent 1-day surge near (but not yet through) the N-day high.
+        # Example: STAK 2026-06-02 — +95% day, 9× volume, 22% below the 20d high; next session broke out.
+        volume_ignition = (
+            not is_breakout
+            and self.cfg.ignite_vol_ratio_min > 0
+            and not np.isnan(vol_ratio)
+            and vol_ratio >= self.cfg.ignite_vol_ratio_min
+            and ret_1d >= self.cfg.ignite_ret_1d_min_pct
+            and not np.isnan(breakout_dist_pct)
+            and breakout_dist_pct <= self.cfg.ignite_prior_high_dist_pct_max
+        )
+        passes_ignite_price = self.cfg.ignite_price_min <= close <= self.cfg.price_max
+        passes_ignite_atr = passes_high_vol_atr
+        passes_filters = passes_dollar_vol and (
+            (passes_price and (passes_standard_atr or (high_volume_breakout and passes_high_vol_atr)))
+            or (volume_ignition and passes_ignite_price and passes_ignite_atr)
         )
 
         # Exit logic if we have an open buy.
@@ -103,9 +140,38 @@ class BreakoutMomentumStrategy:
                 open_buy.buy_asof_date, asof_date
             )
             stop_hit = open_buy.stop is not None and close <= open_buy.stop
-            time_exit = age_days >= self.cfg.max_hold_days
+            hit_ceiling = age_days >= self.cfg.max_hold_days
+
+            # Trailing exit (research: 2026-07 cohort — 74% of trades exited on a fixed time
+            # limit, and several winners kept improving from day 3 to day 5). Once the min hold
+            # is reached, keep riding a profitable trade as long as it holds above the prior
+            # session's low; otherwise exit now. Hard stop and max_hold_days ceiling still apply.
+            trailing_enabled = (
+                self.cfg.trailing_min_hold_days > 0
+                and self.cfg.trailing_min_hold_days < self.cfg.max_hold_days
+            )
+            trail_exit_reason: str | None = None
+            if not stop_hit and not hit_ceiling and trailing_enabled and age_days >= self.cfg.trailing_min_hold_days:
+                prior_low = float(df["low"].iloc[-2]) if len(df) >= 2 else None
+                in_profit = close > open_buy.entry
+                trail_broken = prior_low is not None and close < prior_low
+                if in_profit and not trail_broken:
+                    time_exit = False
+                else:
+                    time_exit = True
+                    trail_exit_reason = "trail break" if trail_broken else "below entry"
+            else:
+                time_exit = hit_ceiling
+
             if stop_hit or time_exit:
-                notes = "stop hit" if stop_hit else f"time exit (sessions since buy={age_days})"
+                if stop_hit:
+                    notes = "stop hit"
+                elif hit_ceiling:
+                    notes = f"time exit (max hold, sessions since buy={age_days})"
+                elif trail_exit_reason:
+                    notes = f"trailing exit ({trail_exit_reason}, sessions since buy={age_days})"
+                else:
+                    notes = f"time exit (sessions since buy={age_days})"
                 conf = 85 if stop_hit else 70
                 return Signal(
                     ticker=ticker,
@@ -167,18 +233,27 @@ class BreakoutMomentumStrategy:
         meets_volume = (vol_ratio >= self.cfg.vol_ratio_min) if not np.isnan(vol_ratio) else False
         # Overextension guard: a name that already ran too far tends to mean-revert
         # inside the hold window (backtest-derived). 0 disables each cap.
-        overextended = (
+        # Fresh high-volume breakouts (STAK 2026-06-03) may look overextended on 5d/10d
+        # returns but still have continuation — bypass caps when volume confirms.
+        overextended = (not high_volume_breakout) and (
             (self.cfg.ret_5d_max_pct > 0 and ret_5d > self.cfg.ret_5d_max_pct)
             or (self.cfg.ret_10d_max_pct > 0 and ret_10d > self.cfg.ret_10d_max_pct)
         )
 
-        if is_breakout and meets_momentum and meets_volume and not overextended:
+        standard_buy = is_breakout and meets_momentum and meets_volume and not overextended
+        ignite_buy = volume_ignition and meets_momentum and meets_volume
+
+        if standard_buy or ignite_buy:
             action: SignalAction = "BUY"
-            notes = "breakout + momentum + volume"
+            notes = (
+                "volume ignition + momentum + volume"
+                if ignite_buy and not standard_buy
+                else "breakout + momentum + volume"
+            )
         else:
             action = "WAIT"
             missing = []
-            if not is_breakout:
+            if not is_breakout and not volume_ignition:
                 missing.append("no breakout")
             if not meets_momentum:
                 missing.append("weak momentum")

@@ -98,8 +98,23 @@ class StrategyConfig:
     # 0 disables the cap.
     ret_5d_max_pct: float = 0.0
     ret_10d_max_pct: float = 0.0
+    # Skip ret_5d/10d max caps when at/above prior high AND volume confirms (STAK 2026-06-03).
+    # 0 disables.
+    overextension_bypass_vol_ratio: float = 0.0
+    # Volume ignition: huge 1-day surge approaching prior high before full breakout (STAK 2026-06-02).
+    # 0 disables each ignite_* gate.
+    ignite_vol_ratio_min: float = 0.0
+    ignite_ret_1d_min_pct: float = 50.0
+    ignite_prior_high_dist_pct_max: float = 25.0
+    ignite_atr_pct_max: float = 20.0
+    ignite_price_min: float = 1.0
     vol_ratio_min: float = 2.0
     max_hold_days: int = 5
+    # Trailing exit (research: 2026-07 cohort — 74% of trades exited on a fixed time limit,
+    # and winners kept improving past day 3). Once a BUY has been held this many sessions AND
+    # is profitable, extend the hold (up to max_hold_days) as long as it stays above the prior
+    # session's low; otherwise exit immediately. 0 disables (fixed time exit at max_hold_days).
+    trailing_min_hold_days: int = 0
     stop_atr_mult: float = 1.5
     target_atr_mult: float = 3.0
     min_buy_confidence: int = 0
@@ -304,8 +319,15 @@ def load_config(config_path: Path) -> AppConfig:
         ret_10d_min_pct=float(strategy_raw.get("ret_10d_min_pct", 12.0)),
         ret_5d_max_pct=float(strategy_raw.get("ret_5d_max_pct", 0.0)),
         ret_10d_max_pct=float(strategy_raw.get("ret_10d_max_pct", 0.0)),
+        overextension_bypass_vol_ratio=float(strategy_raw.get("overextension_bypass_vol_ratio", 0.0)),
+        ignite_vol_ratio_min=float(strategy_raw.get("ignite_vol_ratio_min", 0.0)),
+        ignite_ret_1d_min_pct=float(strategy_raw.get("ignite_ret_1d_min_pct", 50.0)),
+        ignite_prior_high_dist_pct_max=float(strategy_raw.get("ignite_prior_high_dist_pct_max", 25.0)),
+        ignite_atr_pct_max=float(strategy_raw.get("ignite_atr_pct_max", 20.0)),
+        ignite_price_min=float(strategy_raw.get("ignite_price_min", 1.0)),
         vol_ratio_min=float(strategy_raw.get("vol_ratio_min", 2.0)),
         max_hold_days=int(strategy_raw.get("max_hold_days", 5)),
+        trailing_min_hold_days=int(strategy_raw.get("trailing_min_hold_days", 0)),
         stop_atr_mult=float(strategy_raw.get("stop_atr_mult", 1.5)),
         target_atr_mult=float(strategy_raw.get("target_atr_mult", 3.0)),
         min_buy_confidence=int(strategy_raw.get("min_buy_confidence", 0)),
