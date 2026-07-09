@@ -62,10 +62,9 @@
           <th>ticker</th>
           <th>signal price</th>
           <th>live price</th>
-          <th>entry</th>
           <th>stop</th>
           <th>target</th>
-          <th>conf</th>
+          <th>status</th>
           <th>details</th>
           <th>ai</th>
           <th>actions</th>
@@ -109,16 +108,13 @@
                 ↻
               </button>
             </td>
-            <td>{{ fmtUsd(row.s['close']) }}</td>
             <td>{{ fmtUsd(row.s['stop']) }}</td>
             <td>{{ fmtUsd(row.s['target']) }}</td>
-            <td>
-              <ng-container *ngIf="row.s['confidence'] != null; else noConf">
-                <span [ngClass]="confClass(row.s['confidence'])">{{
-                  confFmt(row.s['confidence'])
-                }}%</span>
+            <td class="sig-status-cell">
+              <ng-container *ngIf="signalStatus(row.s) as st">
+                <span class="status-badge" [ngClass]="st.cls" [title]="st.title">{{ st.label }}</span>
+                <span *ngIf="st.pctStr" class="sig-live-pct" [ngClass]="st.pctCls">{{ st.pctStr }}</span>
               </ng-container>
-              <ng-template #noConf>—</ng-template>
             </td>
             <td class="sig-details-toggle-cell">
               <button
@@ -183,7 +179,7 @@
             class="sig-stock-details-tr"
             [class.sig-stock-details-for-older]="row.role === 'older'"
           >
-            <td colspan="11" class="sig-stock-details-cell">
+            <td colspan="10" class="sig-stock-details-cell">
               <div *ngIf="stockDetailsLoading(row.instanceKey)" class="sig-stock-details-status">
                 Loading market data…
               </div>
@@ -253,7 +249,7 @@
             class="sig-ai-summary-tr"
             [class.sig-stock-details-for-older]="row.role === 'older'"
           >
-            <td colspan="11" class="sig-ai-summary-cell">
+            <td colspan="10" class="sig-ai-summary-cell">
               <ng-container *ngIf="aiViewForRow(row) as ai; else noAi">
                 <div class="sig-ai-summary-panel">
                   <div class="sig-ai-summary-head">
@@ -329,7 +325,7 @@
             </td>
           </tr>
           <tr *ngIf="row.kind === 'form'" class="signals-inline-form-tr">
-            <td colspan="11" class="signals-inline-form-cell">
+            <td colspan="10" class="signals-inline-form-cell">
               <div
                 class="signals-inline-form-slide"
                 [class.is-expanded]="inlineExpanded()"

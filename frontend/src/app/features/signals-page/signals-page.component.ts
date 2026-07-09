@@ -586,6 +586,72 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     return Number.isFinite(v) ? fmtUiPercent(v) : '—';
   }
 
+  /**
+   * Research-job outcome badge for a signal row (see `scripts/research_open_signals.py`).
+   * Signals are only finalized once their hold window has fully played out; until then
+   * (or if the daily research job hasn't reached this signal yet) the status is "Pending".
+   */
+  signalStatus(s: Record<string, unknown>): {
+    label: string;
+    cls: string;
+    title: string;
+    pctStr: string;
+    pctCls: string;
+  } {
+    const researchStatus = _str(s['researchStatus']).toLowerCase();
+    const pnlPct = _num(s['pnlPct']);
+    const pnlValue = _num(s['pnlValue']);
+    const pctStr = pnlPct == null ? '' : (pnlPct >= 0 ? '+' : '') + fmtUiPercent(pnlPct) + '%';
+    const pctCls =
+      pnlPct == null ? '' : pnlPct > 0.01 ? 'live-pct-up' : pnlPct < -0.01 ? 'live-pct-down' : 'live-pct-flat';
+
+    if (researchStatus !== 'finalized') {
+      return {
+        label: 'Pending',
+        cls: 'status-pending',
+        title: 'Still within its holding window — outcome not finalized yet.',
+        pctStr: '',
+        pctCls: '',
+      };
+    }
+
+    const isProfitableRaw = s['isProfitable'];
+    let label: string;
+    let cls: string;
+    if (isProfitableRaw === true) {
+      label = 'Profit';
+      cls = 'status-profit';
+    } else if (isProfitableRaw === false) {
+      if (pnlPct != null && Math.abs(pnlPct) < 1e-9) {
+        label = 'Flat';
+        cls = 'status-flat';
+      } else {
+        label = 'Loss';
+        cls = 'status-loss';
+      }
+    } else {
+      return {
+        label: 'No data',
+        cls: 'status-pending',
+        title: 'Research job could not price this signal through its hold deadline.',
+        pctStr: '',
+        pctCls: '',
+      };
+    }
+
+    const outcome = _str(s['outcome']);
+    const reason = _str(s['reason']);
+    const exitDate = _str(s['exitDate']);
+    const titleParts = [
+      outcome ? `Outcome: ${outcome}` : '',
+      reason,
+      exitDate ? `Exit date: ${exitDate}` : '',
+      pnlValue != null ? `P&L: ${fmtUsd(pnlValue)}` : '',
+    ].filter((p) => p.length > 0);
+
+    return { label, cls, title: titleParts.join(' · ') || label, pctStr, pctCls };
+  }
+
   isSignalRowNew(row: DisplayRow): boolean {
     if (row.kind !== 'sig' || row.role !== 'primary') return false;
     const tickerU = String(row.s['ticker'] || '')
