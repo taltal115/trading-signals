@@ -240,6 +240,21 @@ Run the cohort tool going forward, e.g.:
 python scripts/backtest_recent_signals.py --since 2026-06-28 --sessions 3,5 --append-csv
 ```
 
+### Automated per-signal finalization (2026-07-09)
+
+Added `scripts/research_open_signals.py` + `.github/workflows/signal-research-daily.yml`
+(weekdays 12:00 UTC, before the 09:30 ET open). For every signal whose hold window
+(`asof_date` + `hold_days` NYSE sessions) has ended, it re-fetches history, runs the same
+managed-trade walk as the backtest scripts (stop → target → time exit), and writes a
+**permanent** outcome directly onto the signal entry in Firestore: `isProfitable`, `pnlValue`,
+`pnlPct`, `livePrice` (realized exit price), `outcome` (`target`/`stop`/`time`/`no_data`),
+`exitDate`, `reason`, and `researchStatus` (`"finalized"` once written). Already-finalized
+signals are always skipped, so it's safe to run daily and doubles as a one-off historical
+backfill (`--lookback-days` controls how far back it scans). The Signals dashboard table
+dropped the redundant `entry` and `conf` columns in favor of a single `status` badge
+(Profit/Loss/Flat/Pending) sourced from these fields, plus a `pnlPct` readout next to the live
+price.
+
 ### Caveats
 
 - Single-day cohort (6/28) and short forward window.  

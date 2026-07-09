@@ -204,24 +204,27 @@
     );
   }
 
-  /** Signals table "status" cell: server-researched isProfitable/reason from the daily research job. */
+  /**
+   * Signals table "status" cell: the final Profit/Loss outcome once the daily research job
+   * (scripts/research_open_signals.py) has finalized this signal's hold window; "Pending"
+   * while still inside its hold window, "No data" if price history wasn't available.
+   */
   function sigStatusBadgeHtml(s) {
     var reasonAttr = escAttr(s.reason || "");
+    if (s.researchStatus === "no_data") {
+      return '<span class="status-badge status-pending" title="' + reasonAttr + '">No data</span>';
+    }
+    if (s.researchStatus !== "finalized" || s.isProfitable == null) {
+      return '<span class="status-badge status-pending" title="Hold window still open — finalized once it matures.">Pending</span>';
+    }
+    var pctTxt = s.pnlPct != null ? " (" + (Number(s.pnlPct) >= 0 ? "+" : "") + fmtUiDec(Number(s.pnlPct)) + "%)" : "";
+    if (s.pnlPct != null && Math.abs(Number(s.pnlPct)) < 0.05) {
+      return '<span class="status-badge status-pending" title="' + reasonAttr + '">Flat' + pctTxt + "</span>";
+    }
     if (s.isProfitable === true) {
-      return (
-        '<span class="status-badge status-profit" title="' + reasonAttr + '">Profitable' +
-        (s.pnlPct != null ? " (" + (Number(s.pnlPct) >= 0 ? "+" : "") + fmtUiDec(Number(s.pnlPct)) + "%)" : "") +
-        "</span>"
-      );
+      return '<span class="status-badge status-profit" title="' + reasonAttr + '">Profit' + pctTxt + "</span>";
     }
-    if (s.isProfitable === false) {
-      return (
-        '<span class="status-badge status-loss" title="' + reasonAttr + '">Not profitable' +
-        (s.pnlPct != null ? " (" + fmtUiDec(Number(s.pnlPct)) + "%)" : "") +
-        "</span>"
-      );
-    }
-    return '<span class="status-badge status-pending" title="Not yet researched by the daily job.">Pending</span>';
+    return '<span class="status-badge status-loss" title="' + reasonAttr + '">Loss' + pctTxt + "</span>";
   }
 
   async function fetchDailyCandlesAlphaVantage(ticker, days) {
