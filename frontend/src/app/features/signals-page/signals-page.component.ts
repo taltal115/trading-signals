@@ -15,6 +15,7 @@ import {
   BracketPct,
   extractBracketPctsFromSignal,
   fmtMoneyInput,
+  fmtSignedUsd,
   fmtUsd,
   fmtUiDecimal,
   fmtUiPercent,
@@ -597,6 +598,8 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     title: string;
     pctStr: string;
     pctCls: string;
+    valueStr: string;
+    reason: string;
   } {
     const researchStatus = _str(s['researchStatus']).toLowerCase();
     const pnlPct = _num(s['pnlPct']);
@@ -604,6 +607,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     const pctStr = pnlPct == null ? '' : (pnlPct >= 0 ? '+' : '') + fmtUiPercent(pnlPct) + '%';
     const pctCls =
       pnlPct == null ? '' : pnlPct > 0.01 ? 'live-pct-up' : pnlPct < -0.01 ? 'live-pct-down' : 'live-pct-flat';
+    const valueStr = pnlValue == null ? '' : fmtSignedUsd(pnlValue);
 
     if (researchStatus !== 'finalized') {
       return {
@@ -612,6 +616,8 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
         title: 'Still within its holding window — outcome not finalized yet.',
         pctStr: '',
         pctCls: '',
+        valueStr: '',
+        reason: '',
       };
     }
 
@@ -636,6 +642,8 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
         title: 'Research job could not price this signal through its hold deadline.',
         pctStr: '',
         pctCls: '',
+        valueStr: '',
+        reason: _str(s['reason']),
       };
     }
 
@@ -644,12 +652,28 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     const exitDate = _str(s['exitDate']);
     const titleParts = [
       outcome ? `Outcome: ${outcome}` : '',
-      reason,
       exitDate ? `Exit date: ${exitDate}` : '',
       pnlValue != null ? `P&L: ${fmtUsd(pnlValue)}` : '',
     ].filter((p) => p.length > 0);
 
-    return { label, cls, title: titleParts.join(' · ') || label, pctStr, pctCls };
+    return { label, cls, title: titleParts.join(' · ') || label, pctStr, pctCls, valueStr, reason };
+  }
+
+  /** Per signal row (instanceKey): whether the "why" reason panel below the row is expanded. */
+  readonly reasonOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
+
+  reasonOpen(instanceKey: string): boolean {
+    return this.reasonOpenByRow().has(instanceKey);
+  }
+
+  toggleReason(instanceKey: string, ev?: Event): void {
+    ev?.stopPropagation?.();
+    this.reasonOpenByRow.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(instanceKey)) next.delete(instanceKey);
+      else next.add(instanceKey);
+      return next;
+    });
   }
 
   isSignalRowNew(row: DisplayRow): boolean {

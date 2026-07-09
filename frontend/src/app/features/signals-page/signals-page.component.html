@@ -112,8 +112,21 @@
             <td>{{ fmtUsd(row.s['target']) }}</td>
             <td class="sig-status-cell">
               <ng-container *ngIf="signalStatus(row.s) as st">
-                <span class="status-badge" [ngClass]="st.cls" [title]="st.title">{{ st.label }}</span>
-                <span *ngIf="st.pctStr" class="sig-live-pct" [ngClass]="st.pctCls">{{ st.pctStr }}</span>
+                <div class="sig-status-line">
+                  <span class="status-badge" [ngClass]="st.cls" [title]="st.title">{{ st.label }}</span>
+                  <span *ngIf="st.pctStr" class="sig-live-pct" [ngClass]="st.pctCls"
+                    >{{ st.pctStr }}<span *ngIf="st.valueStr" class="sig-status-value"> ({{ st.valueStr }})</span></span
+                  >
+                </div>
+                <button
+                  type="button"
+                  *ngIf="st.reason"
+                  class="btn-sig-reason-toggle"
+                  [class.is-open]="reasonOpen(row.instanceKey)"
+                  (click)="toggleReason(row.instanceKey, $event)"
+                >
+                  {{ reasonOpen(row.instanceKey) ? 'Hide' : 'Why?' }}
+                </button>
               </ng-container>
             </td>
             <td class="sig-details-toggle-cell">
@@ -173,6 +186,13 @@
                 </button>
               </div>
             </td>
+          </tr>
+          <tr
+            *ngIf="row.kind === 'sig' && reasonOpen(row.instanceKey)"
+            class="sig-reason-tr"
+            [class.sig-stock-details-for-older]="row.role === 'older'"
+          >
+            <td colspan="10" class="sig-reason-cell">{{ signalStatus(row.s).reason }}</td>
           </tr>
           <tr
             *ngIf="row.kind === 'sig' && stockDetailsOpen(row.instanceKey)"

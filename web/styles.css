@@ -1989,6 +1989,12 @@ button.btn-exit:hover {
   border: 1px solid color-mix(in srgb, var(--sell) 40%, transparent);
 }
 
+.status-flat {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border: 1px solid var(--border);
+}
+
 .status-pending {
   color: var(--muted);
   background: color-mix(in srgb, var(--muted) 12%, transparent);
@@ -1997,6 +2003,53 @@ button.btn-exit:hover {
 
 .sig-status-cell {
   min-width: 6.5rem;
+}
+
+.sig-status-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.sig-status-value {
+  color: inherit;
+  opacity: 0.85;
+  font-weight: 500;
+}
+
+button.btn-sig-reason-toggle {
+  margin-top: 0.3rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.68rem;
+  font-family: inherit;
+  font-weight: 600;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+button.btn-sig-reason-toggle:hover {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(61, 214, 198, 0.08);
+}
+
+button.btn-sig-reason-toggle.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(61, 214, 198, 0.12);
+}
+
+tr.sig-reason-tr > td.sig-reason-cell {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.82rem;
+  color: var(--text);
+  max-width: 46rem;
 }
 
 .spot-cell {
