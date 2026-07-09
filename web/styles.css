@@ -1967,6 +1967,38 @@ button.btn-exit:hover {
   color: var(--muted);
 }
 
+.status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.status-profit {
+  color: var(--buy);
+  background: color-mix(in srgb, var(--buy) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--buy) 40%, transparent);
+}
+
+.status-loss {
+  color: var(--sell);
+  background: color-mix(in srgb, var(--sell) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--sell) 40%, transparent);
+}
+
+.status-pending {
+  color: var(--muted);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  border: 1px solid var(--border);
+}
+
+.sig-status-cell {
+  min-width: 6.5rem;
+}
+
 .spot-cell {
   min-width: 5.5rem;
 }

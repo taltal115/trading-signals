@@ -1,0 +1,57 @@
+# Daily research pass: tags every still-current signal (asof_date + hold_days sessions >= today)
+# in Firestore `signals` with a live-price P&L status (isProfitable / pnlValue / pnlPct / reason).
+# See docs/research/signal-strategy-research-2026-07.md and scripts/research_open_signals.py.
+#
+# Schedule: weekdays ~08:00 America/New_York (12:00 UTC during EDT, 13:00 during EST) — before
+# the 09:30 ET market open, after the universe-discovery run.
+name: Daily signal research
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Compute and log only; skip Firestore writes"
+        required: false
+        default: "false"
+
+permissions:
+  contents: read
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check Firestore credentials secret
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
+            echo "::error::Set repository secret GOOGLE_APPLICATION_CREDENTIALS to the full service account JSON. See README.md."
+            exit 1
+          fi
+
+      - name: Research open signals
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          DRY_RUN_ARG=""
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            DRY_RUN_ARG="--dry-run"
+          fi
+          PYTHONPATH=./src python scripts/research_open_signals.py --config config.yaml -v $DRY_RUN_ARG

@@ -174,6 +174,56 @@
     return (v >= 0 ? "+$" : "-$") + fmtUiDec(Math.abs(v));
   }
 
+  function fmtSignedPctUi(pct) {
+    if (!Number.isFinite(pct)) return "";
+    var cls = pct > 0.001 ? "pnl-profit" : pct < -0.001 ? "pnl-loss" : "pnl-flat";
+    var sign = pct >= 0 ? "+" : "";
+    return '<span class="' + cls + '">' + sign + fmtUiDec(pct) + "%</span>";
+  }
+
+  /** Signals table "live price" cell: server-researched price/pnl (if present) + manual refresh. */
+  function sigLivePriceHtml(s) {
+    var entry = s.close != null ? Number(s.close) : null;
+    var live = s.livePrice != null ? Number(s.livePrice) : null;
+    var pct = s.pnlPct != null ? Number(s.pnlPct) : null;
+    var valHtml = "—";
+    if (Number.isFinite(live)) {
+      valHtml = '<span class="sig-live-val">' + fmtUsdUi(live) + "</span>";
+      if (Number.isFinite(pct)) {
+        valHtml += " " + fmtSignedPctUi(pct);
+      }
+    } else {
+      valHtml = '<span class="sig-live-val">—</span>';
+    }
+    return (
+      valHtml +
+      ' <button type="button" class="btn-sig-refresh" data-ticker="' +
+      escAttr(s.ticker || "") + '" data-entry="' +
+      escAttr(entry != null ? String(entry) : "") +
+      '" title="Fetch live price">&#x21bb;</button>'
+    );
+  }
+
+  /** Signals table "status" cell: server-researched isProfitable/reason from the daily research job. */
+  function sigStatusBadgeHtml(s) {
+    var reasonAttr = escAttr(s.reason || "");
+    if (s.isProfitable === true) {
+      return (
+        '<span class="status-badge status-profit" title="' + reasonAttr + '">Profitable' +
+        (s.pnlPct != null ? " (" + (Number(s.pnlPct) >= 0 ? "+" : "") + fmtUiDec(Number(s.pnlPct)) + "%)" : "") +
+        "</span>"
+      );
+    }
+    if (s.isProfitable === false) {
+      return (
+        '<span class="status-badge status-loss" title="' + reasonAttr + '">Not profitable' +
+        (s.pnlPct != null ? " (" + fmtUiDec(Number(s.pnlPct)) + "%)" : "") +
+        "</span>"
+      );
+    }
+    return '<span class="status-badge status-pending" title="Not yet researched by the daily job.">Pending</span>';
+  }
+
   async function fetchDailyCandlesAlphaVantage(ticker, days) {
     var apiKey = cfg.alphaVantageApiKey || "demo";
 
@@ -1933,7 +1983,7 @@
     tr.className = "signals-inline-form-tr";
     tr.hidden = true;
     const td = document.createElement("td");
-    td.colSpan = 9;
+    td.colSpan = 8;
     td.className = "signals-inline-form-cell";
     td.innerHTML =
       '<div class="signals-inline-form-slide">' +
@@ -2225,13 +2275,7 @@
 
               var tdLivePrice = document.createElement("td");
               tdLivePrice.className = "sig-live-cell";
-              tdLivePrice.innerHTML =
-                '<span class="sig-live-val">—</span>' +
-                ' <button type="button" class="btn-sig-refresh" data-ticker="' +
-                escAttr(s.ticker || "") + '">&#x21bb;</button>';
-
-              var tdEntry = document.createElement("td");
-              tdEntry.textContent = s.close != null ? fmtUsdUi(s.close) : "—";
+              tdLivePrice.innerHTML = sigLivePriceHtml(s);
 
               var tdStop = document.createElement("td");
               tdStop.textContent = s.stop != null ? fmtUsdUi(s.stop) : "—";
@@ -2239,14 +2283,9 @@
               var tdTarget = document.createElement("td");
               tdTarget.textContent = s.target != null ? fmtUsdUi(s.target) : "—";
 
-              var tdConf = document.createElement("td");
-              if (s.confidence != null) {
-                var confVal = Number(s.confidence);
-                var confCls = confVal >= 70 ? "conf-high" : (confVal >= 50 ? "conf-mid" : "conf-low");
-                tdConf.innerHTML = '<span class="' + confCls + '">' + confVal + '%</span>';
-              } else {
-                tdConf.textContent = "—";
-              }
+              var tdStatus = document.createElement("td");
+              tdStatus.className = "sig-status-cell";
+              tdStatus.innerHTML = sigStatusBadgeHtml(s);
 
               var tdActions = document.createElement("td");
               tdActions.className = "sig-actions-cell";
@@ -2298,10 +2337,9 @@
               tr.appendChild(tdTicker);
               tr.appendChild(tdSignalPrice);
               tr.appendChild(tdLivePrice);
-              tr.appendChild(tdEntry);
               tr.appendChild(tdStop);
               tr.appendChild(tdTarget);
-              tr.appendChild(tdConf);
+              tr.appendChild(tdStatus);
               tr.appendChild(tdActions);
               sigBody.appendChild(tr);
             });
@@ -2312,6 +2350,8 @@
               ev.stopPropagation();
               var ticker = btn.getAttribute("data-ticker");
               if (!ticker) return;
+              var entryAttr = btn.getAttribute("data-entry");
+              var entry = entryAttr ? Number(entryAttr) : null;
               btn.disabled = true;
               btn.textContent = "…";
               var cell = btn.closest(".sig-live-cell");
@@ -2320,12 +2360,18 @@
                 if (cell) {
                   var valEl = cell.querySelector(".sig-live-val");
                   if (valEl) valEl.textContent = fmtUsdUi(price);
+                  var pctEl = cell.querySelector(".pnl-profit, .pnl-loss, .pnl-flat");
+                  if (pctEl) pctEl.remove();
+                  if (Number.isFinite(entry) && entry > 0) {
+                    var pct = ((price - entry) / entry) * 100;
+                    valEl.insertAdjacentHTML("afterend", " " + fmtSignedPctUi(pct));
+                  }
                 }
               } catch (err) {
                 console.error("Fetch live price error:", err);
                 if (cell) {
-                  var valEl = cell.querySelector(".sig-live-val");
-                  if (valEl) valEl.textContent = "err";
+                  var valEl2 = cell.querySelector(".sig-live-val");
+                  if (valEl2) valEl2.textContent = "err";
                 }
               }
               btn.disabled = false;
