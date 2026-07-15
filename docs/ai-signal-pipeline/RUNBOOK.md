@@ -61,5 +61,17 @@ PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \
 | Secret | Used by |
 |--------|---------|
 | `GOOGLE_APPLICATION_CREDENTIALS` | Firestore |
-| `FINNHUB_API_KEY` | News + social |
+| `FINNHUB_API_KEY` | Quote + company news + social |
 | `OPENAI_API_KEY` | Entry + holding LLM |
+| `NEWSAPI_API_KEY` | Optional broader headlines (merged with Finnhub/GDELT) |
+| `FRED_API_KEY` | Optional CPI/rates/macro lines in `{{events}}` |
+
+GDELT needs no secret (`USE_GDELT=true` by default). Toggle providers with repo variables `USE_NEWSAPI` / `USE_GDELT` / `USE_FRED`.
+
+## Models (`config.yaml` `ai:`)
+
+| Role | Default | When |
+|------|---------|------|
+| Entry gate | `gpt-5.4` (`entry_model`) | Every pending BUY eval |
+| Entry (optional) | `gpt-5.4-pro` (`pro_model`) | When blended `technical_score` ≥ `pro_min_technical_score` (default 75) |
+| Holding advisor | `gpt-5.4-mini` (`holding_model`) | Session holding runs |

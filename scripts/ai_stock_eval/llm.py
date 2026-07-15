@@ -9,7 +9,7 @@ from typing import Any
 
 import requests
 
-DEFAULT_MODEL = "gpt-4.1"
+DEFAULT_MODEL = "gpt-5.4"
 DEFAULT_BASE = "https://api.openai.com/v1"
 
 

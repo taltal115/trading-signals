@@ -146,8 +146,14 @@ class AiConfig:
     entry_min_total: float = 70.0
     entry_min_conviction: float = 0.7
     max_entry_evals_per_run: int = 15
-    max_holding_evals_per_run: int = 20
-    model: str = "gpt-4.1"
+    max_holding_evals_per_run: int = 40
+    # Default / legacy single model (overridden by entry/holding/pro when set).
+    model: str = "gpt-5.4"
+    entry_model: str = "gpt-5.4"
+    holding_model: str = "gpt-5.4-mini"
+    # Used for entry when technical_score >= pro_min_technical_score.
+    pro_model: str = "gpt-5.4-pro"
+    pro_min_technical_score: float = 75.0
     # model -> {prompt_per_1m, completion_per_1m} USD
     pricing: dict[str, dict[str, float]] | None = None
 
@@ -317,8 +323,12 @@ def load_config(config_path: Path) -> AppConfig:
         entry_min_total=float(ai_raw.get("entry_min_total", 70.0)),
         entry_min_conviction=float(ai_raw.get("entry_min_conviction", 0.7)),
         max_entry_evals_per_run=int(ai_raw.get("max_entry_evals_per_run", 15)),
-        max_holding_evals_per_run=int(ai_raw.get("max_holding_evals_per_run", 20)),
-        model=str(ai_raw.get("model", "gpt-4.1")),
+        max_holding_evals_per_run=int(ai_raw.get("max_holding_evals_per_run", 40)),
+        model=str(ai_raw.get("model", "gpt-5.4")),
+        entry_model=str(ai_raw.get("entry_model", ai_raw.get("model", "gpt-5.4"))),
+        holding_model=str(ai_raw.get("holding_model", "gpt-5.4-mini")),
+        pro_model=str(ai_raw.get("pro_model", "gpt-5.4-pro")),
+        pro_min_technical_score=float(ai_raw.get("pro_min_technical_score", 75.0)),
         pricing=pricing,
     )
 

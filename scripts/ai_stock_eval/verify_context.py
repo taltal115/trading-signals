@@ -16,8 +16,8 @@ def verify_eval_context(
     """
     Returns (errors, warnings). Errors should fail CI; warnings are informational.
 
-    Services: Yahoo/Stooq (history), Finnhub (quote/news), Firestore (candidate score),
-    SPY series (relative strength).
+    Services: Yahoo/Stooq (history), Finnhub (quote/news), NewsAPI/GDELT (headlines),
+    FRED (macro events), Firestore (candidate score), SPY series (relative strength).
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -42,10 +42,14 @@ def verify_eval_context(
         if ctx.quote.price is None and ctx.quote.previous_close is None:
             warnings.append("Finnhub: no quote fields returned (check symbol / API limits). Using bar close for price in prompt.")
         if not ctx.headlines:
-            warnings.append("Finnhub: no headlines returned for lookback window.")
+            warnings.append(
+                "No headlines from Finnhub/NewsAPI/GDELT for lookback window "
+                "(check FINNHUB_API_KEY / NEWSAPI_API_KEY or USE_* flags)."
+            )
     else:
         warnings.append(
-            "FINNHUB_API_KEY not set; quote and news blocks use OHLC history only (no live quote / company news)."
+            "FINNHUB_API_KEY not set; quote uses OHLC history only. "
+            "News may still come from NewsAPI/GDELT if configured."
         )
 
     if candidate_from_firestore and ctx.candidate_score <= 0.0:
@@ -56,10 +60,13 @@ def verify_eval_context(
 
     hl = placeholders.get("headlines", "")
     if "No headlines available." in hl:
-        warnings.append("Prompt headlines section has no items (Finnhub empty or key unset).")
+        warnings.append("Prompt headlines section has no items (all news providers empty or disabled).")
 
-    if placeholders.get("events", "").strip() in ("", "No macro events."):
-        pass  # expected placeholder today
+    events = placeholders.get("events", "").strip()
+    if events in ("", "No macro events."):
+        if (os.getenv("FRED_API_KEY") or "").strip():
+            warnings.append("FRED_API_KEY set but macro {{events}} is empty (check USE_FRED / API).")
+        # else: expected when FRED is not configured
 
     return errors, warnings
 

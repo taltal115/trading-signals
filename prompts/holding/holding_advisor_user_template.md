@@ -13,6 +13,9 @@ Advise on this open position:
 ## News
 {{headlines}}
 
+## Macro / calendar (FRED when configured)
+{{events}}
+
 ## Social sentiment (Finnhub)
 {{social_summary}}
 

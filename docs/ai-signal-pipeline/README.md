@@ -37,12 +37,21 @@ ai:
   entry_min_total: 70
   entry_min_conviction: 0.7
   max_entry_evals_per_run: 15
-  max_holding_evals_per_run: 20
-  model: gpt-4.1
+  max_holding_evals_per_run: 40
+  entry_model: gpt-5.4
+  holding_model: gpt-5.4-mini
+  pro_model: gpt-5.4-pro
+  pro_min_technical_score: 75
   pricing:
-    gpt-4.1:
-      prompt_per_1m: 2.0
-      completion_per_1m: 8.0
+    gpt-5.4:
+      prompt_per_1m: 2.5
+      completion_per_1m: 15.0
+    gpt-5.4-mini:
+      prompt_per_1m: 0.75
+      completion_per_1m: 4.5
+    gpt-5.4-pro:
+      prompt_per_1m: 30.0
+      completion_per_1m: 180.0
 ```
 
-Secrets: `OPENAI_API_KEY`, `FINNHUB_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`.
+Secrets: `OPENAI_API_KEY`, `FINNHUB_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`. Optional: `NEWSAPI_API_KEY`, `FRED_API_KEY` (GDELT is free, no key).

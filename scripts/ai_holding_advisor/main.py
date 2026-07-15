@@ -27,6 +27,7 @@ from signals_bot.storage.firestore import (
 from signals_bot.trading_calendar import xnys_sessions_between
 
 from scripts.ai_stock_eval.context import finnhub_quote_and_news
+from scripts.ai_stock_eval.extra_providers import build_macro_events_text, merge_headline_titles
 from scripts.ai_stock_eval.firestore_write import write_holding_evaluation
 from scripts.ai_stock_eval.llm import call_openai_json
 from scripts.ai_stock_eval.prompts import get_holding_prompts
@@ -165,8 +166,15 @@ def main(argv: list[str] | None = None) -> int:
         key=lambda s: 0 if (s.to_dict() or {}).get("owner_uid") == SIGNAL_PAPER_OWNER_UID else 1
     )
     ticker_filter = str(args.ticker).strip().upper()
-    cap = int(getattr(ai_cfg, "max_holding_evals_per_run", 20) if ai_cfg else 20)
-    model = str(getattr(ai_cfg, "model", "gpt-4.1") if ai_cfg else "gpt-4.1")
+    cap = int(getattr(ai_cfg, "max_holding_evals_per_run", 40) if ai_cfg else 40)
+    if ai_cfg is not None:
+        model = str(
+            getattr(ai_cfg, "holding_model", None)
+            or getattr(ai_cfg, "model", None)
+            or "gpt-5.4-mini"
+        )
+    else:
+        model = "gpt-5.4-mini"
     pricing = getattr(ai_cfg, "pricing", None) if ai_cfg else None
 
     system_prompt, user_template = get_holding_prompts()
@@ -188,7 +196,7 @@ def main(argv: list[str] | None = None) -> int:
         stop = float(data.get("stop_price") or data.get("ai_revised_stop") or 0.0)
         target = float(data.get("target_price") or 0.0)
         plan_hold = int(data.get("ai_revised_hold_days") or data.get("hold_days_from_signal") or 0)
-        quote, headlines = finnhub_quote_and_news(ticker)
+        quote, fh_items = finnhub_quote_and_news(ticker)
         current = float(quote.price or 0.0)
         if current <= 0 and entry > 0:
             current = entry
@@ -202,7 +210,15 @@ def main(argv: list[str] | None = None) -> int:
             except ValueError:
                 pass
 
-        hl_lines = "\n".join(f"- {h.title}" for h in headlines[:8]) or "No headlines available."
+        merged_titles, _news_status = merge_headline_titles(
+            finnhub_titles=[h.title for h in fh_items],
+            ticker=ticker,
+            max_total=10,
+        )
+        events_text, _fred_status = build_macro_events_text()
+        hl_lines = (
+            "\n".join(f"- {t}" for t in merged_titles[:8]) or "No headlines available."
+        )
         social = _finnhub_social_summary(ticker)
         risk_notes = (
             f"Existing holding_advice={data.get('holding_advice')}; "
@@ -220,6 +236,7 @@ def main(argv: list[str] | None = None) -> int:
                 "stop": f"{stop:.2f}",
                 "target": f"{target:.2f}",
                 "headlines": hl_lines,
+                "events": events_text,
                 "social_summary": social,
                 "risk_notes": risk_notes,
             },

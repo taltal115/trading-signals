@@ -67,6 +67,11 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NEWSAPI_API_KEY: ${{ secrets.NEWSAPI_API_KEY }}
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          USE_NEWSAPI: ${{ vars.USE_NEWSAPI || 'true' }}
+          USE_GDELT: ${{ vars.USE_GDELT || 'true' }}
+          USE_FRED: ${{ vars.USE_FRED || 'true' }}
         run: |
           EXTRA=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then

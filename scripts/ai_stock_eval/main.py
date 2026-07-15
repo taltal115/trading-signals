@@ -68,11 +68,17 @@ def _ai_pricing(cfg: Any) -> dict[str, dict[str, float]] | None:
     return getattr(ai, "pricing", None)
 
 
-def _ai_model(cfg: Any) -> str:
+def _ai_model(cfg: Any, *, technical_score: float) -> str:
+    """Entry gate model: gpt-5.4 by default; gpt-5.4-pro when technical score is high."""
     ai = getattr(cfg, "ai", None)
     if ai is None:
-        return "gpt-4.1"
-    return str(getattr(ai, "model", "gpt-4.1") or "gpt-4.1")
+        return "gpt-5.4"
+    entry = str(getattr(ai, "entry_model", None) or getattr(ai, "model", None) or "gpt-5.4")
+    pro = str(getattr(ai, "pro_model", None) or "gpt-5.4-pro")
+    threshold = float(getattr(ai, "pro_min_technical_score", 75.0) or 75.0)
+    if technical_score >= threshold and pro:
+        return pro
+    return entry
 
 
 def evaluate_one(
@@ -133,10 +139,18 @@ def evaluate_one(
         print(user_msg, flush=True)
         print("========== END DEBUG PROMPTS ==========", flush=True)
 
+    technical_for_routing = float(feats.get("technical_score") or candidate_score or 0.0)
+    entry_model = _ai_model(cfg, technical_score=technical_for_routing)
+    log.info(
+        "Entry model for %s: %s (technical_score=%.1f)",
+        ticker,
+        entry_model,
+        technical_for_routing,
+    )
     raw_verdict, usage, raw_response_text = call_openai_json(
         system=system_prompt,
         user=user_msg,
-        model=_ai_model(cfg),
+        model=entry_model,
         pricing=_ai_pricing(cfg),
     )
     verdict = normalize_verdict(raw_verdict)

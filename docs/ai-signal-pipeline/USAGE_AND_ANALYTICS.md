@@ -21,7 +21,7 @@
     "last_at_utc": "2026-07-15T09:30:12Z",
     "last_stage": "entry",
     "last_decision": "BUY",
-    "model": "gpt-4.1",
+    "model": "gpt-5.4",
     "prompt_tokens": 4200,
     "completion_tokens": 800,
     "total_tokens": 5000,

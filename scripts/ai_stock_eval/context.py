@@ -42,6 +42,7 @@ class EvalContext:
     events_text: str
     candidate_score: float
     history_provider_ok: dict[str, bool] = field(default_factory=dict)
+    extra_provider_ok: dict[str, bool] = field(default_factory=dict)
 
 
 def _build_providers(cfg: AppConfig) -> dict[str, Any]:
@@ -175,7 +176,11 @@ def build_provider_status_dict(
     finnhub_quote_ok = bool(
         finnhub_configured and (q.price is not None or q.previous_close is not None)
     )
-    finnhub_news_ok = bool(finnhub_configured and len(ctx.headlines) > 0)
+    extra = dict(ctx.extra_provider_ok or {})
+    if "finnhub_news_ok" in extra:
+        finnhub_news_ok = bool(finnhub_configured and extra.get("finnhub_news_ok"))
+    else:
+        finnhub_news_ok = bool(finnhub_configured and len(ctx.headlines) > 0)
     spy_ok = ctx.spy_hist is not None and len(ctx.spy_hist) >= 21
     firestore_candidate_ok = (not candidate_from_firestore) or (ctx.candidate_score > 0.0)
     return {
@@ -187,6 +192,12 @@ def build_provider_status_dict(
         "finnhub_quote_ok": finnhub_quote_ok,
         "finnhub_news_ok": finnhub_news_ok,
         "firestore_candidate_ok": firestore_candidate_ok,
+        "newsapi_configured": bool(extra.get("newsapi_configured", False)),
+        "newsapi_ok": bool(extra.get("newsapi_ok", False)),
+        "gdelt_enabled": bool(extra.get("gdelt_enabled", False)),
+        "gdelt_ok": bool(extra.get("gdelt_ok", False)),
+        "fred_configured": bool(extra.get("fred_configured", False)),
+        "fred_ok": bool(extra.get("fred_ok", False)),
     }
 
 
@@ -196,19 +207,30 @@ def build_context(
     cfg: AppConfig,
     candidate_score: float,
 ) -> EvalContext:
+    from .extra_providers import build_macro_events_text, merge_headline_titles
+
     providers = _build_providers(cfg)
     hist, history_provider_ok = fetch_history_with_provider_flags(
         ticker=ticker, cfg=cfg, providers=providers
     )
     spy = fetch_spy_hist(cfg, providers)
-    quote, headlines = finnhub_quote_and_news(ticker)
+    quote, fh_items = finnhub_quote_and_news(ticker)
+    fh_titles = [h.title for h in fh_items]
+    merged_titles, news_status = merge_headline_titles(
+        finnhub_titles=fh_titles,
+        ticker=ticker.strip().upper(),
+        max_total=10,
+    )
+    events_text, fred_status = build_macro_events_text()
+    extra = {**news_status, **fred_status}
     return EvalContext(
         ticker=ticker.strip().upper(),
         hist=hist,
         spy_hist=spy,
         quote=quote,
-        headlines=headlines,
-        events_text="No macro events.",
+        headlines=[NewsItem(title=t) for t in merged_titles],
+        events_text=events_text,
         candidate_score=float(candidate_score),
         history_provider_ok=history_provider_ok,
+        extra_provider_ok=extra,
     )
