@@ -1,0 +1,117 @@
+<section class="panel active" aria-label="AI analytics">
+  <h2>AI analytics</h2>
+  <p class="hint">
+    Requests, tokens, and estimated cost from the <code>ai_evals</code> collection (entry + holding stages).
+  </p>
+
+  <p *ngIf="loading()">Loading…</p>
+  <p class="empty-state" *ngIf="!loading() && error()">{{ error() }}</p>
+
+  <ng-container *ngIf="!loading() && !error()">
+    <dl class="ai-totals">
+      <dt>Requests</dt>
+      <dd>{{ totals().requests }}</dd>
+      <dt>Tokens</dt>
+      <dd>{{ totals().tokens }}</dd>
+      <dt>Est. cost (USD)</dt>
+      <dd>{{ totals().cost | number: '1.2-4' }}</dd>
+    </dl>
+
+    <div class="ai-agg-grid">
+      <div>
+        <h3>By stage</h3>
+        <table class="ai-agg-table">
+          <thead>
+            <tr>
+              <th>stage</th>
+              <th>requests</th>
+              <th>tokens</th>
+              <th>cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of byStage()">
+              <td>{{ r.key }}</td>
+              <td>{{ r.requests }}</td>
+              <td>{{ r.tokens }}</td>
+              <td>{{ r.cost | number: '1.2-4' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3>By day</h3>
+        <table class="ai-agg-table">
+          <thead>
+            <tr>
+              <th>day</th>
+              <th>requests</th>
+              <th>tokens</th>
+              <th>cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of byDay()">
+              <td class="code">{{ r.key }}</td>
+              <td>{{ r.requests }}</td>
+              <td>{{ r.tokens }}</td>
+              <td>{{ r.cost | number: '1.2-4' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h3>By ticker</h3>
+        <table class="ai-agg-table">
+          <thead>
+            <tr>
+              <th>ticker</th>
+              <th>requests</th>
+              <th>tokens</th>
+              <th>cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let r of byTicker()">
+              <td class="code">{{ r.key }}</td>
+              <td>{{ r.requests }}</td>
+              <td>{{ r.tokens }}</td>
+              <td>{{ r.cost | number: '1.2-4' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <h3>Recent calls</h3>
+    <div class="table-wrap">
+      <table class="ai-agg-table">
+        <thead>
+          <tr>
+            <th>time</th>
+            <th>stage</th>
+            <th>ticker</th>
+            <th>decision</th>
+            <th>model</th>
+            <th>tokens</th>
+            <th>cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let r of rows()">
+            <td class="code">{{ r['ts_utc'] }}</td>
+            <td>{{ r['stage'] }}</td>
+            <td class="code">{{ r['ticker'] }}</td>
+            <td>{{ r['decision'] }}</td>
+            <td>{{ r['model'] }}</td>
+            <td>{{ r['total_tokens'] }}</td>
+            <td>{{ asNum(r['estimated_cost_usd']) != null ? (asNum(r['estimated_cost_usd'])! | number: '1.2-4') : '—' }}</td>
+          </tr>
+          <tr *ngIf="rows().length === 0">
+            <td colspan="7">No AI evals yet.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+</section>

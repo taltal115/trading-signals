@@ -145,15 +145,18 @@
                   *ngIf="aiActionChip(row) as chip"
                   class="sig-ai-action-chip"
                   [ngClass]="chip.cls"
-                  [title]="'AI verdict: ' + chip.label"
+                  [title]="'AI: ' + chip.label"
                 >{{ chip.label }}</span>
+                <span class="sig-ai-tokens-teaser" *ngIf="aiTokensTeaser(row) as teaser" [title]="teaser">{{
+                  teaser
+                }}</span>
                 <button
                   type="button"
                   class="btn-sig-ai-summary"
                   [class.is-open]="aiSummaryOpen(row.instanceKey)"
                   [disabled]="!hasAiEval(row)"
-                  [title]="hasAiEval(row) ? 'Show AI evaluation summary' : 'No AI evaluation for this signal'"
-                  (click)="toggleAiSummary(row.instanceKey, $event)"
+                  [title]="hasAiEval(row) ? 'Show AI recommendation and history' : 'No AI evaluation for this signal'"
+                  (click)="toggleAiSummary(row.instanceKey, $event, row)"
                 >
                   {{ aiSummaryToggleLabel(row) }}
                 </button>
@@ -259,66 +262,89 @@
                   <div class="sig-ai-summary-head">
                     <span class="sig-ai-summary-ticker code">{{ row.s['ticker'] }}</span>
                     <span class="sig-ai-action-chip" [ngClass]="ai.actionClass">{{ ai.action }}</span>
-                    <span class="sig-ai-summary-meta" *ngIf="ai.convictionPct != null">
-                      conviction {{ fmtAiPct(ai.convictionPct) }}
-                    </span>
-                    <span class="sig-ai-summary-meta" *ngIf="ai.timeframe">
-                      timeframe: {{ ai.timeframe }}
-                    </span>
-                    <span
-                      class="sig-ai-summary-source"
-                      [class.is-stub]="ai.source === 'stub'"
-                      [title]="ai.source === 'stub' ? 'Stub run — set OPENAI_API_KEY for real verdicts.' : 'Source of the LLM call.'"
-                    >source: {{ ai.source }}</span>
+                    <span class="sig-ai-gate" *ngIf="ai.gate">gate: {{ ai.gate }}</span>
+                    <span class="sig-ai-summary-meta" *ngIf="ai.riskLevel">risk: {{ ai.riskLevel }}</span>
+                    <span class="sig-ai-summary-meta" *ngIf="ai.total != null"
+                      >score {{ fmtAiNumber(ai.total, 1) }}</span
+                    >
+                    <span class="sig-ai-summary-meta" *ngIf="ai.model">{{ ai.model }}</span>
+                    <span class="sig-ai-summary-meta" *ngIf="ai.totalTokens != null"
+                      >{{ ai.totalTokens }} tokens</span
+                    >
+                    <span class="sig-ai-summary-meta" *ngIf="ai.estimatedCostUsd != null"
+                      >${{ fmtAiNumber(ai.estimatedCostUsd, 4) }}</span
+                    >
                     <span class="sig-ai-summary-meta sig-ai-summary-ts">
                       {{ fmtAiTimestamp(ai.evaluatedAt) }}
                     </span>
                   </div>
-                  <p class="sig-ai-summary-text" *ngIf="ai.summary">{{ ai.summary }}</p>
-                  <p class="sig-ai-summary-why" *ngIf="ai.whyNow">
-                    <strong>Why now:</strong> {{ ai.whyNow }}
+                  <p class="sig-ai-headline" *ngIf="ai.headline">
+                    <strong>{{ ai.headline }}</strong>
+                  </p>
+                  <p class="sig-ai-summary-why" *ngIf="ai.whyNow || ai.summary">
+                    {{ ai.whyNow || ai.summary }}
                   </p>
                   <dl class="sig-ai-scores-grid">
-                    <dt>Total score</dt>
-                    <dd>{{ fmtAiNumber(ai.total, 2) }}</dd>
-                    <dt>Candidate score</dt>
-                    <dd>{{ fmtAiNumber(ai.candidate, 2) }}</dd>
-                    <dt>AI component</dt>
-                    <dd>{{ fmtAiNumber(ai.aiComponent, 2) }}</dd>
-                    <dt *ngIf="ai.entry">Entry zone</dt>
+                    <dt *ngIf="ai.entry">Entry</dt>
                     <dd *ngIf="ai.entry">
                       {{ ai.entry.min != null ? fmtUsd(ai.entry.min) : '—' }} →
                       <strong>{{ ai.entry.ideal != null ? fmtUsd(ai.entry.ideal) : '—' }}</strong>
                       → {{ ai.entry.max != null ? fmtUsd(ai.entry.max) : '—' }}
                     </dd>
-                    <dt *ngIf="ai.stop != null">Stop loss</dt>
+                    <dt *ngIf="ai.stop != null">Stop</dt>
                     <dd *ngIf="ai.stop != null">{{ fmtUsd(ai.stop) }}</dd>
-                    <dt *ngIf="ai.targets.length > 0">Targets</dt>
-                    <dd *ngIf="ai.targets.length > 0">
-                      <span *ngFor="let t of ai.targets; let i = index" class="sig-ai-target-chip">
-                        {{ t.label }}: {{ t.price != null ? fmtUsd(t.price) : '—' }}
-                      </span>
-                    </dd>
-                    <dt *ngIf="ai.riskReward != null">Risk / reward</dt>
-                    <dd *ngIf="ai.riskReward != null">{{ fmtAiNumber(ai.riskReward, 2) }} : 1</dd>
-                    <dt *ngIf="ai.positionSize">Position size</dt>
-                    <dd *ngIf="ai.positionSize">{{ ai.positionSize }}</dd>
+                    <dt *ngIf="ai.target != null">Target</dt>
+                    <dd *ngIf="ai.target != null">{{ fmtUsd(ai.target) }}</dd>
+                    <dt *ngIf="ai.holdDays != null">Hold days</dt>
+                    <dd *ngIf="ai.holdDays != null">{{ ai.holdDays }}</dd>
+                    <dt *ngIf="ai.invalidation">Invalidation</dt>
+                    <dd *ngIf="ai.invalidation">{{ ai.invalidation }}</dd>
                   </dl>
-                  <div class="sig-ai-list-block" *ngIf="ai.confidenceFactors.length > 0">
-                    <strong>Confidence factors</strong>
-                    <ul>
-                      <li *ngFor="let c of ai.confidenceFactors">{{ c }}</li>
+                  <ul class="sig-ai-checklist" *ngIf="ai.checklist.length > 0">
+                    <li *ngFor="let c of ai.checklist" [class.pass]="c.pass" [class.fail]="!c.pass">
+                      {{ c.pass ? '✓' : '✗' }} {{ c.label }}
+                    </li>
+                  </ul>
+
+                  <div class="sig-ai-history-block">
+                    <strong>AI history</strong>
+                    <p *ngIf="aiHistoryState(row.instanceKey)?.status === 'loading'" class="sig-ai-empty">
+                      Loading history…
+                    </p>
+                    <p *ngIf="aiHistoryState(row.instanceKey) as histErr">
+                      <span *ngIf="histErr.status === 'error'" class="sig-ai-empty">{{ histErr.message }}</span>
+                    </p>
+                    <ul
+                      class="sig-ai-history-list"
+                      *ngIf="aiHistoryState(row.instanceKey)?.status === 'ok'"
+                    >
+                      <li *ngFor="let h of aiHistoryState(row.instanceKey)?.rows || []">
+                        <button
+                          type="button"
+                          class="sig-ai-history-item"
+                          (click)="toggleHistoryDetail(h.id)"
+                        >
+                          <span class="code">{{ fmtAiTimestamp(h.tsUtc) }}</span>
+                          <span>{{ h.stage }}</span>
+                          <span [ngClass]="aiActionClassOfPublic(h.decision)">{{ h.decision }}</span>
+                          <span>{{ h.model }}</span>
+                          <span *ngIf="h.totalTokens != null">{{ h.totalTokens }} tok</span>
+                          <span *ngIf="h.estimatedCostUsd != null"
+                            >${{ fmtAiNumber(h.estimatedCostUsd, 4) }}</span
+                          >
+                          <span *ngIf="h.headline">{{ h.headline }}</span>
+                        </button>
+                        <pre
+                          *ngIf="aiHistoryExpandedId() === h.id && h.recommendation"
+                          class="sig-ai-history-detail"
+                          >{{ h.recommendation | json }}</pre
+                        >
+                      </li>
+                      <li *ngIf="!(aiHistoryState(row.instanceKey)?.rows || []).length" class="sig-ai-empty">
+                        No history docs yet (run AI entry eval).
+                      </li>
                     </ul>
                   </div>
-                  <div class="sig-ai-list-block" *ngIf="ai.risks.length > 0">
-                    <strong>Risks</strong>
-                    <ul>
-                      <li *ngFor="let r of ai.risks">{{ r }}</li>
-                    </ul>
-                  </div>
-                  <p class="sig-ai-invalidation" *ngIf="ai.invalidation">
-                    <strong>Invalidation:</strong> {{ ai.invalidation }}
-                  </p>
                 </div>
               </ng-container>
               <ng-template #noAi>

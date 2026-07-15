@@ -4,7 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { HttpParams } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { Subscription, switchMap, catchError, of, tap } from 'rxjs';
+import { Subscription, switchMap, catchError, of, tap, firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { MarketDataService } from '../../core/market-data.service';
 import { OpenPositionService } from '../../core/open-position.service';
@@ -100,27 +100,51 @@ type StockDetailEntry =
   | { expanded: true; status: 'error'; message: string }
   | { expanded: true; status: 'ok'; data: StockSnapshot };
 
-/** Normalized payload mirroring `signals[i].ai_evaluation` (see scripts/ai_stock_eval/firestore_write.py). */
+/** Normalized AI view: prefers clear `recommendation` + `ai` summary; falls back to legacy `ai_evaluation`. */
 export interface AiEvaluationView {
   action: string;
   actionClass: string;
+  gate: string;
   convictionPct: number | null;
   total: number | null;
   candidate: number | null;
   aiComponent: number | null;
   summary: string;
   whyNow: string;
+  headline: string;
+  riskLevel: string;
   timeframe: string;
   source: string;
   evaluatedAt: string;
+  model: string;
+  totalTokens: number | null;
+  estimatedCostUsd: number | null;
+  evalCount: number;
   entry: { min: number | null; ideal: number | null; max: number | null } | null;
   stop: number | null;
+  target: number | null;
+  holdDays: number | null;
   targets: { label: string; price: number | null }[];
   riskReward: number | null;
   positionSize: string;
   risks: string[];
   invalidation: string;
   confidenceFactors: string[];
+  checklist: { id: string; label: string; pass: boolean }[];
+}
+
+export interface AiHistoryRow {
+  id: string;
+  tsUtc: string;
+  stage: string;
+  decision: string;
+  model: string;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  estimatedCostUsd: number | null;
+  headline: string;
+  recommendation: Record<string, unknown> | null;
 }
 
 function _num(v: unknown): number | null {
@@ -141,20 +165,121 @@ function _strList(v: unknown): string[] {
 
 function aiActionClassOf(action: string): string {
   const a = action.trim().toUpperCase();
-  if (a === 'BUY' || a === 'STRONG_BUY') return 'ai-action-buy';
-  if (a === 'SELL' || a === 'STRONG_SELL') return 'ai-action-sell';
-  if (a === 'WAIT' || a === 'HOLD' || a === 'NEUTRAL') return 'ai-action-wait';
+  if (a === 'BUY' || a === 'STRONG_BUY' || a === 'PASSED') return 'ai-action-buy';
+  if (a === 'SELL' || a === 'STRONG_SELL' || a === 'AVOID' || a === 'EXIT') return 'ai-action-sell';
+  if (a === 'WAIT' || a === 'HOLD' || a === 'NEUTRAL' || a === 'PENDING' || a === 'FILTERED')
+    return 'ai-action-wait';
   return 'ai-action-other';
 }
 
-function buildAiEvaluationView(raw: unknown): AiEvaluationView | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const r = raw as Record<string, unknown>;
+function buildAiEvaluationView(rowSignal: Record<string, unknown>): AiEvaluationView | null {
+  const rec = rowSignal['recommendation'] as Record<string, unknown> | undefined;
+  const ai = rowSignal['ai'] as Record<string, unknown> | undefined;
+  const gate = _str(rowSignal['ai_gate']).toLowerCase();
+  const legacy = rowSignal['ai_evaluation'];
+
+  if (rec && typeof rec === 'object') {
+    const scores = (rec['scores'] as Record<string, unknown> | undefined) ?? {};
+    const plan = (rec['plan'] as Record<string, unknown> | undefined) ?? {};
+    const entry = (plan['entry'] as Record<string, unknown> | undefined) ?? {};
+    const detail = (rec['detail'] as Record<string, unknown> | undefined) ?? {};
+    const checklistRaw = Array.isArray(rec['checklist']) ? (rec['checklist'] as unknown[]) : [];
+    const decision = _str(rec['decision']) || _str(ai?.['last_decision']) || '—';
+    return {
+      action: decision,
+      actionClass: aiActionClassOf(decision),
+      gate: gate || (ai?.['has_eval'] ? 'evaluated' : ''),
+      convictionPct: (() => {
+        const c = _num(detail['conviction']);
+        if (c == null) return null;
+        return c <= 1 + 1e-9 ? c * 100 : c;
+      })(),
+      total: _num(scores['total']),
+      candidate: null,
+      aiComponent: _num(scores['ai']),
+      summary: _str(detail['summary']) || _str(rec['why']),
+      whyNow: _str(detail['why_now']) || _str(rec['why']),
+      headline: _str(rec['headline']),
+      riskLevel: _str(rec['risk_level']),
+      timeframe: _str(detail['timeframe']),
+      source: 'openai',
+      evaluatedAt: _str(ai?.['last_at_utc']),
+      model: _str(ai?.['model']),
+      totalTokens: _num(ai?.['total_tokens']),
+      estimatedCostUsd: _num(ai?.['estimated_cost_usd']),
+      evalCount: _num(ai?.['eval_count']) ?? 0,
+      entry: {
+        min: _num(entry['min']),
+        ideal: _num(entry['ideal']),
+        max: _num(entry['max']),
+      },
+      stop: _num(plan['stop']),
+      target: _num(plan['target']),
+      holdDays: _num(plan['hold_days']),
+      targets: Array.isArray(detail['targets'])
+        ? (detail['targets'] as unknown[])
+            .map((t, i) => {
+              const o = t && typeof t === 'object' ? (t as Record<string, unknown>) : {};
+              return { label: _str(o['label']) || `T${i + 1}`, price: _num(o['price']) };
+            })
+            .filter((t) => t.price != null)
+        : [],
+      riskReward: _num(detail['risk_reward_ratio']),
+      positionSize: _str(detail['position_size_suggestion']),
+      risks: _strList(detail['risks']),
+      invalidation: _str(plan['invalidation']) || _str(detail['invalidation']),
+      confidenceFactors: _strList(detail['confidence_factors']),
+      checklist: checklistRaw
+        .map((c) => {
+          const o = c && typeof c === 'object' ? (c as Record<string, unknown>) : {};
+          return { id: _str(o['id']), label: _str(o['label']), pass: !!o['pass'] };
+        })
+        .filter((c) => c.label),
+    };
+  }
+
+  if (!legacy || typeof legacy !== 'object') {
+    if (gate === 'pending') {
+      return {
+        action: 'PENDING',
+        actionClass: aiActionClassOf('PENDING'),
+        gate: 'pending',
+        convictionPct: null,
+        total: null,
+        candidate: null,
+        aiComponent: null,
+        summary: 'Waiting for AI entry evaluation.',
+        whyNow: '',
+        headline: 'AI pending',
+        riskLevel: '',
+        timeframe: '',
+        source: '',
+        evaluatedAt: '',
+        model: '',
+        totalTokens: null,
+        estimatedCostUsd: null,
+        evalCount: 0,
+        entry: null,
+        stop: null,
+        target: null,
+        holdDays: null,
+        targets: [],
+        riskReward: null,
+        positionSize: '',
+        risks: [],
+        invalidation: '',
+        confidenceFactors: [],
+        checklist: [],
+      };
+    }
+    return null;
+  }
+
+  const r = legacy as Record<string, unknown>;
   const llm = r['llm'] as Record<string, unknown> | undefined;
   const verdict = (llm?.['verdict'] as Record<string, unknown> | undefined) ?? {};
   const scores = (r['scores'] as Record<string, unknown> | undefined) ?? {};
   const breakdown = (scores['breakdown'] as Record<string, unknown> | undefined) ?? {};
-
   const action = _str(verdict['action']) || '—';
   const conviction = _num(verdict['conviction']);
   const ez = verdict['entry_zone'] as Record<string, unknown> | undefined;
@@ -172,6 +297,7 @@ function buildAiEvaluationView(raw: unknown): AiEvaluationView | null {
   return {
     action,
     actionClass: aiActionClassOf(action),
+    gate: gate || 'legacy',
     convictionPct:
       conviction == null ? null : conviction <= 1 + 1e-9 ? conviction * 100 : conviction,
     total: _num(scores['total']),
@@ -179,9 +305,15 @@ function buildAiEvaluationView(raw: unknown): AiEvaluationView | null {
     aiComponent: _num(breakdown['ai_component']),
     summary: _str(verdict['summary']),
     whyNow: _str(verdict['why_now']),
+    headline: _str(verdict['headline']) || _str(verdict['summary']).split('.')[0],
+    riskLevel: _str(verdict['risk_level']),
     timeframe: _str(verdict['timeframe']),
     source: _str(llm?.['source']) || 'unknown',
     evaluatedAt: _str(r['evaluated_at_utc']),
+    model: '',
+    totalTokens: null,
+    estimatedCostUsd: null,
+    evalCount: 1,
     entry: ez
       ? {
           min: _num(ez['min_price']),
@@ -190,12 +322,15 @@ function buildAiEvaluationView(raw: unknown): AiEvaluationView | null {
         }
       : null,
     stop: _num(verdict['stop_loss']),
+    target: targets[0]?.price ?? null,
+    holdDays: _num(verdict['hold_days']),
     targets,
     riskReward: _num(verdict['risk_reward_ratio']),
     positionSize: _str(verdict['position_size_suggestion']),
     risks: _strList(verdict['risks']),
     invalidation: _str(verdict['invalidation']),
     confidenceFactors: _strList(verdict['confidence_factors']),
+    checklist: [],
   };
 }
 
@@ -249,6 +384,11 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
 
   /** Per signal row (instanceKey): whether the inline AI summary panel is expanded. */
   readonly aiSummaryOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
+  /** Lazy-loaded ai_evals history per instanceKey. */
+  readonly aiHistoryByRow = signal<
+    Record<string, { status: 'loading' | 'ok' | 'error'; rows?: AiHistoryRow[]; message?: string }>
+  >({});
+  readonly aiHistoryExpandedId = signal<string | null>(null);
 
   readonly bracketPct = signal<BracketPct | null>(null);
   private signalMeta: {
@@ -1040,8 +1180,14 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** True when this signal row already has an `ai_evaluation` payload. */
+  /** True when this signal row has AI data or is pending evaluation. */
   hasAiEval(row: SigDisplayRow): boolean {
+    const gate = String(row.s['ai_gate'] || '').toLowerCase();
+    if (gate === 'pending' || gate === 'passed' || gate === 'filtered') return true;
+    const ai = row.s['ai'];
+    if (ai && typeof ai === 'object' && (ai as Record<string, unknown>)['has_eval']) return true;
+    const rec = row.s['recommendation'];
+    if (rec && typeof rec === 'object') return true;
     const v = row.s['ai_evaluation'];
     return !!(v && typeof v === 'object');
   }
@@ -1050,30 +1196,120 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     return this.aiSummaryOpenByRow().has(instanceKey);
   }
 
-  toggleAiSummary(instanceKey: string, ev?: Event): void {
+  toggleAiSummary(instanceKey: string, ev?: Event, row?: SigDisplayRow): void {
     ev?.stopPropagation?.();
+    const opening = !this.aiSummaryOpenByRow().has(instanceKey);
     this.aiSummaryOpenByRow.update((prev) => {
       const next = new Set(prev);
       if (next.has(instanceKey)) next.delete(instanceKey);
       else next.add(instanceKey);
       return next;
     });
+    if (opening && row) {
+      void this.loadAiHistory(row);
+    }
   }
 
   aiSummaryToggleLabel(row: SigDisplayRow): string {
     if (this.aiSummaryOpen(row.instanceKey)) return 'Hide';
-    return this.hasAiEval(row) ? 'View' : '—';
+    return this.hasAiEval(row) ? 'History' : '—';
   }
 
-  /** Compact action chip text shown next to the toggle when an evaluation exists. */
+  /** Compact action chip text shown next to the toggle. */
   aiActionChip(row: SigDisplayRow): { label: string; cls: string } | null {
+    const gate = String(row.s['ai_gate'] || '').toLowerCase();
     const view = this.aiViewForRow(row);
+    if (gate === 'pending') {
+      return { label: 'Pending', cls: aiActionClassOf('PENDING') };
+    }
+    if (gate === 'passed' && view) {
+      return { label: `${view.action} ✓`, cls: view.actionClass };
+    }
+    if (gate === 'filtered' && view) {
+      return { label: `${view.action} ✕`, cls: view.actionClass };
+    }
     if (!view) return null;
     return { label: view.action, cls: view.actionClass };
   }
 
+  aiTokensTeaser(row: SigDisplayRow): string {
+    const ai = row.s['ai'] as Record<string, unknown> | undefined;
+    if (!ai || typeof ai !== 'object') return '';
+    const tokens = _num(ai['total_tokens']);
+    const model = _str(ai['model']);
+    const cost = _num(ai['estimated_cost_usd']);
+    const parts: string[] = [];
+    if (model) parts.push(model);
+    if (tokens != null) parts.push(`${tokens} tok`);
+    if (cost != null) parts.push(`$${cost.toFixed(4)}`);
+    return parts.join(' · ');
+  }
+
   aiViewForRow(row: SigDisplayRow): AiEvaluationView | null {
-    return buildAiEvaluationView(row.s['ai_evaluation']);
+    return buildAiEvaluationView(row.s as Record<string, unknown>);
+  }
+
+  /** Expose action CSS class helper to the template. */
+  aiActionClassOfPublic(action: string): string {
+    return aiActionClassOf(action);
+  }
+
+  aiHistoryState(instanceKey: string) {
+    return this.aiHistoryByRow()[instanceKey] ?? null;
+  }
+
+  async loadAiHistory(row: SigDisplayRow): Promise<void> {
+    const key = row.instanceKey;
+    const existing = this.aiHistoryByRow()[key];
+    if (existing?.status === 'ok' || existing?.status === 'loading') return;
+    this.aiHistoryByRow.update((m) => ({ ...m, [key]: { status: 'loading' } }));
+    try {
+      const base = environment.apiBaseUrl || '';
+      const q = new URLSearchParams({
+        signalDocId: row.docId,
+        ticker: String(row.s['ticker'] || ''),
+        limit: '40',
+      });
+      const res = await firstValueFrom(
+        this.http.get<{ rows: { id: string; data: Record<string, unknown> }[] }>(
+          `${base}/api/signals/ai-evals?${q.toString()}`,
+          { withCredentials: true }
+        )
+      );
+      const rows: AiHistoryRow[] = (res.rows || []).map((r) => {
+        const d = r.data || {};
+        const rec =
+          d['recommendation'] && typeof d['recommendation'] === 'object'
+            ? (d['recommendation'] as Record<string, unknown>)
+            : null;
+        return {
+          id: r.id,
+          tsUtc: _str(d['ts_utc']),
+          stage: _str(d['stage']),
+          decision: _str(d['decision']),
+          model: _str(d['model']),
+          promptTokens: _num(d['prompt_tokens']),
+          completionTokens: _num(d['completion_tokens']),
+          totalTokens: _num(d['total_tokens']),
+          estimatedCostUsd: _num(d['estimated_cost_usd']),
+          headline: _str(rec?.['headline']),
+          recommendation: rec,
+        };
+      });
+      this.aiHistoryByRow.update((m) => ({ ...m, [key]: { status: 'ok', rows } }));
+    } catch (e) {
+      this.aiHistoryByRow.update((m) => ({
+        ...m,
+        [key]: {
+          status: 'error',
+          message: e instanceof Error ? e.message : String(e),
+        },
+      }));
+    }
+  }
+
+  toggleHistoryDetail(evalId: string): void {
+    this.aiHistoryExpandedId.update((cur) => (cur === evalId ? null : evalId));
   }
 
   fmtAiPct(n: number | null): string {

@@ -459,6 +459,8 @@ def write_buy_signals(
                 "estimated_hold_days": m.get("estimated_hold_days"),
                 "sector": m.get("sector"),
                 "industry": m.get("industry"),
+                "pipeline_stage": "technical",
+                "ai_gate": "pending",
             }
         )
 

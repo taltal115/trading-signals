@@ -124,3 +124,17 @@ slack:
 logging:
   level: "INFO"
 
+# AI entry gate + holding advisor (see docs/ai-signal-pipeline/)
+ai:
+  enabled: true
+  entry_min_total: 70
+  entry_min_conviction: 0.7
+  max_entry_evals_per_run: 15
+  max_holding_evals_per_run: 20
+  model: gpt-4.1
+  # Optional USD per 1M tokens for estimated_cost_usd on ai_evals
+  pricing:
+    gpt-4.1:
+      prompt_per_1m: 2.0
+      completion_per_1m: 8.0
+

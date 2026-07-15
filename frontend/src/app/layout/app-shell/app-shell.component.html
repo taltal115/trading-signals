@@ -89,6 +89,16 @@
           <span class="sidebar-nav-text">Monitor</span>
         </a>
         <a
+          routerLink="/ai-analytics"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link"
+          data-abbr="AI"
+          title="AI analytics"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">AI analytics</span>
+        </a>
+        <a
           routerLink="/about"
           routerLinkActive="active"
           [routerLinkActiveOptions]="{ exact: false }"

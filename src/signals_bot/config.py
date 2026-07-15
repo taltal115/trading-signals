@@ -141,6 +141,18 @@ class LoggingConfig:
 
 
 @dataclass(frozen=True)
+class AiConfig:
+    enabled: bool = True
+    entry_min_total: float = 70.0
+    entry_min_conviction: float = 0.7
+    max_entry_evals_per_run: int = 15
+    max_holding_evals_per_run: int = 20
+    model: str = "gpt-4.1"
+    # model -> {prompt_per_1m, completion_per_1m} USD
+    pricing: dict[str, dict[str, float]] | None = None
+
+
+@dataclass(frozen=True)
 class RunSummary:
     run: RunConfig
     universe: UniverseConfig
@@ -163,6 +175,7 @@ class AppConfig:
     logging: LoggingConfig
     ibkr: IbkrConfig
     ibkr_scanner: IbkrScannerConfig
+    ai: AiConfig = AiConfig()
 
     def tz(self) -> ZoneInfo:
         return ZoneInfo(self.run.timezone)
@@ -276,6 +289,7 @@ def load_config(config_path: Path) -> AppConfig:
     sqlite_raw = raw.get("sqlite", {}) or {}
     slack_raw = raw.get("slack", {}) or {}
     logging_raw = raw.get("logging", {}) or {}
+    ai_raw = raw.get("ai", {}) or {}
 
     data_provider_order = data_raw.get("provider_order") or ["yahoo", "stooq"]
     _raw_stooq = data_raw.get("stooq_api_key")
@@ -285,6 +299,28 @@ def load_config(config_path: Path) -> AppConfig:
     _stooq_env = os.environ.get("STOOQ_API_KEY", "").strip()
     # Prefer env (local secret) over YAML value.
     stooq_api_key_resolved = _stooq_env if _stooq_env else (stooq_api_key_yaml or None)
+
+    pricing_raw = ai_raw.get("pricing") or {}
+    pricing: dict[str, dict[str, float]] | None = None
+    if isinstance(pricing_raw, dict) and pricing_raw:
+        pricing = {}
+        for model_name, row in pricing_raw.items():
+            if not isinstance(row, dict):
+                continue
+            pricing[str(model_name)] = {
+                "prompt_per_1m": float(row.get("prompt_per_1m", 0.0) or 0.0),
+                "completion_per_1m": float(row.get("completion_per_1m", 0.0) or 0.0),
+            }
+
+    ai_cfg = AiConfig(
+        enabled=bool(ai_raw.get("enabled", True)),
+        entry_min_total=float(ai_raw.get("entry_min_total", 70.0)),
+        entry_min_conviction=float(ai_raw.get("entry_min_conviction", 0.7)),
+        max_entry_evals_per_run=int(ai_raw.get("max_entry_evals_per_run", 15)),
+        max_holding_evals_per_run=int(ai_raw.get("max_holding_evals_per_run", 20)),
+        model=str(ai_raw.get("model", "gpt-4.1")),
+        pricing=pricing,
+    )
 
     strategy_weights = _coerce_weights(strategy_raw.get("weights"))
     strategy_cfg = StrategyConfig(
@@ -365,6 +401,7 @@ def load_config(config_path: Path) -> AppConfig:
             instrument=str((universe_raw.get("ibkr_scanner") or {}).get("instrument", "STK")),
             location_code=str((universe_raw.get("ibkr_scanner") or {}).get("location_code", "STK.US.MAJOR")),
         ),
+        ai=ai_cfg,
     )
     return cfg
 

@@ -44,6 +44,23 @@ _TRAIL_LINE_RE = re.compile(
 )
 
 
+def _holding_advice_suffix(data: dict[str, Any]) -> str:
+    """Append latest AI holding advice headline when present."""
+    advice = data.get("holding_advice")
+    if not isinstance(advice, dict):
+        return ""
+    action = str(advice.get("advice") or "").strip().upper()
+    headline = str(advice.get("headline") or "").strip()
+    if not action and not headline:
+        return ""
+    bit = action
+    if headline:
+        bit = f"{action}: {headline}" if action else headline
+    if len(bit) > 120:
+        bit = bit[:119] + "…"
+    return f" AI advice — {bit}."
+
+
 @dataclass(frozen=True)
 class Alert:
     kind: str
@@ -211,9 +228,14 @@ def _eval_position(
     high_for_brackets = session_high if session_high is not None else last_close
 
     entry = data.get("entry_price")
-    stop = data.get("stop_price")
+    # Prefer AI-tightened stop / revised hold when present (never ignore hard price hits).
+    stop = data.get("ai_revised_stop")
+    if stop is None:
+        stop = data.get("stop_price")
     target = data.get("target_price")
-    hold_days = data.get("hold_days_from_signal")
+    hold_days = data.get("ai_revised_hold_days")
+    if hold_days is None:
+        hold_days = data.get("hold_days_from_signal")
     created_s = data.get("created_at_utc")
 
     age_days: int | None = None
@@ -342,7 +364,8 @@ def _eval_position(
             "DURATION_DUE",
             72,
             f"{ticker}: max hold ({trig_label}) — {age_days}/{hold_days or '?'} sessions @ "
-            f"${last_close:.2f}{pnl}{due_bit}.{target_bit}{atr_bit}",
+            f"${last_close:.2f}{pnl}{due_bit}.{target_bit}{atr_bit}"
+            + _holding_advice_suffix(data),
             atr_hold_est=atr_hold_est,
             duration_trigger=trig_code,
         )

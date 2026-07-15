@@ -1,4 +1,4 @@
-"""CLI: AI stock evaluation pipeline (context → LLM → score → Firestore)."""
+"""CLI: AI stock evaluation pipeline (context → LLM → score → Firestore dual-write)."""
 
 from __future__ import annotations
 
@@ -25,18 +25,25 @@ def _resolve_repo_path(path_str: str) -> Path:
         p = REPO_ROOT / p
     return p.resolve()
 
+
 from .context import build_context, build_provider_status_dict
 from .features import build_features_strategy_and_placeholders, render_user_prompt
-from .firestore_write import build_ai_evaluation_record, read_candidate_score, write_evaluation
+from .firestore_write import (
+    latest_signal_doc_id,
+    list_pending_tickers,
+    read_candidate_score,
+    write_entry_evaluation,
+)
 from .llm import call_openai_json, normalize_verdict
-from .prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+from .prompts import get_entry_prompts
+from .recommendation import build_recommendation, resolve_ai_gate
 from .score import compute_total_score
 from .verify_context import format_github_annotation, verify_eval_context
 
 
-def _short_reason(verdict: dict[str, Any]) -> str:
-    s = str(verdict.get("summary") or "").strip()
-    w = str(verdict.get("why_now") or "").strip()
+def _short_reason(recommendation: dict[str, Any]) -> str:
+    s = str(recommendation.get("headline") or "").strip()
+    w = str(recommendation.get("why") or "").strip()
     parts = [p for p in (s, w) if p]
     out = " — ".join(parts) if parts else "(no summary from model)"
     if len(out) > 280:
@@ -54,6 +61,176 @@ def _setup_logging() -> logging.Logger:
     return log
 
 
+def _ai_pricing(cfg: Any) -> dict[str, dict[str, float]] | None:
+    ai = getattr(cfg, "ai", None)
+    if ai is None:
+        return None
+    return getattr(ai, "pricing", None)
+
+
+def _ai_model(cfg: Any) -> str:
+    ai = getattr(cfg, "ai", None)
+    if ai is None:
+        return "gpt-4.1"
+    return str(getattr(ai, "model", "gpt-4.1") or "gpt-4.1")
+
+
+def evaluate_one(
+    *,
+    cfg: Any,
+    log: logging.Logger,
+    ticker: str,
+    signal_doc_id: str,
+    candidate_score: float,
+    candidate_from_firestore: bool,
+    theme: str,
+    source_process: str,
+    position_id: str | None,
+    owner_uid: str | None,
+    dry_run: bool,
+    debug_prompt: bool,
+    stdout_json: bool,
+    verify_only: bool,
+    github_verify_annotations: bool,
+) -> int:
+    system_prompt, user_template = get_entry_prompts()
+    ctx = build_context(ticker=ticker, cfg=cfg, candidate_score=candidate_score)
+    feats, strategy_results, best_strategy, placeholders = build_features_strategy_and_placeholders(
+        ctx=ctx,
+        cfg=cfg,
+        theme=theme,
+        source_process=source_process,
+    )
+    strat_score = float(strategy_results.get(best_strategy, {}).get("score", 0.0))
+    user_msg = render_user_prompt(user_template, placeholders)
+
+    verr, vwarn = verify_eval_context(
+        ctx=ctx,
+        placeholders=placeholders,
+        candidate_from_firestore=candidate_from_firestore,
+    )
+    log.info("[VERIFY] Context check for %s (history rows=%d)", ticker, len(ctx.hist))
+    for w in vwarn:
+        if github_verify_annotations:
+            print(format_github_annotation("warning", w), flush=True)
+        log.warning("[VERIFY] %s", w)
+    for e in verr:
+        if github_verify_annotations:
+            print(format_github_annotation("error", e), flush=True)
+        log.error("[VERIFY] %s", e)
+
+    if verify_only:
+        return 1 if verr else 0
+
+    if verr:
+        log.error("Context verification failed for %s; skipping.", ticker)
+        return 1
+
+    if debug_prompt:
+        print("========== AI EVAL DEBUG: SYSTEM PROMPT ==========", flush=True)
+        print(system_prompt, flush=True)
+        print("========== AI EVAL DEBUG: USER PROMPT ==========", flush=True)
+        print(user_msg, flush=True)
+        print("========== END DEBUG PROMPTS ==========", flush=True)
+
+    raw_verdict, usage, raw_response_text = call_openai_json(
+        system=system_prompt,
+        user=user_msg,
+        model=_ai_model(cfg),
+        pricing=_ai_pricing(cfg),
+    )
+    verdict = normalize_verdict(raw_verdict)
+    conviction = float(verdict["conviction"])
+
+    total, breakdown = compute_total_score(
+        features=feats,
+        strategy_results=strategy_results,
+        best_strategy=best_strategy,
+        conviction=conviction,
+    )
+
+    scores: dict[str, Any] = {
+        "candidate_score": float(candidate_score),
+        "total": float(total),
+        "breakdown": {k: float(v) for k, v in breakdown.items()},
+        "conviction": float(conviction),
+        "best_strategy": str(best_strategy),
+        "strategy_score": float(strat_score),
+    }
+    technical = float(feats.get("technical_score") or 0.0)
+    recommendation = build_recommendation(
+        verdict=verdict,
+        scores=scores,
+        technical_score=technical,
+    )
+    ai_cfg = getattr(cfg, "ai", None)
+    entry_min_total = float(getattr(ai_cfg, "entry_min_total", 70.0) if ai_cfg else 70.0)
+    entry_min_conviction = float(getattr(ai_cfg, "entry_min_conviction", 0.7) if ai_cfg else 0.7)
+    ai_gate = resolve_ai_gate(
+        recommendation=recommendation,
+        conviction=conviction,
+        entry_min_total=entry_min_total,
+        entry_min_conviction=entry_min_conviction,
+    )
+
+    provider_status = build_provider_status_dict(
+        ctx, candidate_from_firestore=candidate_from_firestore
+    )
+    result_payload = {
+        "ticker": ticker,
+        "signal_doc_id": signal_doc_id,
+        "ai_gate": ai_gate,
+        "recommendation": recommendation,
+        "usage": {
+            "model": usage.model,
+            "prompt_tokens": usage.prompt_tokens,
+            "completion_tokens": usage.completion_tokens,
+            "total_tokens": usage.total_tokens,
+            "estimated_cost_usd": usage.estimated_cost_usd,
+            "cost_estimated": usage.cost_estimated,
+            "source": usage.source,
+        },
+        "provider_status": provider_status,
+        "raw_response": raw_response_text if debug_prompt else None,
+    }
+
+    log.info(
+        "AI eval %s gate=%s decision=%s total=%.2f conviction=%.2f tokens=%d model=%s | %s",
+        ticker,
+        ai_gate,
+        recommendation.get("decision"),
+        total,
+        conviction,
+        usage.total_tokens,
+        usage.model,
+        _short_reason(recommendation),
+    )
+
+    if stdout_json:
+        print(json.dumps(result_payload, indent=2, default=str))
+
+    if dry_run:
+        return 0
+
+    write_entry_evaluation(
+        ticker=ticker,
+        signal_doc_id=signal_doc_id,
+        position_id=position_id,
+        owner_uid=owner_uid,
+        recommendation=recommendation,
+        ai_gate=ai_gate,
+        stage="entry",
+        usage=usage,
+        detail={
+            "verdict": verdict,
+            "scores": scores,
+            "provider_status": provider_status,
+        },
+        apply_plan_overrides=True,
+    )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="AI-assisted stock evaluation (signal-only).")
     p.add_argument(
@@ -61,11 +238,16 @@ def main(argv: list[str] | None = None) -> int:
         default="config.yaml",
         help="Path to config.yaml (default: config.yaml at repo root)",
     )
-    p.add_argument("--ticker", required=True, help="Ticker symbol")
+    p.add_argument("--ticker", default="", help="Ticker symbol (required unless --batch)")
     p.add_argument(
         "--signal-doc-id",
-        required=True,
+        default="",
         help="Firestore run document id in signals collection",
+    )
+    p.add_argument(
+        "--batch",
+        action="store_true",
+        help="Evaluate all ai_gate=pending tickers on the run (capped by config)",
     )
     p.add_argument("--position-id", default="", help="Firestore my_positions document id (optional)")
     p.add_argument("--owner-uid", default="", help="Firebase auth uid owning the position (optional)")
@@ -109,129 +291,86 @@ def main(argv: list[str] | None = None) -> int:
         log.error("Config not found: %s", cfg_path)
         return 2
     cfg = load_config(cfg_path)
-    ticker = str(args.ticker).strip().upper()
+
+    ai_cfg = getattr(cfg, "ai", None)
+    if ai_cfg is not None and not bool(getattr(ai_cfg, "enabled", True)):
+        log.info("ai.enabled=false — skipping evaluation")
+        return 0
+
+    from signals_bot.storage.firestore import get_firestore_client
+
+    db = get_firestore_client()
     signal_doc_id = str(args.signal_doc_id).strip()
+    if not signal_doc_id:
+        signal_doc_id = latest_signal_doc_id(db) or ""
+        if not signal_doc_id:
+            log.error("No --signal-doc-id and no latest signals run found")
+            return 2
+        log.info("Using latest signal doc id=%s", signal_doc_id)
+
     position_id = str(args.position_id).strip() or None
     owner_uid = str(args.owner_uid).strip() or None
+
+    if args.batch:
+        pending = list_pending_tickers(db, signal_doc_id)
+        cap = int(getattr(ai_cfg, "max_entry_evals_per_run", 15) if ai_cfg else 15)
+        pending = pending[: max(0, cap)]
+        log.info("Batch entry eval doc=%s pending=%s (cap=%s)", signal_doc_id, len(pending), cap)
+        if not pending:
+            log.info("No pending tickers")
+            return 0
+        failures = 0
+        for ticker, _idx, cand in pending:
+            rc = evaluate_one(
+                cfg=cfg,
+                log=log,
+                ticker=ticker,
+                signal_doc_id=signal_doc_id,
+                candidate_score=cand,
+                candidate_from_firestore=True,
+                theme=str(args.theme),
+                source_process=str(args.source_process),
+                position_id=None,
+                owner_uid=None,
+                dry_run=bool(args.dry_run),
+                debug_prompt=bool(args.debug_prompt),
+                stdout_json=bool(args.stdout_json),
+                verify_only=bool(args.verify_only),
+                github_verify_annotations=bool(args.github_verify_annotations),
+            )
+            if rc != 0:
+                failures += 1
+        return 1 if failures else 0
+
+    ticker = str(args.ticker).strip().upper()
+    if not ticker:
+        log.error("--ticker is required unless --batch")
+        return 2
 
     if args.candidate_score is not None:
         candidate_score = float(args.candidate_score)
         candidate_from_firestore = False
     else:
-        from signals_bot.storage.firestore import get_firestore_client
-
-        db = get_firestore_client()
         candidate_score = read_candidate_score(db, signal_doc_id, ticker)
         candidate_from_firestore = True
 
-    ctx = build_context(ticker=ticker, cfg=cfg, candidate_score=candidate_score)
-    feats, strategy_results, best_strategy, placeholders = build_features_strategy_and_placeholders(
-        ctx=ctx,
+    return evaluate_one(
         cfg=cfg,
+        log=log,
+        ticker=ticker,
+        signal_doc_id=signal_doc_id,
+        candidate_score=candidate_score,
+        candidate_from_firestore=candidate_from_firestore,
         theme=str(args.theme),
         source_process=str(args.source_process),
-    )
-    strat_score = float(strategy_results.get(best_strategy, {}).get("score", 0.0))
-    user_msg = render_user_prompt(USER_PROMPT_TEMPLATE, placeholders)
-
-    verr, vwarn = verify_eval_context(
-        ctx=ctx,
-        placeholders=placeholders,
-        candidate_from_firestore=candidate_from_firestore,
-    )
-    log.info("[VERIFY] Context check for %s (history rows=%d)", ticker, len(ctx.hist))
-    for w in vwarn:
-        if args.github_verify_annotations:
-            print(format_github_annotation("warning", w), flush=True)
-        log.warning("[VERIFY] %s", w)
-    for e in verr:
-        if args.github_verify_annotations:
-            print(format_github_annotation("error", e), flush=True)
-        log.error("[VERIFY] %s", e)
-
-    if args.verify_only:
-        return 1 if verr else 0
-
-    if verr:
-        log.error("Context verification failed; fix errors above or use --verify-only to debug.")
-        return 1
-
-    if args.debug_prompt:
-        print("========== AI EVAL DEBUG: SYSTEM PROMPT ==========", flush=True)
-        print(SYSTEM_PROMPT, flush=True)
-        print("========== AI EVAL DEBUG: USER PROMPT ==========", flush=True)
-        print(user_msg, flush=True)
-        print("========== END DEBUG PROMPTS ==========", flush=True)
-
-    raw_verdict, llm_source, raw_response_text = call_openai_json(
-        system=SYSTEM_PROMPT, user=user_msg
-    )
-    verdict = normalize_verdict(raw_verdict)
-    conviction = float(verdict["conviction"])
-
-    total, breakdown = compute_total_score(
-        features=feats,
-        strategy_results=strategy_results,
-        best_strategy=best_strategy,
-        conviction=conviction,
-    )
-
-    provider_status = build_provider_status_dict(
-        ctx, candidate_from_firestore=candidate_from_firestore
-    )
-    scores: dict[str, Any] = {
-        "candidate_score": float(candidate_score),
-        "total": float(total),
-        "breakdown": {k: float(v) for k, v in breakdown.items()},
-        "conviction": float(conviction),
-        "best_strategy": str(best_strategy),
-        "strategy_score": float(strat_score),
-    }
-    verify_snapshot = {"errors": list(verr), "warnings": list(vwarn)}
-    payload = build_ai_evaluation_record(
-        ticker=ticker,
-        signal_doc_id=signal_doc_id,
-        provider_status=provider_status,
-        scores=scores,
-        prompt={"system": SYSTEM_PROMPT, "user": user_msg},
-        llm={
-            "source": llm_source,
-            "raw_response": raw_response_text,
-            "verdict": verdict,
-        },
-        verify=verify_snapshot,
-    )
-
-    ai_pts = float(breakdown.get("ai_component", 0.0))
-    log.info(
-        "AI eval %s signal_score=%.2f strategy=%s breakout_0_1=%.4f blended_total=%.2f "
-        "llm_conviction=%.2f ai_layer_pts=%.2f action=%s source=%s | %s",
-        ticker,
-        candidate_score,
-        best_strategy,
-        strat_score,
-        total,
-        conviction,
-        ai_pts,
-        verdict.get("action"),
-        llm_source,
-        _short_reason(verdict),
-    )
-
-    if args.stdout_json:
-        print(json.dumps(payload, indent=2, default=str))
-
-    if args.dry_run:
-        return 0
-
-    write_evaluation(
-        ticker=ticker,
-        signal_doc_id=signal_doc_id,
         position_id=position_id,
         owner_uid=owner_uid,
-        payload=payload,
+        dry_run=bool(args.dry_run),
+        debug_prompt=bool(args.debug_prompt),
+        stdout_json=bool(args.stdout_json),
+        verify_only=bool(args.verify_only),
+        github_verify_annotations=bool(args.github_verify_annotations),
     )
-    return 0
 
 
 if __name__ == "__main__":

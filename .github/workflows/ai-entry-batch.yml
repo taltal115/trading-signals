@@ -1,0 +1,61 @@
+# Batch AI entry eval for pending BUY rows on a signals run (or latest).
+name: AI entry batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      signal_doc_id:
+        description: "Firestore signals run doc id (empty = latest)"
+        required: false
+        default: ""
+  # Optional: weekdays after typical scan window (~09:00 ET ≈ 13:00 UTC)
+  schedule:
+    - cron: "0 13 * * 1-5"
+
+permissions:
+  contents: read
+
+jobs:
+  entry-batch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check secrets
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
+            echo "::error::Set GOOGLE_APPLICATION_CREDENTIALS"
+            exit 1
+          fi
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::error::Set OPENAI_API_KEY"
+            exit 1
+          fi
+
+      - name: Run AI entry batch
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          DOC_ARG=""
+          if [ -n "${{ github.event.inputs.signal_doc_id }}" ]; then
+            DOC_ARG="--signal-doc-id ${{ github.event.inputs.signal_doc_id }}"
+          fi
+          PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \
+            --config config.yaml \
+            --batch \
+            $DOC_ARG

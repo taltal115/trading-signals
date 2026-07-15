@@ -1,0 +1,67 @@
+# AI holding advisor for open my_positions
+name: AI holding advisor
+
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: "Optional single ticker"
+        required: false
+        default: ""
+      owner_uid:
+        description: "Optional owner uid"
+        required: false
+        default: ""
+  schedule:
+    # Roughly mid US session weekdays
+    - cron: "30 16 * * 1-5"
+
+permissions:
+  contents: read
+
+jobs:
+  holding:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check secrets
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
+            echo "::error::Set GOOGLE_APPLICATION_CREDENTIALS"
+            exit 1
+          fi
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::error::Set OPENAI_API_KEY"
+            exit 1
+          fi
+
+      - name: Run holding advisor
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          EXTRA=""
+          if [ -n "${{ github.event.inputs.ticker }}" ]; then
+            EXTRA="$EXTRA --ticker ${{ github.event.inputs.ticker }}"
+          fi
+          if [ -n "${{ github.event.inputs.owner_uid }}" ]; then
+            EXTRA="$EXTRA --owner-uid ${{ github.event.inputs.owner_uid }}"
+          fi
+          PYTHONPATH=./src:. python -m scripts.ai_holding_advisor.main \
+            --config config.yaml \
+            $EXTRA

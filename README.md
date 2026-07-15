@@ -4,6 +4,7 @@ This project scans US stocks on **daily candles** for **breakout-momentum** setu
 
 ### Docs
 - Bot logic + strategy: `docs/bot-logic-and-strategy.md`
+- AI signal pipeline (entry gate + holding advisor): `docs/ai-signal-pipeline/README.md`
 - Firebase Hosting + dashboard + position monitor: `docs/firebase-hosting-setup.md`
 - Angular dashboard architecture: `docs/frontend-angular-architecture.md`
 - UI parity checklist (vanilla → Angular): `docs/frontend-vanilla-parity-checklist.md`

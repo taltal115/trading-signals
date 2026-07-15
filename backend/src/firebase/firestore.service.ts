@@ -888,4 +888,53 @@ export class FirestoreService implements OnModuleInit {
       this.handleFirestoreListError('listMonitorChecks', e);
     }
   }
+
+  /**
+   * AI eval history for one signal run + ticker (doc id prefix scan).
+   */
+  async listAiEvalsForSignal(
+    signalDocId: string,
+    ticker: string,
+    limitN = 40,
+  ): Promise<{ id: string; data: DocumentData }[]> {
+    const sid = signalDocId.trim();
+    const sym = ticker.trim().toUpperCase();
+    if (!sid || !sym) {
+      return [];
+    }
+    const prefix = `${sid}__${sym}__`;
+    try {
+      const snap = await this.db
+        .collection('ai_evals')
+        .orderBy(admin.firestore.FieldPath.documentId())
+        .startAt(prefix)
+        .endAt(prefix + '\uf8ff')
+        .limit(Math.min(Math.max(limitN, 1), 100))
+        .get();
+      const rows = snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+      rows.sort((a, b) => {
+        const ta = String(a.data['ts_utc'] || '');
+        const tb = String(b.data['ts_utc'] || '');
+        return tb.localeCompare(ta);
+      });
+      return rows;
+    } catch (e) {
+      this.handleFirestoreListError('listAiEvalsForSignal', e);
+    }
+  }
+
+  /** Recent AI evals for analytics (newest first). */
+  async listAiEvalsRecent(limitN = 200): Promise<{ id: string; data: DocumentData }[]> {
+    try {
+      const snap = await this.db
+        .collection('ai_evals')
+        .orderBy('ts_utc', 'desc')
+        .limit(Math.min(Math.max(limitN, 1), 500))
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    } catch (e) {
+      // Fallback without order if index missing: unscoped get is too heavy; return empty with log
+      this.handleFirestoreListError('listAiEvalsRecent', e);
+    }
+  }
 }
