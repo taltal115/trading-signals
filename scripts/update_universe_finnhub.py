@@ -152,20 +152,46 @@ def _universe_eval_entry(signal: Signal, *, name: str = "") -> dict[str, Any]:
     }
 
 
+UniverseBucket = Literal[
+    "failed",
+    "eligible_buy",
+    "eligible_watch",
+    "below_min",
+    "wait",
+    "sell",
+]
+
+
 def _classify_universe_signal(
     signal: Signal | None,
     *,
     min_confidence: int,
-) -> tuple[Literal["failed", "not_buy", "low_conf", "buy"], dict[str, Any] | None]:
-    """Classify one evaluation for universe active eligibility (BUY-only)."""
+    watch_min_confidence: int,
+) -> tuple[UniverseBucket, dict[str, Any] | None]:
+    """Classify one evaluation for universe active eligibility.
+
+    Active-eligible:
+    - BUY with setup score (confidence) >= ``min_confidence``
+    - WAIT with setup score >= ``watch_min_confidence`` (high-setup watchlist)
+
+    SELL and weak setups stay inactive with explicit buckets (not a vague \"low conf\").
+    """
     if signal is None:
         return "failed", None
     entry = _universe_eval_entry(signal)
-    if signal.action != "BUY":
-        return "not_buy", entry
-    if min_confidence > 0 and int(signal.confidence) < min_confidence:
-        return "low_conf", entry
-    return "buy", entry
+    conf = int(signal.confidence)
+    action = str(signal.action or "").upper()
+    if action == "BUY":
+        if min_confidence > 0 and conf < min_confidence:
+            return "below_min", entry
+        return "eligible_buy", entry
+    if action == "WAIT":
+        if watch_min_confidence > 0 and conf < watch_min_confidence:
+            return "wait", entry
+        return "eligible_watch", entry
+    if action == "SELL":
+        return "sell", entry
+    return "wait", entry
 
 
 def _parse_iso_utc(raw: Any) -> datetime | None:
@@ -231,22 +257,29 @@ def main() -> int:
         "--min-confidence",
         type=int,
         default=50,
-        help="Minimum BUY signal confidence (0-100) for a symbol to be eligible for 'active'. "
-        "Non-BUY signals (WAIT/SELL) are never active. Below this → marked inactive_low_conf.",
+        help="Minimum BUY setup score (0-100) for active eligibility. "
+        "BUY below this → inactive_below_min.",
+    )
+    p.add_argument(
+        "--watch-min-confidence",
+        type=int,
+        default=55,
+        help="Minimum WAIT setup score (0-100) for active eligibility as a high-setup watch. "
+        "WAIT below this → inactive_wait. SELL is never active.",
     )
     p.add_argument(
         "--stale-runs",
         type=int,
         default=5,
         help="Mark a previously seen symbol inactive_stale once its inactive streak (consecutive "
-        "runs not active) hits this many. 0 disables.",
+        "runs not active) hits this many. Never blocks a fresh eligible BUY/WAIT. 0 disables.",
     )
     p.add_argument(
         "--stale-days",
         type=int,
         default=14,
         help="Mark a symbol inactive_stale once its last_active_at is older than this many days. "
-        "0 disables.",
+        "Never blocks a fresh eligible BUY/WAIT. 0 disables.",
     )
     p.add_argument(
         "--revalidate-cap",
@@ -368,8 +401,9 @@ def main() -> int:
     today_results: dict[str, dict[str, Any]] = {}
     today_evaluated: dict[str, dict[str, Any]] = {}
     today_failed: set[str] = set()
-    today_not_buy: set[str] = set()
-    today_low_conf: set[str] = set()
+    today_below_min: set[str] = set()
+    today_wait: set[str] = set()
+    today_sell: set[str] = set()
 
     for symbol in batch:
         log.debug("evaluate %s", symbol)
@@ -383,7 +417,9 @@ def main() -> int:
             log=log,
         )
         bucket, entry = _classify_universe_signal(
-            signal, min_confidence=args.min_confidence
+            signal,
+            min_confidence=args.min_confidence,
+            watch_min_confidence=args.watch_min_confidence,
         )
         if bucket == "failed":
             log.debug("%s skip reason=%s", symbol, err or "-")
@@ -401,18 +437,26 @@ def main() -> int:
             provider_used,
             bucket,
         )
-        if bucket == "not_buy":
-            today_not_buy.add(symbol)
+        if bucket == "eligible_buy" or bucket == "eligible_watch":
+            today_results[symbol] = entry
             continue
-        if bucket == "low_conf":
-            today_low_conf.add(symbol)
+        if bucket == "below_min":
+            today_below_min.add(symbol)
             continue
-        today_results[symbol] = entry
+        if bucket == "sell":
+            today_sell.add(symbol)
+            continue
+        today_wait.add(symbol)
 
     if args.limit > 0 and len(today_results) > args.limit:
         ranked_today = sorted(
             today_results.items(),
-            key=lambda kv: (-int(kv[1]["confidence"]), -float(kv[1]["score"]), kv[0]),
+            key=lambda kv: (
+                0 if str(kv[1].get("action")).upper() == "BUY" else 1,
+                -int(kv[1]["confidence"]),
+                -float(kv[1]["score"]),
+                kv[0],
+            ),
         )
         kept = dict(ranked_today[: args.limit])
         log.info("Truncating today's batch results: kept=%d dropped=%d (--limit)",
@@ -420,10 +464,11 @@ def main() -> int:
         today_results = kept
 
     log.info(
-        "Today's batch BUY passes: %d (not_buy=%d low_conf=%d failures=%d)",
+        "Today's batch eligible: %d (buy/watch) below_min=%d wait=%d sell=%d failures=%d",
         len(today_results),
-        len(today_not_buy),
-        len(today_low_conf),
+        len(today_below_min),
+        len(today_wait),
+        len(today_sell),
         len(today_failed),
     )
 
@@ -472,8 +517,9 @@ def main() -> int:
     revalidate_results: dict[str, dict[str, Any]] = {}
     revalidate_evaluated: dict[str, dict[str, Any]] = {}
     revalidate_failures: set[str] = set()
-    revalidate_not_buy: set[str] = set()
-    revalidate_low_conf: set[str] = set()
+    revalidate_below_min: set[str] = set()
+    revalidate_wait: set[str] = set()
+    revalidate_sell: set[str] = set()
     if to_revalidate:
         log.info("Re-validating %d carry-over symbols (cap=%d, prior_only=%d)",
                  len(to_revalidate), args.revalidate_cap, len(prior_only))
@@ -488,7 +534,9 @@ def main() -> int:
             log=log,
         )
         bucket, entry = _classify_universe_signal(
-            signal, min_confidence=args.min_confidence
+            signal,
+            min_confidence=args.min_confidence,
+            watch_min_confidence=args.watch_min_confidence,
         )
         if bucket == "failed":
             log.debug("%s revalidate fail reason=%s", symbol, err or "-")
@@ -500,29 +548,41 @@ def main() -> int:
             or symbol_base_details.get(symbol, {}).get("name", "")
         )
         revalidate_evaluated[symbol] = entry
-        if bucket == "not_buy":
-            revalidate_not_buy.add(symbol)
+        if bucket == "eligible_buy" or bucket == "eligible_watch":
+            revalidate_results[symbol] = entry
             continue
-        if bucket == "low_conf":
-            revalidate_low_conf.add(symbol)
+        if bucket == "below_min":
+            revalidate_below_min.add(symbol)
             continue
-        revalidate_results[symbol] = entry
+        if bucket == "sell":
+            revalidate_sell.add(symbol)
+            continue
+        revalidate_wait.add(symbol)
 
     passing: dict[str, dict[str, Any]] = {**today_results, **revalidate_results}
 
-    low_conf: set[str] = set(today_low_conf) | set(revalidate_low_conf)
-
+    # Stale only applies to non-eligible names. A fresh BUY/WAIT always stays in ``passing``.
     stale: set[str] = set()
-    for sym in list(passing.keys()):
+    for sym in (all_sym for all_sym in (
+        set(today_evaluated) | set(revalidate_evaluated) | today_failed | revalidate_failures
+    ) if all_sym not in passing):
         prev_entry = prev_details.get(sym, {})
-        if _is_stale(prev_entry, now_utc=now_utc,
-                     stale_runs=args.stale_runs, stale_days=args.stale_days):
+        if _is_stale(
+            prev_entry,
+            now_utc=now_utc,
+            stale_runs=args.stale_runs,
+            stale_days=args.stale_days,
+        ):
             stale.add(sym)
-            del passing[sym]
 
     ranked = sorted(
         passing.items(),
-        key=lambda kv: (-int(kv[1]["confidence"]), -float(kv[1]["score"]), kv[0]),
+        key=lambda kv: (
+            0 if str(kv[1].get("action")).upper() == "BUY" else 1,
+            -int(kv[1]["confidence"]),
+            -float(kv[1]["score"]),
+            kv[0],
+        ),
     )
     if args.top_k and args.top_k > 0:
         active_kv = ranked[: args.top_k]
@@ -540,8 +600,34 @@ def main() -> int:
     all_symbols.update(revalidate_failures)
     all_symbols.update(unevaluated_prior)
 
+    # Also consider previously tracked symbols that stayed unevaluated for stale tagging.
+    for sym, prev in prev_details.items():
+        if sym not in all_symbols and sym not in unevaluated_prior:
+            continue
+        if sym in passing:
+            continue
+        if sym not in stale and _is_stale(
+            prev,
+            now_utc=now_utc,
+            stale_runs=args.stale_runs,
+            stale_days=args.stale_days,
+        ):
+            stale.add(sym)
+
     symbol_details: dict[str, dict[str, Any]] = {}
     now_iso = now_utc.isoformat()
+    status_counts: dict[str, int] = {
+        "active": 0,
+        "active_buy": 0,
+        "active_watch": 0,
+        "inactive_capped": 0,
+        "inactive_stale": 0,
+        "inactive_below_min": 0,
+        "inactive_wait": 0,
+        "inactive_sell": 0,
+        "inactive_failed": 0,
+        "inactive_other": 0,
+    }
 
     for sym in all_symbols:
         if sym in unevaluated_prior:
@@ -559,6 +645,7 @@ def main() -> int:
                 new_entry["name"] = latest_score["name"]
             new_entry["last_score"] = float(latest_score["score"])
             new_entry["last_confidence"] = int(latest_score["confidence"])
+            new_entry["last_action"] = str(latest_score.get("action") or "").upper()
             new_entry["last_evaluated_run_at"] = now_iso
         elif sym in today_failed or sym in revalidate_failures:
             new_entry["last_evaluated_run_at"] = now_iso
@@ -567,19 +654,43 @@ def main() -> int:
         if base_name and not new_entry.get("name"):
             new_entry["name"] = base_name
 
+        last_action = str(new_entry.get("last_action") or "").upper()
+
         if sym in active_syms:
             status = "active"
+            active_kind = "buy" if last_action == "BUY" else "watch"
+            new_entry["active_kind"] = active_kind
+            status_counts["active"] += 1
+            status_counts[f"active_{active_kind}"] += 1
         elif sym in capped_syms:
             status = "inactive_capped"
+            new_entry.pop("active_kind", None)
+            status_counts["inactive_capped"] += 1
         elif sym in stale:
             status = "inactive_stale"
-        elif sym in low_conf or sym in today_not_buy or sym in revalidate_not_buy:
-            status = "inactive_low_conf"
+            new_entry.pop("active_kind", None)
+            status_counts["inactive_stale"] += 1
+        elif sym in today_below_min or sym in revalidate_below_min:
+            status = "inactive_below_min"
+            new_entry.pop("active_kind", None)
+            status_counts["inactive_below_min"] += 1
+        elif sym in today_sell or sym in revalidate_sell:
+            status = "inactive_sell"
+            new_entry.pop("active_kind", None)
+            status_counts["inactive_sell"] += 1
+        elif sym in today_wait or sym in revalidate_wait:
+            status = "inactive_wait"
+            new_entry.pop("active_kind", None)
+            status_counts["inactive_wait"] += 1
         elif sym in revalidate_failures or sym in today_failed:
             status = "inactive_failed"
+            new_entry.pop("active_kind", None)
+            status_counts["inactive_failed"] += 1
         else:
             prev_status = str(prev.get("status") or "").strip()
             status = prev_status if prev_status.startswith("inactive") else "inactive_stale"
+            new_entry.pop("active_kind", None)
+            status_counts["inactive_other"] += 1
 
         new_entry["status"] = status
         new_entry["active"] = status == "active"
@@ -639,26 +750,28 @@ def main() -> int:
             symbol_details=symbol_details,
             active_symbols=active_list,
             inactive_symbols=inactive_list,
+            status_counts=status_counts,
         )
     except RuntimeError as exc:
         raise SystemExit(f"ERROR: Firestore universe write failed (check credentials): {exc}") from exc
 
     log.info(
-        "Universe summary asof_date=%s active=%d inactive=%d total=%d "
-        "(today_buy=%d revalidate_buy=%d today_not_buy=%d revalidate_not_buy=%d "
-        "today_fail=%d revalidate_fail=%d low_conf=%d stale=%d capped=%d "
-        "unevaluated_prior=%d)",
+        "Universe summary asof_date=%s active=%d (buy=%d watch=%d) inactive=%d total=%d "
+        "(today_eligible=%d revalidate_eligible=%d below_min=%d wait=%d sell=%d "
+        "today_fail=%d revalidate_fail=%d stale=%d capped=%d unevaluated_prior=%d)",
         asof_date,
         len(active_list),
+        status_counts["active_buy"],
+        status_counts["active_watch"],
         len(inactive_list),
         len(all_list),
         len(today_results),
         len(revalidate_results),
-        len(today_not_buy),
-        len(revalidate_not_buy),
+        len(today_below_min) + len(revalidate_below_min),
+        len(today_wait) + len(revalidate_wait),
+        len(today_sell) + len(revalidate_sell),
         len(today_failed),
         len(revalidate_failures),
-        len(low_conf),
         len(stale),
         len(capped_syms),
         len(unevaluated_prior),

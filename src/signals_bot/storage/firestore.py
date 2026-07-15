@@ -175,6 +175,7 @@ def write_universe_snapshot(
     symbol_details: dict[str, dict] | None = None,
     active_symbols: Iterable[str] | None = None,
     inactive_symbols: Iterable[str] | None = None,
+    status_counts: dict[str, int] | None = None,
 ) -> None:
     """Write the daily universe doc.
 
@@ -201,6 +202,8 @@ def write_universe_snapshot(
         doc["active_symbols"] = active_norm
         doc["active_count"] = len(active_norm)
         doc["inactive_count"] = max(0, len(normalized) - len(active_norm))
+    if status_counts:
+        doc["status_counts"] = {str(k): int(v) for k, v in status_counts.items()}
     db = _build_client()
     parent_ref = db.collection(collection).document(asof_date)
     if symbol_details:
@@ -342,107 +345,18 @@ def read_recent_universe_symbols(
 def _bot_symbols_from_doc(data: dict[str, Any]) -> list[str]:
     """Return the bot's working slice from a universe doc.
 
-    Prefers ``active_symbols`` (the post-revalidation curated set) and falls back to ``symbols``
-    for legacy snapshots written before the active/inactive split.
+    Prefers ``active_symbols`` when that field is present (even if empty — do not expand to
+    the full history list). Legacy snapshots without ``active_symbols`` fall back to ``symbols``.
     """
-    raw = data.get("active_symbols")
-    if not isinstance(raw, list) or not raw:
-        raw = data.get("symbols") or []
+    if "active_symbols" in data:
+        raw = data.get("active_symbols")
+        if not isinstance(raw, list):
+            return []
+        return _normalize_universe_symbols(str(s) for s in raw)
+    raw = data.get("symbols") or []
     if not isinstance(raw, list):
         return []
     return _normalize_universe_symbols(str(s) for s in raw)
-
-
-STOCK_EVENTS_COLLECTION = "stock_events"
-IBKR_PORTFOLIO_COLLECTION = "ibkr_portfolio"
-IBKR_PORTFOLIO_LATEST_DOC = "latest"
-
-
-def read_top_universe_symbols_by_score(
-    *,
-    doc_id: str,
-    collection: str = "universe",
-    limit: int = 200,
-) -> list[tuple[str, dict[str, Any]]]:
-    """Return up to ``limit`` symbols from a universe snapshot, sorted by ``last_score`` DESC.
-
-    Each item is ``(ticker, detail_dict)`` with at least ``last_score`` / ``last_confidence`` when present.
-    """
-    db = _build_client()
-    ref = db.collection(collection).document(doc_id.strip())
-    snap = ref.get()
-    if not snap.exists:
-        return []
-    data = snap.to_dict() or {}
-    inline = data.get("symbol_details")
-    if isinstance(inline, dict) and inline:
-        rows: list[tuple[str, dict[str, Any]]] = []
-        for k, v in inline.items():
-            if not isinstance(v, dict):
-                continue
-            sym = str(k).strip().upper()
-            if not sym:
-                continue
-            rows.append((sym, v))
-        rows.sort(
-            key=lambda kv: (
-                -float(kv[1].get("last_score") or kv[1].get("score") or -1.0),
-                kv[0],
-            ),
-        )
-        return rows[: max(1, int(limit))]
-
-    sub = ref.collection("symbols")
-    try:
-        docs = (
-            sub.order_by("last_score", direction=firestore.Query.DESCENDING)
-            .limit(max(1, int(limit)))
-            .stream()
-        )
-    except Exception:
-        docs = sub.stream()
-        rows = []
-        for s in docs:
-            sym = s.id.strip().upper()
-            if sym:
-                rows.append((sym, s.to_dict() or {}))
-        rows.sort(
-            key=lambda kv: (
-                -float(kv[1].get("last_score") or kv[1].get("score") or -1.0),
-                kv[0],
-            ),
-        )
-        return rows[: max(1, int(limit))]
-
-    return [(s.id.strip().upper(), s.to_dict() or {}) for s in docs if s.id.strip()]
-
-
-def write_stock_events_snapshot(
-    *,
-    asof_date: str,
-    doc: dict[str, Any],
-    collection: str = STOCK_EVENTS_COLLECTION,
-) -> None:
-    """Write ``stock_events/{asof_date}`` (full replace)."""
-    db = _build_client()
-    db.collection(collection).document(asof_date.strip()).set(doc)
-
-
-def read_latest_stock_events(
-    *,
-    collection: str = STOCK_EVENTS_COLLECTION,
-) -> tuple[str, dict[str, Any]] | None:
-    """Return ``(document_id, data)`` for the most recent stock events snapshot."""
-    db = _build_client()
-    docs = (
-        db.collection(collection)
-        .order_by("ts_utc", direction=firestore.Query.DESCENDING)
-        .limit(1)
-        .stream()
-    )
-    for snap in docs:
-        return snap.id, snap.to_dict() or {}
-    return None
 
 
 def read_universe_for_date(
@@ -451,14 +365,33 @@ def read_universe_for_date(
     collection: str = "universe",
     fallback_latest: bool = True,
 ) -> list[str]:
+    """Load the bot scan list for ``asof_date``.
+
+    When today's snapshot exists but ``active_symbols`` is empty, do **not** silently scan the
+    full inactive history pool. Optionally fall back to the latest snapshot that has actives.
+    """
+    import logging
+
+    log = logging.getLogger(__name__)
     db = _build_client()
     ref = db.collection(collection).document(asof_date)
     snap = ref.get()
     if snap.exists:
         data = snap.to_dict() or {}
-        got = _bot_symbols_from_doc(data)
-        if got:
-            return got
+        if "active_symbols" in data:
+            got = _bot_symbols_from_doc(data)
+            if got:
+                return got
+            log.warning(
+                "Universe %s/%s has active_count=0 (empty active_symbols). "
+                "Not expanding to the full symbol history list.",
+                collection,
+                asof_date,
+            )
+        else:
+            got = _bot_symbols_from_doc(data)
+            if got:
+                return got
 
     if not fallback_latest:
         raise ValueError(
@@ -469,20 +402,31 @@ def read_universe_for_date(
     latest = (
         db.collection(collection)
         .order_by("ts_utc", direction=firestore.Query.DESCENDING)
-        .limit(1)
+        .limit(5)
         .stream()
     )
     for doc_snap in latest:
         data = doc_snap.to_dict() or {}
         got = _bot_symbols_from_doc(data)
         if got:
+            if doc_snap.id != asof_date:
+                log.warning(
+                    "Universe asof_date=%s has no active symbols; using prior snapshot %s "
+                    "(%d active).",
+                    asof_date,
+                    doc_snap.id,
+                    len(got),
+                )
             return got
-        break
 
     raise ValueError(
-        f"No universe snapshot found for asof_date={asof_date!r} and no prior documents in "
-        f"collection={collection!r}. Run discovery or seed Firestore."
+        f"No universe snapshot with active symbols for asof_date={asof_date!r} "
+        f"(collection={collection!r}). Run discovery or seed Firestore."
     )
+
+
+IBKR_PORTFOLIO_COLLECTION = "ibkr_portfolio"
+IBKR_PORTFOLIO_LATEST_DOC = "latest"
 
 
 def write_buy_signals(

@@ -25,7 +25,7 @@ The Angular dashboard talks to this API over HTTP (`HttpClient`, `withCredential
 | `DEV_USER_EMAIL` | Optional label for logs when bypass is active. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON, **or** |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Inline JSON string for the service account. |
-| `GITHUB_PERSONAL_TOKEN` | (Optional but required for **Check** / **Re-eval** buttons.) PAT with Actions workflow dispatch permission; **server-only**, never in the Angular bundle. Also accepts `GITHUB_TOKEN`. |
+| `GITHUB_PERSONAL_TOKEN` | (Optional but required for dashboard **Check**.) PAT with Actions workflow dispatch permission; **server-only**, never in the Angular bundle. Also accepts `GITHUB_TOKEN`. |
 | `GITHUB_REPO_OWNER` / `GITHUB_REPO_NAME` | Optional; default `taltal115` / `trading-signals`. |
 
 Align `ALLOWED_*` with [`frontend/src/environments/environment.ts`](../frontend/src/environments/environment.ts) `allowedSignInEmails` / `allowedAuthUids` for consistent UX.
@@ -77,12 +77,10 @@ For real Google sign-in locally, set `AUTH_BYPASS_LOCAL=false`, provide `GOOGLE_
 - `GET /api/auth/google` — start OAuth.
 - `GET /api/auth/google/callback` — OAuth callback; sets session; redirects to `FRONTEND_URL/dashboard`.
 - `POST /api/auth/logout` — clears session.
-- `GET /api/universe` — query `limit` (default 5, max 50), optional `cursor` (last snapshot doc id from previous page). Each row exposes `asof_date`, `ts_utc`, `source`, `symbol_count` (full list), and `active_count` / `inactive_count` derived from the snapshot's `active_symbols` / `inactive_symbols` (legacy snapshots count everything as active). Response also includes `nextCursor`. `GET /api/universe/:id/symbols` — query `offset` (default 0) and `limit` (default 3, max 100). Each row's `detail` includes Finnhub profile fields plus per-symbol status: `active`, `status` (`active`/`inactive_failed`/`inactive_low_conf`/`inactive_stale`/`inactive_capped`), `inactive_reason`, `last_score`, `last_confidence`, `last_active_at`, `inactive_runs_streak`.
+- `GET /api/universe` — query `limit` (default 5, max 50), optional `cursor`. Each row exposes `asof_date`, `ts_utc`, `source`, `symbol_count`, `active_count` / `inactive_count`, and optional `status_counts` (buy/watch/stale/…). `GET /api/universe/:id/symbols` — query `offset`, `limit`, `sort`, `dir`, optional `status=active` (scan list only). Detail fields include `status`, `last_action`, `active_kind`, `last_confidence` (setup strength 0–100), `last_score`, profile fields when available.
 - `GET /api/signals` — public reads (mirrors previous client limits).
 - `GET|POST|PATCH /api/positions...`, `GET /api/monitor/checks` — session required (or bypass user).
-- `GET /api/events/latest` — latest `stock_events` snapshot (`docId`, `asof_date`, `ts_utc`, `source`, `universe_doc_id`, `top_symbols_n`, `rank_by`, `horizon_days`, `events[]`, `recommendations[]`). Each event may include Phase 2 fields: `setup`, `history`, `event_score`, `bias`, `action`, `reasons`. Session required. See [`docs/stock-events.md`](stock-events.md).
-- `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**).
-- `POST /api/github/workflows/bot-scan` — body `{ "ticker": "AAPL" }`; dispatches `trading-bot-scan.yml` (**Re-eval**). Both require session + `GITHUB_PERSONAL_TOKEN` on the server.
+- `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**). Requires session + `GITHUB_PERSONAL_TOKEN` on the server.
 
 ## Google OAuth troubleshooting (`401 invalid_client` / “OAuth client was not found”)
 

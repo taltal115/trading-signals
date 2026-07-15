@@ -22,21 +22,4 @@ export class GithubWorkflowsService {
       }),
     );
   }
-
-  async triggerBotScanWorkflow(ticker: string): Promise<void> {
-    await firstValueFrom(
-      this.http.post<{ ok: boolean }>(this.url('/workflows/bot-scan'), {
-        ticker: String(ticker || '').trim(),
-      }),
-    );
-  }
-
-  async triggerAiStockEvalWorkflow(ticker: string, signalDocId: string): Promise<void> {
-    await firstValueFrom(
-      this.http.post<{ ok: boolean }>(this.url('/workflows/ai-stock-eval'), {
-        ticker: String(ticker || '').trim(),
-        signal_doc_id: String(signalDocId || '').trim(),
-      }),
-    );
-  }
 }

@@ -1463,48 +1463,6 @@ tr.sig-stock-details-tr > td.sig-stock-details-cell {
   cursor: default;
 }
 
-button.btn-reeval {
-  padding: 0.28rem 0.55rem;
-  font-size: 0.72rem;
-  font-family: inherit;
-  font-weight: 600;
-  border-radius: 5px;
-  border: 1px solid var(--accent);
-  background: rgba(61, 214, 198, 0.1);
-  color: var(--accent);
-  cursor: pointer;
-}
-
-button.btn-reeval:hover {
-  background: rgba(61, 214, 198, 0.22);
-}
-
-button.btn-reeval:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
-button.btn-ai-eval {
-  padding: 0.28rem 0.55rem;
-  font-size: 0.72rem;
-  font-family: inherit;
-  font-weight: 600;
-  border-radius: 5px;
-  border: 1px solid var(--wait);
-  background: rgba(210, 153, 34, 0.12);
-  color: var(--wait);
-  cursor: pointer;
-}
-
-button.btn-ai-eval:hover {
-  background: rgba(210, 153, 34, 0.22);
-}
-
-button.btn-ai-eval:disabled {
-  opacity: 0.6;
-  cursor: default;
-}
-
 .sig-ai-toggle-cell {
   white-space: nowrap;
   vertical-align: middle;
@@ -2510,41 +2468,6 @@ tr.pos-monitor-expand td.pos-monitor-expand-cell {
 }
 
 .positions-table th[data-sort].sort-desc::after {
-  border-top-color: var(--accent);
-  opacity: 1;
-}
-
-.reporting-table th[data-sort] {
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  padding-right: 1.1rem;
-}
-
-.reporting-table th[data-sort]:hover {
-  color: var(--text);
-  background: rgba(61, 214, 198, 0.06);
-}
-
-.reporting-table th[data-sort]::after {
-  content: "";
-  position: absolute;
-  right: 0.35rem;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 4px solid transparent;
-  border-top-color: var(--muted);
-  opacity: 0.4;
-}
-
-.reporting-table th[data-sort].sort-asc::after {
-  border-top-color: transparent;
-  border-bottom-color: var(--accent);
-  opacity: 1;
-  transform: translateY(-70%);
-}
-
-.reporting-table th[data-sort].sort-desc::after {
   border-top-color: var(--accent);
   opacity: 1;
 }

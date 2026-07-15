@@ -381,6 +381,7 @@ export class FirestoreService implements OnModuleInit {
         symbol_count: number;
         active_count: number;
         inactive_count: number;
+        status_counts?: Record<string, number>;
       };
     }[];
     nextCursor: string | null;
@@ -433,6 +434,15 @@ export class FirestoreService implements OnModuleInit {
             if (activeCount < 0) activeCount = Math.max(0, total - Math.max(0, inactiveCount));
             if (inactiveCount < 0) inactiveCount = Math.max(0, total - Math.max(0, activeCount));
           }
+          const scRaw = raw['status_counts'];
+          let status_counts: Record<string, number> | undefined;
+          if (scRaw && typeof scRaw === 'object' && !Array.isArray(scRaw)) {
+            status_counts = {};
+            for (const [k, v] of Object.entries(scRaw as Record<string, unknown>)) {
+              const n = Number(v);
+              if (Number.isFinite(n)) status_counts[k] = n;
+            }
+          }
           return {
             id: d.id,
             data: {
@@ -442,6 +452,7 @@ export class FirestoreService implements OnModuleInit {
               symbol_count: total,
               active_count: activeCount,
               inactive_count: inactiveCount,
+              ...(status_counts ? { status_counts } : {}),
             },
           };
         }),
@@ -462,6 +473,7 @@ export class FirestoreService implements OnModuleInit {
     limit: number,
     sortRaw?: string,
     dirRaw?: string,
+    statusFilter?: string,
   ): Promise<{
     total: number;
     offset: number;
@@ -511,6 +523,38 @@ export class FirestoreService implements OnModuleInit {
 
       const sort = parseUniverseSymbolSortField(sortRaw);
       const dir = parseUniverseSymbolSortDir(dirRaw);
+      const status = String(statusFilter ?? '')
+        .trim()
+        .toLowerCase();
+
+      // Scan-list view: page only ``active_symbols`` (usually ≤ top-K).
+      if (status === 'active') {
+        const tickers = activeSymbols.length > 0 ? activeSymbols : [];
+        total = tickers.length;
+        if (tickers.length === 0) {
+          return { total: 0, offset, limit, sort, dir, rows: [] };
+        }
+        const pageTickers = tickers.slice(offset, offset + limit);
+        let rows: { ticker: string; detail: DocumentData }[];
+        if (!detailsInSubcollection && Object.keys(inline).length > 0) {
+          rows = pageTickers.map((ticker) => ({
+            ticker,
+            detail: toPlainDoc(inline[ticker] as DocumentData | undefined) as DocumentData,
+          }));
+        } else {
+          const refs = pageTickers.map((t) => ref.collection('symbols').doc(t));
+          const docs = await this.db.getAll(...refs);
+          const byId = new Map(
+            docs.filter((d) => d.exists).map((d) => [d.id.toUpperCase(), toPlainDoc(d.data()) as DocumentData]),
+          );
+          rows = pageTickers.map((ticker) => ({
+            ticker,
+            detail: byId.get(ticker) ?? ({ status: 'active', active: true } as DocumentData),
+          }));
+        }
+        rows = [...rows].sort((a, b) => compareUniverseSymbolRows(a, b, sort, dir));
+        return { total, offset, limit, sort, dir, rows };
+      }
 
       let rows: { ticker: string; detail: DocumentData }[];
       if (!detailsInSubcollection && Object.keys(inline).length > 0) {
@@ -751,25 +795,6 @@ export class FirestoreService implements OnModuleInit {
     }
   }
 
-  /** Most recent open row matching ticker and linked signal doc (in-memory filter on listPositions). */
-  async findOpenPositionForSignal(
-    ownerUid: string,
-    ticker: string,
-    signalDocId: string,
-  ): Promise<{ id: string } | null> {
-    const rows = await this.listPositions(ownerUid);
-    const sym = ticker.trim().toUpperCase();
-    const sig = signalDocId.trim();
-    for (const r of rows) {
-      const st = String(r.data['status'] ?? 'open');
-      if (st !== 'open') continue;
-      if (String(r.data['ticker'] ?? '').trim().toUpperCase() !== sym) continue;
-      if (String(r.data['signal_doc_id'] ?? '').trim() !== sig) continue;
-      return { id: r.id };
-    }
-    return null;
-  }
-
   async addPosition(
     ownerUid: string,
     payload: Record<string, unknown>
@@ -861,58 +886,6 @@ export class FirestoreService implements OnModuleInit {
       return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
     } catch (e) {
       this.handleFirestoreListError('listMonitorChecks', e);
-    }
-  }
-
-  /** Latest ``stock_events`` snapshot written by ``discover_stock_events.py``. */
-  async getLatestStockEvents(): Promise<{
-    docId: string;
-    asof_date: string;
-    ts_utc: string;
-    universe_doc_id: string;
-    top_symbols_n: number;
-    rank_by: string;
-    horizon_days: number;
-    source: string;
-    events: DocumentData[];
-    recommendations: DocumentData[];
-  }> {
-    try {
-      const snap = await this.db
-        .collection('stock_events')
-        .orderBy('ts_utc', 'desc')
-        .limit(1)
-        .get();
-      if (snap.empty) {
-        throw new NotFoundException('No stock events snapshot found');
-      }
-      const doc = snap.docs[0];
-      const data = toPlainDoc(doc.data());
-      const rawEvents = data['events'];
-      const events = Array.isArray(rawEvents)
-        ? rawEvents.map((e) => toPlainDoc(e as DocumentData))
-        : [];
-      const rawRecs = data['recommendations'];
-      const recommendations = Array.isArray(rawRecs)
-        ? rawRecs.map((r) => toPlainDoc(r as DocumentData))
-        : [];
-      return {
-        docId: doc.id,
-        asof_date: String(data['asof_date'] ?? doc.id),
-        ts_utc: String(data['ts_utc'] ?? ''),
-        universe_doc_id: String(data['universe_doc_id'] ?? ''),
-        top_symbols_n: Number(data['top_symbols_n'] ?? 0),
-        rank_by: String(data['rank_by'] ?? 'last_score'),
-        horizon_days: Number(data['horizon_days'] ?? 0),
-        source: String(data['source'] ?? ''),
-        events,
-        recommendations,
-      };
-    } catch (e) {
-      if (e instanceof NotFoundException) {
-        throw e;
-      }
-      this.handleFirestoreListError('getLatestStockEvents', e);
     }
   }
 }

@@ -610,33 +610,6 @@
     }
   }
 
-  async function triggerBotScanWorkflow(ticker) {
-    var token = null;
-    try { token = localStorage.getItem(GH_PAT_KEY); } catch (e) { /* ignore */ }
-    if (!token) {
-      token = prompt("Enter GitHub PAT with workflow scope (stored locally):");
-    }
-    if (!token) throw new Error("No GitHub token provided");
-    try { localStorage.setItem(GH_PAT_KEY, token); } catch (e) { /* ignore */ }
-
-    var url =
-      "https://api.github.com/repos/" + GH_REPO_OWNER + "/" + GH_REPO_NAME +
-      "/actions/workflows/trading-bot-scan.yml/dispatches";
-    var res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + token,
-        Accept: "application/vnd.github+json",
-      },
-      body: JSON.stringify({ ref: "main", inputs: { ticker: ticker || "" } }),
-    });
-    if (res.status === 401 || res.status === 403) {
-      try { localStorage.removeItem(GH_PAT_KEY); } catch (e) { /* ignore */ }
-      throw new Error("GitHub auth failed - token cleared, try again");
-    }
-    if (!res.ok) throw new Error("GitHub API error: " + res.status);
-  }
-
   const loginScreen = document.getElementById("login-screen");
   const appShell = document.getElementById("app-shell");
   const loginGoogleBtn = document.getElementById("login-google-btn");
@@ -2304,35 +2277,6 @@
                 openOrToggleSignalsInlineForm(tr, doc.id, s);
               });
               actionsWrap.appendChild(btnLog);
-
-              var btnReeval = document.createElement("button");
-              btnReeval.type = "button";
-              btnReeval.className = "btn-reeval";
-              btnReeval.textContent = "Re-eval";
-              btnReeval.setAttribute("data-ticker", s.ticker || "");
-              btnReeval.addEventListener("click", async function () {
-                var ticker = btnReeval.getAttribute("data-ticker");
-                if (!ticker) return;
-                btnReeval.disabled = true;
-                var origText = btnReeval.textContent;
-                btnReeval.textContent = "…";
-                try {
-                  await triggerBotScanWorkflow(ticker);
-                  btnReeval.textContent = "Triggered";
-                  setTimeout(function () {
-                    btnReeval.textContent = origText;
-                    btnReeval.disabled = false;
-                  }, 3000);
-                } catch (err) {
-                  console.error("Re-eval workflow error:", err);
-                  btnReeval.textContent = "Error";
-                  setTimeout(function () {
-                    btnReeval.textContent = origText;
-                    btnReeval.disabled = false;
-                  }, 3000);
-                }
-              });
-              actionsWrap.appendChild(btnReeval);
 
               tdActions.appendChild(actionsWrap);
 

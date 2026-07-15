@@ -80,7 +80,7 @@ Set production configuration on the service (example — use Secret Manager for 
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Full service account JSON (Secret Manager → env), **or** rely on the Cloud Run service account with IAM roles for Firestore (see below) |
 | `FINNHUB_API_KEY` | **Required** for `/api/market/quote` and `/api/market/stock-snapshot`. Same key as local `.env`. |
 | `TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY` | **Strongly recommended** for `/api/market/candles` (dashboard charts): Finnhub **free** plans usually return **403** on `stock/candle`, so the API uses Twelve Data / Alpha Vantage first when these are set. |
-| `GITHUB_PERSONAL_TOKEN` | **Required** for `POST /api/github/workflows/*` (AI eval, bot scan, position monitor). Not bundled in the frontend. |
+| `GITHUB_PERSONAL_TOKEN` | **Required** for `POST /api/github/workflows/position-monitor` (dashboard **Check**). Not bundled in the frontend. |
 
 ### Market data (`503` “FINNHUB_API_KEY is not set on the API server”)
 
@@ -115,7 +115,7 @@ Nest also accepts `ALPHAVANTAGE_API_KEY` (no underscore) for compatibility with 
 
 ### GitHub workflow buttons (`503` “workflow dispatch is not configured”)
 
-If the UI calls `https://<your-host>/api/github/workflows/ai-stock-eval` (or `bot-scan` / `position-monitor`) and the API returns **503** with a message about `GITHUB_PERSONAL_TOKEN`, the Cloud Run service does not have that variable set.
+If the UI calls `https://<your-host>/api/github/workflows/position-monitor` and the API returns **503** with a message about `GITHUB_PERSONAL_TOKEN`, the Cloud Run service does not have that variable set.
 
 1. Create a **GitHub PAT** that can dispatch Actions on this repo:
    - **Classic:** `repo` (or scoped to this repo) + **`workflow`** scope.

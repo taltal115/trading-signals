@@ -141,24 +141,6 @@ class LoggingConfig:
 
 
 @dataclass(frozen=True)
-class EventsConfig:
-    top_symbols: int = 1000
-    horizon_days: int = 21
-    rank_by: str = "last_score"
-    collection: str = "stock_events"
-    recommendations_top_n: int = 8
-    min_recommendation_score: int = 55
-    setup_min_score: int = 70
-    watch_min_score: int = 55
-    history_quarters: int = 8
-    pre_event_ret_5d_cap_pct: float = 12.0
-    pre_event_ret_10d_cap_pct: float = 20.0
-    finnhub_symbol_gap_sec: float = 1.2
-    vol_ratio_min: float = 1.5
-    yahoo_fallback_max: int = 200
-
-
-@dataclass(frozen=True)
 class RunSummary:
     run: RunConfig
     universe: UniverseConfig
@@ -179,7 +161,6 @@ class AppConfig:
     sqlite: SqliteConfig
     slack: SlackConfig
     logging: LoggingConfig
-    events: EventsConfig
     ibkr: IbkrConfig
     ibkr_scanner: IbkrScannerConfig
 
@@ -295,7 +276,6 @@ def load_config(config_path: Path) -> AppConfig:
     sqlite_raw = raw.get("sqlite", {}) or {}
     slack_raw = raw.get("slack", {}) or {}
     logging_raw = raw.get("logging", {}) or {}
-    events_raw = raw.get("events", {}) or {}
 
     data_provider_order = data_raw.get("provider_order") or ["yahoo", "stooq"]
     _raw_stooq = data_raw.get("stooq_api_key")
@@ -370,22 +350,6 @@ def load_config(config_path: Path) -> AppConfig:
             min_confidence=int(slack_raw.get("min_confidence", 75)),
         ),
         logging=LoggingConfig(level=str(logging_raw.get("level", "INFO"))),
-        events=EventsConfig(
-            top_symbols=int(events_raw.get("top_symbols", 1000)),
-            horizon_days=int(events_raw.get("horizon_days", 21)),
-            rank_by=str(events_raw.get("rank_by", "last_score")),
-            collection=str(events_raw.get("collection", "stock_events")),
-            recommendations_top_n=int(events_raw.get("recommendations_top_n", 8)),
-            min_recommendation_score=int(events_raw.get("min_recommendation_score", 55)),
-            setup_min_score=int(events_raw.get("setup_min_score", 70)),
-            watch_min_score=int(events_raw.get("watch_min_score", 55)),
-            history_quarters=int(events_raw.get("history_quarters", 8)),
-            pre_event_ret_5d_cap_pct=float(events_raw.get("pre_event_ret_5d_cap_pct", 12.0)),
-            pre_event_ret_10d_cap_pct=float(events_raw.get("pre_event_ret_10d_cap_pct", 20.0)),
-            finnhub_symbol_gap_sec=float(events_raw.get("finnhub_symbol_gap_sec", 1.2)),
-            vol_ratio_min=float(events_raw.get("vol_ratio_min", 1.5)),
-            yahoo_fallback_max=int(events_raw.get("yahoo_fallback_max", 200)),
-        ),
         ibkr=IbkrConfig(
             host=str(ibkr_raw.get("host", "127.0.0.1")),
             port=int(ibkr_raw.get("port", 7497)),

@@ -150,9 +150,41 @@
 
 .universe-active-count {
   font-weight: 600;
+  margin-right: 0.4rem;
 }
 
-.universe-total-count {
+.universe-breakdown {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted, #9aa0a6);
+  margin-top: 0.15rem;
+}
+
+.universe-empty-active {
+  display: inline-block;
+  margin-top: 0.25rem;
+  padding: 0.05em 0.4em;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 4px;
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--sell, #f85149);
+  border: 1px solid rgba(248, 81, 73, 0.35);
+}
+
+.universe-page-explainer {
+  margin: 0 0 1rem;
+  max-width: 48rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--muted, #9aa0a6);
+}
+
+.universe-page-explainer a {
+  color: var(--accent, #58a6ff);
+}
+
+.universe-filter-note {
   color: var(--muted, #9aa0a6);
 }
 
@@ -197,10 +229,18 @@
   border-color: rgba(88, 166, 255, 0.42);
 }
 
+.universe-status-badge[data-status='inactive_below_min'],
+.universe-status-badge[data-status='inactive_wait'],
 .universe-status-badge[data-status='inactive_low_conf'] {
   background: rgba(247, 184, 75, 0.18);
   color: var(--wait, #f7b84b);
   border-color: rgba(247, 184, 75, 0.42);
+}
+
+.universe-status-badge[data-status='inactive_sell'] {
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--sell, #f85149);
+  border-color: rgba(248, 81, 73, 0.35);
 }
 
 .universe-status-badge[data-status='inactive_stale'] {

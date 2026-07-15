@@ -40,19 +40,9 @@ export const routes: Routes = [
           import('./features/positions-page/positions-page.component').then((m) => m.PositionsPageComponent),
       },
       {
-        path: 'reporting',
-        loadComponent: () =>
-          import('./features/reporting-page/reporting-page.component').then((m) => m.ReportingPageComponent),
-      },
-      {
         path: 'monitor',
         loadComponent: () =>
           import('./features/monitor-page/monitor-page.component').then((m) => m.MonitorPageComponent),
-      },
-      {
-        path: 'events',
-        loadComponent: () =>
-          import('./features/events-page/events-page.component').then((m) => m.EventsPageComponent),
       },
       {
         path: 'about',

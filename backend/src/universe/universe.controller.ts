@@ -39,9 +39,17 @@ export class UniverseController {
     @Query('limit') limitStr?: string,
     @Query('sort') sort?: string,
     @Query('dir') dir?: string,
+    @Query('status') status?: string,
   ) {
     const offset = parseNonNegInt(offsetStr, 0, 500_000);
     const limit = parsePositiveInt(limitStr, 50, 5000);
-    return this.firestore.getUniverseSymbolPage(id, offset, limit, sort, dir);
+    return this.firestore.getUniverseSymbolPage(
+      id,
+      offset,
+      limit,
+      sort,
+      dir,
+      status?.trim() || undefined,
+    );
   }
 }

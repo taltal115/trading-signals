@@ -53,15 +53,3 @@
   color: var(--muted, #888);
   border: 1px solid var(--border, #444);
 }
-
-.report-exit-outcome-cell {
-  white-space: normal;
-  max-width: 10.5rem;
-  vertical-align: middle;
-  line-height: 1.35;
-}
-
-.report-exit-outcome-cell .exit-badge {
-  font-size: 0.62rem;
-  padding: 0.15em 0.4em;
-}

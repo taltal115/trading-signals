@@ -56,9 +56,8 @@ var price = await fetchLivePrice("AAPL");
 ```
 
 ### Triggering GitHub Actions
-Use existing functions with PAT stored in localStorage:
+Use existing functions via Nest (`GithubWorkflowsService`):
 - `triggerMonitorWorkflow(ticker)` - position monitor
-- `triggerBotScanWorkflow(ticker)` - trading bot scan
 
 ### Firestore real-time updates
 Use onSnapshot for live data:
@@ -71,7 +70,6 @@ db.collection("signals").orderBy("ts_utc", "desc").limit(25)
 - Use CSS variables from :root (--bg, --surface, --accent, --buy, --sell, --wait, etc.)
 - Follow existing button patterns:
   - `.btn-log-buy` - green buy action
-  - `.btn-reeval` - accent color for re-evaluate
   - `.btn-check-now` - muted for monitor check
   - `.btn-exit` - warn color for exit
 

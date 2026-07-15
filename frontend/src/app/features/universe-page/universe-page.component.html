@@ -1,5 +1,10 @@
 <section id="panel-universe" class="panel active" aria-label="Universe history">
   <h2>Universe snapshots</h2>
+  <p class="universe-page-explainer">
+    Discovery eligibility for the daily scan — <strong>not</strong> profit confidence.
+    <strong>Active</strong> = BUY setups plus high-setup watches (WAIT). Judge trade ideas on the
+    <a routerLink="/signals">Signals</a> page.
+  </p>
   @if (loading()) {
     <p class="empty-state" id="universe-hint">Loading…</p>
   } @else if (error()) {
@@ -39,7 +44,7 @@
             <th>asof_date</th>
             <th>ts_utc</th>
             <th>source</th>
-            <th>active / total</th>
+            <th>scan list</th>
             <th></th>
           </tr>
         </thead>
@@ -49,12 +54,15 @@
               <td class="code">{{ d.asof_date || d.id }}</td>
               <td class="code">{{ d.ts_utc || '' }}</td>
               <td>{{ d.source || '' }}</td>
-              <td class="num">
+              <td>
                 <span class="universe-active-count">{{ d.active_count }}</span>
-                <span class="universe-total-count"> / {{ d.symbol_count }}</span>
-                @if (d.inactive_count > 0) {
-                  <span class="universe-inactive-badge" title="Symbols carried over but not active for the bot">
-                    {{ d.inactive_count }} inactive
+                <span class="universe-breakdown">{{ snapshotBreakdown(d) }}</span>
+                @if (d.active_count === 0) {
+                  <span
+                    class="universe-empty-active"
+                    title="Bot will not scan this day until discovery finds BUY or high-setup watches"
+                  >
+                    empty scan list
                   </span>
                 }
               </td>
@@ -99,11 +107,14 @@
                             class="universe-page-btn universe-filter-clear"
                             (click)="clearSymbolFilters(d.id)"
                           >
-                            Clear filters
+                            Reset to Active
                           </button>
                         }
                         <span class="universe-filter-summary">
                           Page {{ view.pageStart }}–{{ view.pageEnd }} of {{ view.total }}
+                          @if (view.statusFilter === 'active') {
+                            <span class="universe-filter-note"> · showing scan list</span>
+                          }
                         </span>
                       </div>
                       <div
@@ -138,7 +149,7 @@
                       </div>
                       <table class="universe-symbols-table">
                         <caption>
-                          {{ d.active_count }} active / {{ view.total }} total · {{ d.asof_date || d.id }}
+                          {{ snapshotBreakdown(d) }} · {{ d.asof_date || d.id }}
                         </caption>
                         <thead>
                           <tr>
@@ -168,15 +179,9 @@
                               data-sort="confidence"
                               (click)="onSymbolSortHeader(d.id, 'confidence'); $event.stopPropagation()"
                               [ngClass]="symbolThClass(d.id, 'confidence')"
+                              title="Deterministic setup strength (0–100), not expected return"
                             >
-                              Conf
-                            </th>
-                            <th
-                              data-sort="score"
-                              (click)="onSymbolSortHeader(d.id, 'score'); $event.stopPropagation()"
-                              [ngClass]="symbolThClass(d.id, 'score')"
-                            >
-                              Score
+                              Setup
                             </th>
                             <th
                               data-sort="sector"
@@ -210,19 +215,27 @@
                               <td class="code"><strong>{{ row.ticker }}</strong></td>
                               <td>
                                 <span class="universe-status-badge" [attr.data-status]="sk">
-                                  {{ statusLabel(sk) }}
+                                  {{ statusLabel(sk, det) }}
                                 </span>
                               </td>
                               <td>{{ det.name || '' }}</td>
-                              <td class="num">{{ fmtConfidence(det.last_confidence ?? det.confidence) }}</td>
-                              <td class="num">{{ fmtUniverseScore(det.last_score ?? det.score) }}</td>
+                              <td class="num" title="Rule setup strength (not profit edge)">
+                                {{ fmtSetupScore(det) }}
+                              </td>
                               <td><span class="sector-tag">{{ det.sector || '' }}</span></td>
                               <td>{{ det.country || '' }}</td>
                               <td class="num">{{ fmtMarketCapMillions(det.market_cap) }}</td>
                             </tr>
                           } @empty {
                             <tr>
-                              <td colspan="9" class="universe-symbols-empty">No symbols match the current filters.</td>
+                              <td colspan="8" class="universe-symbols-empty">
+                                @if (view.statusFilter === 'active' && d.active_count === 0) {
+                                  No symbols on the scan list for this day. Try “All statuses” or wait
+                                  for the next discovery run.
+                                } @else {
+                                  No symbols match the current filters.
+                                }
+                              </td>
                             </tr>
                           }
                         </tbody>

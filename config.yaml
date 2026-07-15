@@ -124,21 +124,3 @@ slack:
 logging:
   level: "INFO"
 
-# Upcoming financial events for top universe symbols (scripts/discover_stock_events.py).
-events:
-  top_symbols: 1000
-  horizon_days: 21
-  rank_by: last_score
-  collection: stock_events
-  recommendations_top_n: 8
-  min_recommendation_score: 55
-  setup_min_score: 70
-  watch_min_score: 55
-  history_quarters: 8
-  pre_event_ret_5d_cap_pct: 12.0
-  pre_event_ret_10d_cap_pct: 20.0
-  finnhub_symbol_gap_sec: 1.2
-  vol_ratio_min: 1.5
-  # Cap Yahoo calendar fallback calls (top by score among symbols missing Finnhub earnings).
-  yahoo_fallback_max: 200
-

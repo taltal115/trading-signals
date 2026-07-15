@@ -23,7 +23,6 @@ Use this when verifying behavior against the archived [`web/legacy-vanilla/app.j
 - [x] `orderBy ts_utc desc limit 25`
 - [x] Columns: date, ticker, signal price, live price + refresh, entry, stop, target, conf, actions
 - [x] Log Buy → inline form row, `colspan` 9, bracket sync, submit → `my_positions`
-- [x] Re-eval → `trading-bot-scan.yml` dispatch
 - [x] Snapshot clears inline form (same as legacy refresh behavior)
 
 ## Positions

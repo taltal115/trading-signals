@@ -85,31 +85,26 @@ Workflow [`.github/workflows/universe-discovery-daily.yml`](.github/workflows/un
 
 **Secrets:** `FINNHUB_API_KEY` and **`GOOGLE_APPLICATION_CREDENTIALS`** (full service account JSON as the secret value). Use **Actions → Daily universe discovery → Run workflow** to run manually.
 
-### Scheduled stock events (GitHub Actions)
-
-Workflow [`.github/workflows/stock-events-daily.yml`](.github/workflows/stock-events-daily.yml) runs **Monday–Friday** about **08:00 America/New_York** (after universe discovery). It runs [`scripts/discover_stock_events.py`](scripts/discover_stock_events.py): top **1000** symbols by **`last_score`** from the latest universe snapshot, Finnhub earnings calendar + Yahoo fallback → Firestore `stock_events/{asof_date}`. The dashboard **Events** page reads `GET /api/events/latest` (Phase 2: ranked **recommendations** + scored events). Details: [`docs/stock-events.md`](docs/stock-events.md) (master), [`docs/stock-events-mvp.md`](docs/stock-events-mvp.md) (MVP).
-
-The **main bot scan** workflow [`.github/workflows/trading-bot-scan.yml`](.github/workflows/trading-bot-scan.yml) runs **weekdays** about **1 hour before the US cash open** (08:30 `America/New_York`), with the same “two UTC crons + NY time gate” pattern. **`workflow_dispatch`** (and the dashboard **Re-eval** button) can run it any time, optionally for a single `--ticker`.
+The **main bot scan** workflow [`.github/workflows/trading-bot-scan.yml`](.github/workflows/trading-bot-scan.yml) runs **weekdays** about **1 hour before the US cash open** (08:30 `America/New_York`), with the same “two UTC crons + NY time gate” pattern. **`workflow_dispatch`** can run it any time, optionally for a single `--ticker`.
 
 ### Firestore universe (optional but recommended)
 
-- **Discovery** upserts one document per day: fields `asof_date`, `symbols` (full history list), **`active_symbols`** + **`active_count`** (the curated slice the bot uses), **`inactive_symbols`** + **`inactive_count`** (carried over but parked), `ts_utc`, `source`, and `symbol_details` per symbol with `status` (`active` / `inactive_failed` / `inactive_low_conf` / `inactive_stale` / `inactive_capped`), `last_score`, `last_confidence`, `last_active_at`, `inactive_runs_streak`.
-- **Main scan** loads symbols via `read_universe_for_date`: prefers **`active_symbols`** in today’s doc; falls back to legacy `symbols` for older snapshots, then the latest doc if `fallback_latest` is true and today’s is missing/empty.
+- **Discovery** upserts one document per day: fields `asof_date`, `symbols` (full history list), **`active_symbols`** + **`active_count`** (the curated scan list), **`inactive_count`**, optional **`status_counts`**, `ts_utc`, `source`, and per-symbol details (`status`, `last_action`, `last_score`, `last_confidence` as setup strength, streaks).
+- **Main scan** loads **`active_symbols`**. Empty active lists do **not** expand to the full history pool; the loader tries a recent snapshot with actives, then errors. Legacy docs without `active_symbols` still fall back to `symbols`.
 - **CI**: add repo secret **`GOOGLE_APPLICATION_CREDENTIALS`** with the full service account JSON text (the workflows inject it into that env var).
 
 #### How active / inactive is decided each run
 
 `scripts/update_universe_finnhub.py` does, in order:
 
-1. **Today's batch** — rotates through Finnhub up to `--max-calls`, runs the breakout strategy, builds a fresh score for each symbol that passes.
-2. **Carry-over re-validation** — unions the **last `--merge-days` snapshots' symbols** to form a carry-over pool, then **re-runs the strategy** on each (capped by **`--revalidate-cap`** for API budget).
-3. **Min confidence filter** — anything below **`--min-confidence`** → `inactive_low_conf`.
-4. **Stale rule** — symbols whose `last_active_at` is older than **`--stale-days`** **or** whose `inactive_runs_streak` ≥ **`--stale-runs`** → `inactive_stale`.
-5. **Top-K cap** — keep at most **`--top-k`** symbols as `active` (sorted by confidence, score). Remainder → `inactive_capped`.
-6. **Streaks / timestamps** — read from the previous snapshot's `symbol_details`. Active symbols reset `inactive_runs_streak`; inactive symbols increment it and keep `last_active_at` from history.
-7. **Write** — single `universe/{asof_date}` doc with `symbols`, `active_symbols`, `inactive_symbols`, counts, and the extended `symbol_details`.
+1. **Today's batch** — rotates through Finnhub up to `--max-calls`, runs the breakout strategy.
+2. **Carry-over re-validation** — unions the **last `--merge-days` snapshots' symbols**, then re-runs the strategy (capped by **`--revalidate-cap`**).
+3. **Active eligibility** — **BUY** with setup score ≥ **`--min-confidence`**, or **WAIT** with setup score ≥ **`--watch-min-confidence`** (high-setup watch). SELL never active. Weak BUY → `inactive_below_min`; weak WAIT → `inactive_wait`.
+4. **Stale rule** — applies only to **non-eligible** symbols (`--stale-days` / `--stale-runs`). A fresh eligible BUY/WAIT is never blocked by an old streak.
+5. **Top-K cap** — keep at most **`--top-k`** actives (BUY ranked above WAIT, then setup score). Remainder → `inactive_capped`.
+6. **Write** — `universe/{asof_date}` with `active_symbols`, counts, `status_counts`, and symbol subdocs (`last_action`, `active_kind`).
 
-Nothing is deleted: inactive entries stay visible in Firestore (and the universe page UI), the bot just ignores them via `active_symbols`. Tune defaults in the workflow YAML or pass flags locally:
+Setup score (`last_confidence`) is **deterministic rule strength**, not expected return. Prefer the **Signals** page for actionable ideas.
 
 ```bash
 PYTHONPATH=./src python scripts/update_universe_finnhub.py \
@@ -117,7 +112,8 @@ PYTHONPATH=./src python scripts/update_universe_finnhub.py \
   --max-calls 2000 \
   --merge-days 7 \
   --top-k 200 \
-  --min-confidence 0 \
+  --min-confidence 50 \
+  --watch-min-confidence 55 \
   --stale-runs 5 \
   --stale-days 14 \
   --revalidate-cap 1000

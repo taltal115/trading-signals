@@ -7,7 +7,6 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { Subscription, switchMap, catchError, of, tap } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { MarketDataService } from '../../core/market-data.service';
-import { GithubWorkflowsService } from '../../core/github-workflows.service';
 import { OpenPositionService } from '../../core/open-position.service';
 import { PositionsStoreService } from '../../core/positions-store.service';
 import { SignalsNewBadgeService } from '../../core/signals-new-badge.service';
@@ -216,7 +215,6 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly authSvc = inject(AuthService);
   private readonly market = inject(MarketDataService);
-  private readonly github = inject(GithubWorkflowsService);
   private readonly openPos = inject(OpenPositionService);
   private readonly positionsStore = inject(PositionsStoreService);
   readonly signalsBadge = inject(SignalsNewBadgeService);
@@ -245,10 +243,6 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   readonly inlineExpanded = signal(false);
   readonly inlineStatus = signal('');
   readonly inlineSaving = signal(false);
-  /** Per-ticker re-eval UI: loading shows …, then Triggered briefly. */
-  readonly reevalState = signal<{ key: string; phase: 'loading' | 'triggered' } | null>(null);
-  /** Per signal row (rowKey): AI eval workflow dispatch. */
-  readonly aiEvalState = signal<{ key: string; phase: 'loading' | 'triggered' } | null>(null);
 
   /** Per signal row: expanded Finnhub quote + company profile. */
   readonly stockDetailByRow = signal<Record<string, StockDetailEntry>>({});
@@ -1044,71 +1038,6 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     } finally {
       this.inlineSaving.set(false);
     }
-  }
-
-  async reeval(ticker: string): Promise<void> {
-    const sym = String(ticker || '').trim();
-    if (!sym) return;
-    const key = sym.toUpperCase();
-    this.reevalState.set({ key, phase: 'loading' });
-    try {
-      await this.github.triggerBotScanWorkflow(sym);
-      this.reevalState.set({ key, phase: 'triggered' });
-    } catch (e) {
-      console.error(e);
-      this.reevalState.set({ key, phase: 'triggered' });
-    }
-    setTimeout(() => {
-      if (this.reevalState()?.key === key) this.reevalState.set(null);
-    }, 3000);
-  }
-
-  reevalLabel(ticker: string): string {
-    const k = String(ticker || '')
-      .trim()
-      .toUpperCase();
-    const st = this.reevalState();
-    if (st?.key === k && st.phase === 'loading') return '…';
-    if (st?.key === k && st.phase === 'triggered') return 'Triggered';
-    return 'Re-eval';
-  }
-
-  reevalDisabled(ticker: string): boolean {
-    const k = String(ticker || '')
-      .trim()
-      .toUpperCase();
-    const st = this.reevalState();
-    return st?.key === k && st.phase === 'loading';
-  }
-
-  async aiEval(rowKey: string, ticker: string, signalDocId: string): Promise<void> {
-    if (this.guestMode()) return;
-    const sym = String(ticker || '').trim();
-    const doc = String(signalDocId || '').trim();
-    if (!sym || !doc) return;
-    this.aiEvalState.set({ key: rowKey, phase: 'loading' });
-    try {
-      await this.github.triggerAiStockEvalWorkflow(sym, doc);
-      this.aiEvalState.set({ key: rowKey, phase: 'triggered' });
-    } catch (e) {
-      console.error(e);
-      this.aiEvalState.set({ key: rowKey, phase: 'triggered' });
-    }
-    setTimeout(() => {
-      if (this.aiEvalState()?.key === rowKey) this.aiEvalState.set(null);
-    }, 3000);
-  }
-
-  aiEvalLabel(rowKey: string): string {
-    const st = this.aiEvalState();
-    if (st?.key === rowKey && st.phase === 'loading') return '…';
-    if (st?.key === rowKey && st.phase === 'triggered') return 'Triggered';
-    return 'AI eval';
-  }
-
-  aiEvalDisabled(rowKey: string): boolean {
-    const st = this.aiEvalState();
-    return this.guestMode() || (st?.key === rowKey && st.phase === 'loading');
   }
 
   /** True when this signal row already has an `ai_evaluation` payload. */

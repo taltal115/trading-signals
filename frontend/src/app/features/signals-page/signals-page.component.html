@@ -152,7 +152,7 @@
                   class="btn-sig-ai-summary"
                   [class.is-open]="aiSummaryOpen(row.instanceKey)"
                   [disabled]="!hasAiEval(row)"
-                  [title]="hasAiEval(row) ? 'Show AI evaluation summary' : 'Run AI eval first to see a summary'"
+                  [title]="hasAiEval(row) ? 'Show AI evaluation summary' : 'No AI evaluation for this signal'"
                   (click)="toggleAiSummary(row.instanceKey, $event)"
                 >
                   {{ aiSummaryToggleLabel(row) }}
@@ -167,22 +167,6 @@
                   (click)="toggleInline(row.docId, row.signalIndex)"
                 >
                   Log Buy
-                </button>
-                <button
-                  type="button"
-                  class="btn-reeval"
-                  [disabled]="reevalDisabled(str(row.s['ticker']))"
-                  (click)="reeval(str(row.s['ticker']))"
-                >
-                  {{ reevalLabel(str(row.s['ticker'])) }}
-                </button>
-                <button
-                  type="button"
-                  class="btn-ai-eval"
-                  [disabled]="aiEvalDisabled(row.instanceKey)"
-                  (click)="aiEval(row.instanceKey, str(row.s['ticker']), row.docId)"
-                >
-                  {{ aiEvalLabel(row.instanceKey) }}
                 </button>
               </div>
             </td>
@@ -339,7 +323,7 @@
               </ng-container>
               <ng-template #noAi>
                 <p class="sig-ai-empty">
-                  No AI evaluation yet for this signal. Click <strong>AI eval</strong> to run one (results land here after the GitHub workflow finishes).
+                  No AI evaluation yet for this signal.
                 </p>
               </ng-template>
             </td>

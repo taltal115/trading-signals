@@ -89,7 +89,7 @@ export class AuthService {
     return email || user.uid;
   }
 
-  /** Short line for reporting / positions headers. */
+  /** Short line for positions headers. */
   displaySignedInLine(user: AuthUser | null): string {
     if (!user) return '';
     const email = primaryAccountEmail(user);

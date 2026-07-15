@@ -61,6 +61,7 @@ jobs:
             --max-calls 2000 \
             --merge-days 7 \
             --min-confidence 50 \
+            --watch-min-confidence 55 \
             --top-k 100
 
       - name: Save Finnhub batch rotation state

@@ -2,30 +2,56 @@
   <h2>About · Universe discovery</h2>
   <article class="about-doc">
     <p>
-      Discovery builds a dynamic universe from Finnhub symbols plus your strategy filters, then writes one document per day to Firestore: <code>universe/&#123;asof_date&#125;</code> with <code>symbols</code> (full history list), <code>active_symbols</code> / <code>inactive_symbols</code>, <code>active_count</code> / <code>inactive_count</code>, <code>ts_utc</code>, <code>source</code>, and per-symbol status in <code>symbol_details</code>.
+      Discovery builds a dynamic universe from Finnhub symbols plus your strategy filters, then writes one
+      document per day to Firestore: <code>universe/&#123;asof_date&#125;</code> with <code>symbols</code>
+      (full history list), <code>active_symbols</code> (the bot scan list), counts /
+      <code>status_counts</code>, and per-symbol status in the <code>symbols</code> subcollection.
     </p>
     <ul>
       <li>Requires <code>FINNHUB_API_KEY</code> and Firestore credentials.</li>
-      <li>Scheduled via GitHub Actions: <code>.github/workflows/universe-discovery-daily.yml</code> (weekdays, premarket), with artifact rotation state.</li>
-      <li>Main scan loads <code>active_symbols</code> via <code>read_universe_for_date</code> (today or latest fallback). Legacy snapshots without that field fall back to <code>symbols</code>.</li>
+      <li>
+        Scheduled via GitHub Actions:
+        <code>.github/workflows/universe-discovery-daily.yml</code> (weekdays, premarket), with artifact
+        rotation state.
+      </li>
+      <li>
+        Main scan loads <code>active_symbols</code>. An empty scan list does
+        <strong>not</strong> silently expand to thousands of inactive tickers.
+      </li>
+      <li>
+        <strong>Setup</strong> scores are rule strength (0–100), not expected profit. Use
+        <a routerLink="/signals">Signals</a> for actionable BUY ideas.
+      </li>
     </ul>
     <h3>Active vs inactive</h3>
-    <p>Each run carries over names from the last <em>merge-days</em> snapshots, re-runs the strategy on them (capped by <code>--revalidate-cap</code>), and tags every symbol with one of:</p>
+    <p>
+      Each run carries over names from the last <em>merge-days</em> snapshots, re-runs the strategy
+      (capped by <code>--revalidate-cap</code>), and tags every symbol with one of:
+    </p>
     <ul>
-      <li><code>active</code> — passed strategy this run and survived top-K.</li>
-      <li><code>inactive_capped</code> — passed strategy but ranked outside the top-K cap.</li>
-      <li><code>inactive_low_conf</code> — passed strategy but below <code>--min-confidence</code>.</li>
-      <li><code>inactive_stale</code> — not active for too many runs / too long (<code>--stale-runs</code>, <code>--stale-days</code>).</li>
-      <li><code>inactive_failed</code> — strategy returned no signal this run (or no provider data).</li>
+      <li>
+        <code>active</code> — BUY at/above <code>--min-confidence</code>, or WAIT at/above
+        <code>--watch-min-confidence</code> (high-setup watch), then inside top-K. Shown as
+        <strong>Active · BUY</strong> or <strong>Active · Watch</strong>.
+      </li>
+      <li><code>inactive_capped</code> — eligible but ranked outside the top-K cap.</li>
+      <li><code>inactive_below_min</code> — BUY below the BUY setup floor.</li>
+      <li><code>inactive_wait</code> — WAIT below the watch setup floor.</li>
+      <li><code>inactive_sell</code> — strategy returned SELL.</li>
+      <li>
+        <code>inactive_stale</code> — not active for too many runs / too long; never blocks a fresh
+        eligible name.
+      </li>
+      <li><code>inactive_failed</code> — no signal or no price data this run.</li>
     </ul>
-    <p>Nothing is deleted; the bot just reads the <code>active_symbols</code> slice. Streaks and <code>last_active_at</code> are inherited from the previous snapshot.</p>
+    <p>Nothing is deleted; the bot only reads the <code>active_symbols</code> slice.</p>
     <h3>Local discovery</h3>
     <pre><code>./run.sh discovery --max-calls 400 --limit 500
 # Or with all knobs explicit:
 PYTHONPATH=./src python scripts/update_universe_finnhub.py \
   --config config.yaml --max-calls 400 --merge-days 7 \
-  --top-k 200 --min-confidence 0 --stale-runs 5 --stale-days 14 \
-  --revalidate-cap 1000</code></pre>
+  --top-k 200 --min-confidence 50 --watch-min-confidence 55 \
+  --stale-runs 5 --stale-days 14 --revalidate-cap 1000</code></pre>
   </article>
   <p><a routerLink="/about">← About index</a></p>
 </section>

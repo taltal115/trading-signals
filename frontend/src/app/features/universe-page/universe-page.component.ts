@@ -1,9 +1,10 @@
 import { Component, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { formatApiErr } from '../../core/api-errors';
-import { fmtUiDecimal, fmtUiPercent } from '../../core/positions-logic';
+import { fmtUiDecimal } from '../../core/positions-logic';
 import { environment } from '../../../environments/environment';
 
 /** Row in Firestore ``universe.symbol_details`` (Finnhub profile + strategy scores + status). */
@@ -19,6 +20,8 @@ export interface UniverseSymbolDetail {
   inactive_reason?: string;
   last_score?: number;
   last_confidence?: number;
+  last_action?: string;
+  active_kind?: string;
   last_evaluated_run_at?: string;
   last_active_at?: string;
   last_active_asof_date?: string;
@@ -29,6 +32,9 @@ export interface UniverseSymbolDetail {
 export type UniverseStatusKey =
   | 'active'
   | 'inactive_failed'
+  | 'inactive_below_min'
+  | 'inactive_wait'
+  | 'inactive_sell'
   | 'inactive_low_conf'
   | 'inactive_stale'
   | 'inactive_capped'
@@ -37,21 +43,27 @@ export type UniverseStatusKey =
 export type UniverseStatusFilter = 'all' | UniverseStatusKey;
 
 const STATUS_LABELS: Record<UniverseStatusKey, string> = {
-  active: 'Active',
-  inactive_failed: 'Failed',
-  inactive_low_conf: 'Low conf',
+  active: 'Active (scan list)',
+  inactive_failed: 'Failed / no data',
+  inactive_below_min: 'BUY below min',
+  inactive_wait: 'Weak wait',
+  inactive_sell: 'Sell',
+  inactive_low_conf: 'Not eligible (legacy)',
   inactive_stale: 'Stale',
-  inactive_capped: 'Capped',
+  inactive_capped: 'Capped (top-K)',
   unknown: 'Unknown',
 };
 
 const STATUS_FILTER_OPTIONS: { value: UniverseStatusFilter; label: string }[] = [
+  { value: 'active', label: 'Active (scan list)' },
   { value: 'all', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive_failed', label: 'Failed' },
-  { value: 'inactive_low_conf', label: 'Low conf' },
+  { value: 'inactive_failed', label: 'Failed / no data' },
+  { value: 'inactive_below_min', label: 'BUY below min' },
+  { value: 'inactive_wait', label: 'Weak wait' },
+  { value: 'inactive_sell', label: 'Sell' },
   { value: 'inactive_stale', label: 'Stale' },
   { value: 'inactive_capped', label: 'Capped' },
+  { value: 'inactive_low_conf', label: 'Legacy not-eligible' },
   { value: 'unknown', label: 'Unknown' },
 ];
 
@@ -95,6 +107,7 @@ export interface UniverseSnapshotLite {
   symbol_count: number;
   active_count: number;
   inactive_count: number;
+  status_counts?: Record<string, number>;
 }
 
 interface SnapshotPage {
@@ -112,6 +125,7 @@ interface UniverseListApiResponse {
       symbol_count?: number;
       active_count?: number;
       inactive_count?: number;
+      status_counts?: Record<string, number>;
     };
   }[];
   nextCursor: string | null;
@@ -137,9 +151,9 @@ function defaultSymbolTableState(): SymbolTableState {
     total: 0,
     offset: 0,
     rows: [],
-    sortKey: 'score',
+    sortKey: 'confidence',
     sortDir: 'desc',
-    statusFilter: 'all',
+    statusFilter: 'active',
     search: '',
   };
 }
@@ -147,7 +161,7 @@ function defaultSymbolTableState(): SymbolTableState {
 @Component({
   selector: 'app-universe-page',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterLink],
   templateUrl: './universe-page.component.html',
   styleUrl: './universe-page.component.css',
 })
@@ -209,6 +223,7 @@ export class UniversePageComponent implements OnInit, OnDestroy {
               symbol_count: total,
               active_count: active,
               inactive_count: inactive,
+              status_counts: d.data?.status_counts,
             };
           }),
           nextCursor: r.nextCursor ?? null,
@@ -302,11 +317,14 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     const base = environment.apiBaseUrl;
     this.patchSymbolState(docId, { loading: true, error: null, offset });
 
-    const params = new HttpParams()
+    let params = new HttpParams()
       .set('offset', String(offset))
       .set('limit', String(SYMBOL_PAGE_SIZE))
       .set('sort', st.sortKey)
       .set('dir', st.sortDir);
+    if (st.statusFilter === 'active') {
+      params = params.set('status', 'active');
+    }
 
     const sub = this.http
       .get<SymbolPageApiResponse>(`${base}/api/universe/${encodeURIComponent(docId)}/symbols`, {
@@ -340,11 +358,15 @@ export class UniversePageComponent implements OnInit, OnDestroy {
   symbolViewFor(docId: string): SymbolTableView | null {
     const st = this.symbolState()[docId];
     if (!st) return null;
-    const pageRows = this.filteredRows(st);
+    // When status=active, server already scoped the page; only search filters client-side.
+    const pageRows =
+      st.statusFilter === 'active'
+        ? this.filteredRowsBySearch(st)
+        : this.filteredRows(st);
     return {
       loading: st.loading,
       error: st.error,
-      total: st.total,
+      total: st.statusFilter === 'active' ? st.total : st.total,
       offset: st.offset,
       pageRows,
       pageStart: pageRows.length === 0 ? 0 : st.offset + 1,
@@ -356,6 +378,25 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     };
   }
 
+  private filteredRowsBySearch(st: SymbolTableState): SymbolRow[] {
+    const q = st.search.trim().toUpperCase();
+    if (!q) return st.rows;
+    return st.rows.filter((row) => {
+      const det = row.detail;
+      return (
+        row.ticker.toUpperCase().includes(q) ||
+        String(det.name ?? '')
+          .toUpperCase()
+          .includes(q) ||
+        String(det.sector ?? '')
+          .toUpperCase()
+          .includes(q) ||
+        String(det.country ?? '')
+          .toUpperCase()
+          .includes(q)
+      );
+    });
+  }
   private filteredRows(st: SymbolTableState): SymbolRow[] {
     const q = st.search.trim().toUpperCase();
     return st.rows.filter((row) => {
@@ -398,7 +439,8 @@ export class UniversePageComponent implements OnInit, OnDestroy {
 
   setSymbolStatusFilter(docId: string, raw: string): void {
     const value = raw as UniverseStatusFilter;
-    this.patchSymbolState(docId, { statusFilter: value });
+    this.patchSymbolState(docId, { statusFilter: value, offset: 0 });
+    this.loadSymbolPage(docId, 0);
   }
 
   setSymbolSearch(docId: string, value: string): void {
@@ -406,13 +448,14 @@ export class UniversePageComponent implements OnInit, OnDestroy {
   }
 
   clearSymbolFilters(docId: string): void {
-    this.patchSymbolState(docId, { statusFilter: 'all', search: '' });
+    this.patchSymbolState(docId, { statusFilter: 'active', search: '', offset: 0 });
+    this.loadSymbolPage(docId, 0);
   }
 
   symbolFiltersActive(docId: string): boolean {
     const st = this.symbolState()[docId];
     if (!st) return false;
-    return st.statusFilter !== 'all' || st.search.trim().length > 0;
+    return st.statusFilter !== 'active' || st.search.trim().length > 0;
   }
 
   nextSymbolPage(docId: string): void {
@@ -450,18 +493,18 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     return fmtUiDecimal(m) + 'M USD';
   }
 
-  fmtUniverseScore(score: number | null | undefined): string {
+  fmtSetupScore(det: UniverseSymbolDetail): string {
+    const c = det.last_confidence ?? det.confidence;
+    if (c != null && Number.isFinite(Number(c))) {
+      return String(Math.round(Number(c)));
+    }
+    const score = det.last_score ?? det.score;
     if (score == null || !Number.isFinite(Number(score))) return '—';
     const s = Number(score);
     if (s >= 0 && s <= 1.0 + 1e-9) {
-      return fmtUiPercent(s * 100) + '%';
+      return String(Math.round(s * 100));
     }
     return fmtUiDecimal(s);
-  }
-
-  fmtConfidence(c: number | null | undefined): string {
-    if (c == null || !Number.isFinite(Number(c))) return '—';
-    return String(Math.round(Number(c)));
   }
 
   statusKey(det: UniverseSymbolDetail | null | undefined): UniverseStatusKey {
@@ -469,6 +512,9 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     const raw = String(det.status ?? '').trim().toLowerCase();
     if (raw === 'active') return 'active';
     if (raw === 'inactive_failed') return 'inactive_failed';
+    if (raw === 'inactive_below_min') return 'inactive_below_min';
+    if (raw === 'inactive_wait') return 'inactive_wait';
+    if (raw === 'inactive_sell') return 'inactive_sell';
     if (raw === 'inactive_low_conf') return 'inactive_low_conf';
     if (raw === 'inactive_stale') return 'inactive_stale';
     if (raw === 'inactive_capped') return 'inactive_capped';
@@ -477,8 +523,25 @@ export class UniversePageComponent implements OnInit, OnDestroy {
     return 'active';
   }
 
-  statusLabel(key: UniverseStatusKey): string {
+  statusLabel(key: UniverseStatusKey, det?: UniverseSymbolDetail | null): string {
+    if (key === 'active' && det) {
+      const kind = String(det.active_kind || '').toLowerCase();
+      const action = String(det.last_action || '').toUpperCase();
+      if (kind === 'buy' || action === 'BUY') return 'Active · BUY';
+      if (kind === 'watch' || action === 'WAIT') return 'Active · Watch';
+    }
     return STATUS_LABELS[key] ?? STATUS_LABELS.unknown;
+  }
+
+  /** Snapshot headline counts for buy/watch when status_counts exists. */
+  snapshotBreakdown(d: UniverseSnapshotLite): string {
+    const sc = d.status_counts;
+    if (sc && (sc['active_buy'] != null || sc['active_watch'] != null)) {
+      const buy = Number(sc['active_buy'] ?? 0);
+      const watch = Number(sc['active_watch'] ?? 0);
+      return `${buy} BUY · ${watch} Watch · ${d.symbol_count} tracked`;
+    }
+    return `${d.active_count} on scan list · ${d.symbol_count} tracked`;
   }
 
   ngOnDestroy(): void {

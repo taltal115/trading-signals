@@ -30,7 +30,7 @@ flowchart LR
 |------|------|
 | `frontend/src/app/core/` | Auth, allowlist, Firestore helpers, market data, GitHub dispatch, position/monitor stores, exit dialog |
 | `frontend/src/app/layout/` | App shell (sidebar, mobile drawer, exit `<dialog>`), login page |
-| `frontend/src/app/features/` | Dashboard, universe, signals, positions, **reporting** (trade + signal join), monitor, about\* |
+| `frontend/src/app/features/` | Dashboard, universe, signals, positions, monitor, about\* |
 | `frontend/src/environments/` | Allowlists, `apiBaseUrl`; GitHub workflow dispatch is server-side via Nest (no PAT in the bundle) |
 
 ## Firebase
@@ -51,7 +51,7 @@ flowchart LR
 ## External APIs (browser today, Nest later)
 
 - **`MarketDataService`:** Finnhub quotes, Twelve Data / Alpha Vantage daily candles (same fallback order as legacy).
-- **`GithubWorkflowsService`:** `workflow_dispatch` for `position-monitor.yml` and `trading-bot-scan.yml`; PAT in `localStorage` (same as legacy).
+- **`GithubWorkflowsService`:** Nest `POST /api/github/workflows/position-monitor` (dashboard **Check**); PAT is server-side only (`GITHUB_PERSONAL_TOKEN`).
 
 **Nest migration:** set `environment.apiBaseUrl` and replace `fetch` calls in these services with `HttpClient` to the backend; keep method names and call sites stable so feature components change little.
 
