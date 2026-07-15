@@ -50,5 +50,6 @@ Always store OpenAI `usage` token counts. Optional `config.ai.pricing[model].{pr
 
 ## UI
 
-- **Signals table:** AI chip from `ai_gate` / `ai.last_decision`; tokens/model teaser; toggle expands latest recommendation + history from `ai_evals`.
-- **`/ai-analytics`:** aggregates requests / tokens / cost by stage, ticker, day.
+- **Signals table:** AI chip from `ai_gate` / `ai.last_decision`; tokens/model teaser; toggle expands latest recommendation + history from `GET /api/ai-evals?signalDocId=&ticker=`.
+- **`/ai-analytics`:** aggregates via `GET /api/ai-evals/recent` (requests / tokens / cost by stage, ticker, day).
+- Compatibility aliases also exist under `/api/signals/ai-evals` and `/api/signals/ai-evals/recent`.
