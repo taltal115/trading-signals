@@ -1245,6 +1245,32 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     return parts.join(' · ');
   }
 
+  holdingAdviceForRow(
+    row: SigDisplayRow
+  ): { advice: string; headline: string; why: string; riskLevel: string } | null {
+    const raw = row.s['holding_advice'];
+    if (!raw || typeof raw !== 'object') return null;
+    const h = raw as Record<string, unknown>;
+    const advice = _str(h['advice']).toUpperCase();
+    if (!advice) return null;
+    return {
+      advice,
+      headline: _str(h['headline']),
+      why: _str(h['why']),
+      riskLevel: _str(h['risk_level']),
+    };
+  }
+
+  holdingAdviceChip(row: SigDisplayRow): { label: string; cls: string } | null {
+    const hold = this.holdingAdviceForRow(row);
+    if (!hold) {
+      const paper = _str(row.s['paper_status']).toLowerCase();
+      if (paper === 'open') return { label: 'Paper open', cls: aiActionClassOf('PENDING') };
+      return null;
+    }
+    return { label: hold.advice, cls: aiActionClassOf(hold.advice) };
+  }
+
   aiViewForRow(row: SigDisplayRow): AiEvaluationView | null {
     return buildAiEvaluationView(row.s as Record<string, unknown>);
   }

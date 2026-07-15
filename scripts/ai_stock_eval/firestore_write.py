@@ -7,7 +7,13 @@ from typing import Any
 
 from google.cloud import firestore
 
-from signals_bot.storage.firestore import MY_POSITIONS_COLLECTION, SIGNALS_COLLECTION, get_firestore_client
+from signals_bot.storage.firestore import (
+    MY_POSITIONS_COLLECTION,
+    SIGNALS_COLLECTION,
+    get_firestore_client,
+    mirror_holding_advice_to_signal,
+    upsert_signal_paper_position,
+)
 
 AI_EVALS_COLLECTION = "ai_evals"
 
@@ -160,10 +166,11 @@ def write_entry_evaluation(
     cost_estimated = bool(getattr(usage, "cost_estimated", False))
 
     signal_index = -1
+    merged_row: dict[str, Any] | None = None
 
     @firestore.transactional
     def _merge(transaction, ref):  # type: ignore[no-untyped-def]
-        nonlocal signal_index
+        nonlocal signal_index, merged_row
         snap = ref.get(transaction=transaction)
         if not snap.exists:
             raise RuntimeError(f"Signals run document missing: {ref.id}")
@@ -201,7 +208,6 @@ def write_entry_evaluation(
                 eval_count=eval_count,
                 ts_utc=ts_utc,
             )
-            # Keep slim legacy pointer for older UI during transition
             r["ai_evaluation"] = {
                 "evaluated_at_utc": ts_utc,
                 "ticker": sym,
@@ -228,6 +234,7 @@ def write_entry_evaluation(
                         r["hold_days"] = int(hold_days)
                     except (TypeError, ValueError):
                         pass
+            merged_row = dict(r)
             new_sigs.append(r)
         if not found:
             raise RuntimeError(
@@ -238,6 +245,37 @@ def write_entry_evaluation(
     txn = db.transaction()
     _merge(txn, run_ref)
 
+    paper_id: str | None = None
+    if merged_row is not None:
+        paper_id = upsert_signal_paper_position(
+            db=db,
+            signal_doc_id=signal_doc_id.strip(),
+            signal_row=merged_row,
+        )
+
+        @firestore.transactional
+        def _stamp(transaction, ref):  # type: ignore[no-untyped-def]
+            snap = ref.get(transaction=transaction)
+            if not snap.exists:
+                return
+            data = snap.to_dict() or {}
+            sigs = data.get("signals")
+            if not isinstance(sigs, list):
+                return
+            new_sigs: list[Any] = []
+            for row in sigs:
+                if not isinstance(row, dict):
+                    new_sigs.append(row)
+                    continue
+                r = dict(row)
+                if str(r.get("ticker", "")).strip().upper() == sym:
+                    r["paper_position_id"] = paper_id
+                    r["paper_status"] = r.get("paper_status") or "open"
+                new_sigs.append(r)
+            transaction.update(ref, {"signals": new_sigs})
+
+        _stamp(db.transaction(), run_ref)
+
     eval_doc: dict[str, Any] = {
         "eval_id": eval_id,
         "ts_utc": ts_utc,
@@ -245,7 +283,7 @@ def write_entry_evaluation(
         "ticker": sym,
         "signal_doc_id": signal_doc_id.strip(),
         "signal_index": signal_index,
-        "position_id": position_id,
+        "position_id": position_id or paper_id,
         "model": model,
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
@@ -360,6 +398,29 @@ def write_holding_evaluation(
         except (TypeError, ValueError):
             pass
     pref.update(update)
+
+    # Mirror onto signal row for Signals UI; close paper position on EXIT advice.
+    sid = str(signal_doc_id or pdata.get("signal_doc_id") or "").strip()
+    if sid:
+        mirror_holding_advice_to_signal(
+            db=db,
+            signal_doc_id=sid,
+            ticker=sym,
+            advice=advice,
+            paper_position_id=position_id,
+            ai_summary=ai_summary,
+        )
+    if str(advice.get("advice") or "").upper() == "EXIT" and str(
+        pdata.get("origin") or ""
+    ) == "signal_paper":
+        pref.update(
+            {
+                "status": "closed",
+                "closed_at_utc": ts_utc,
+                "exit_notes": f"Closed by holding advisor EXIT: {advice.get('headline') or ''}",
+                "exit_origin": "holding_advisor",
+            }
+        )
 
     eval_doc: dict[str, Any] = {
         "eval_id": eval_id,

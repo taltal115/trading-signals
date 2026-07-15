@@ -1,4 +1,4 @@
-# AI holding advisor for open my_positions
+# AI holding advisor for open my_positions (including signal paper positions).
 name: AI holding advisor
 
 on:
@@ -9,18 +9,31 @@ on:
         required: false
         default: ""
       owner_uid:
-        description: "Optional owner uid"
+        description: "Optional owner uid (empty = all open; use __signal_paper__ for bot signals only)"
         required: false
         default: ""
+      paper_only:
+        description: "true = only signal paper positions"
+        required: false
+        default: "true"
+  # During US cash session weekdays (UTC): ~10:30, 12:30, 14:30, 15:30 ET depending on DST.
   schedule:
-    # Roughly mid US session weekdays
+    - cron: "30 14 * * 1-5"
     - cron: "30 16 * * 1-5"
+    - cron: "30 18 * * 1-5"
+    - cron: "30 19 * * 1-5"
+  workflow_run:
+    workflows: ["AI entry batch"]
+    types: [completed]
 
 permissions:
   contents: read
 
 jobs:
   holding:
+    if: >
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,11 +69,21 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           EXTRA=""
-          if [ -n "${{ github.event.inputs.ticker }}" ]; then
-            EXTRA="$EXTRA --ticker ${{ github.event.inputs.ticker }}"
-          fi
-          if [ -n "${{ github.event.inputs.owner_uid }}" ]; then
-            EXTRA="$EXTRA --owner-uid ${{ github.event.inputs.owner_uid }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ -n "${{ github.event.inputs.ticker }}" ]; then
+              EXTRA="$EXTRA --ticker ${{ github.event.inputs.ticker }}"
+            fi
+            if [ -n "${{ github.event.inputs.owner_uid }}" ]; then
+              EXTRA="$EXTRA --owner-uid ${{ github.event.inputs.owner_uid }}"
+            fi
+            if [ "${{ github.event.inputs.paper_only }}" = "true" ] || [ -z "${{ github.event.inputs.paper_only }}" ]; then
+              if [ -z "${{ github.event.inputs.owner_uid }}" ]; then
+                EXTRA="$EXTRA --paper-only"
+              fi
+            fi
+          else
+            # Scheduled / chained runs focus on signal paper positions.
+            EXTRA="$EXTRA --paper-only"
           fi
           PYTHONPATH=./src:. python -m scripts.ai_holding_advisor.main \
             --config config.yaml \

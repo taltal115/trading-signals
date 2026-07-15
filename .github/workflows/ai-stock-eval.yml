@@ -1,23 +1,37 @@
-# Manual AI evaluation: context + OpenAI JSON + blended score → Firestore (nested under signals[] on run doc; optional my_positions.ai_evaluation).
+# AI stock evaluation — single ticker (manual) or scheduled pending batch (same as entry batch).
 name: AI stock evaluation
 
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "batch = all pending on latest/run; single = one ticker"
+        required: true
+        default: "batch"
+        type: choice
+        options:
+          - batch
+          - single
       ticker:
-        description: "Ticker symbol"
-        required: true
+        description: "Ticker (required when mode=single)"
+        required: false
+        default: ""
       signal_doc_id:
-        description: "Firestore run document id (`signals` collection; same id shown on the Signals page)"
-        required: true
+        description: "Firestore signals run doc id (empty = latest for batch)"
+        required: false
+        default: ""
       position_id:
-        description: "my_positions document id (empty = only merge into run doc signals[]; if set, also updates position.ai_evaluation)"
+        description: "my_positions document id (single mode only)"
         required: false
         default: ""
       owner_uid:
-        description: "Firebase uid for position owner (empty if no position_id)"
+        description: "Firebase uid for position owner (single mode only)"
         required: false
         default: ""
+  # Mid-morning + early afternoon ET window (UTC): catch pending rows if entry batch was missed.
+  schedule:
+    - cron: "0 15 * * 1-5"
+    - cron: "0 17 * * 1-5"
 
 permissions:
   contents: read
@@ -38,64 +52,60 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Check Firestore credentials secret
+      - name: Check secrets
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
-            echo "::error::Set repository secret GOOGLE_APPLICATION_CREDENTIALS. See README.md."
+            echo "::error::Set GOOGLE_APPLICATION_CREDENTIALS"
             exit 1
           fi
-
-      - name: Verify evaluation context (history, Finnhub, Firestore score)
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
-          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
-        run: |
-          POS_ARG=""
-          if [ -n "${{ github.event.inputs.position_id }}" ]; then
-            POS_ARG="--position-id ${{ github.event.inputs.position_id }}"
-          fi
-          OWN_ARG=""
-          if [ -n "${{ github.event.inputs.owner_uid }}" ]; then
-            OWN_ARG="--owner-uid ${{ github.event.inputs.owner_uid }}"
-          fi
-          PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \
-            --config config.yaml \
-            --ticker "${{ github.event.inputs.ticker }}" \
-            --signal-doc-id "${{ github.event.inputs.signal_doc_id }}" \
-            --verify-only \
-            --github-verify-annotations \
-            $POS_ARG \
-            $OWN_ARG
-
-      - name: Check OpenAI API key secret
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
           if [ -z "${OPENAI_API_KEY:-}" ]; then
-            echo "::error::Set repository secret OPENAI_API_KEY. Without it the job would run source=stub (no real LLM). See .env.example."
+            echo "::error::Set OPENAI_API_KEY"
             exit 1
           fi
 
-      - name: Run AI evaluation (prints prompts, then OpenAI + Firestore write)
+      - name: Run AI evaluation
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          POS_ARG=""
-          if [ -n "${{ github.event.inputs.position_id }}" ]; then
-            POS_ARG="--position-id ${{ github.event.inputs.position_id }}"
+          MODE="${{ github.event.inputs.mode || 'batch' }}"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            MODE="batch"
           fi
-          OWN_ARG=""
-          if [ -n "${{ github.event.inputs.owner_uid }}" ]; then
-            OWN_ARG="--owner-uid ${{ github.event.inputs.owner_uid }}"
+          DOC_ARG=""
+          if [ -n "${{ github.event.inputs.signal_doc_id }}" ]; then
+            DOC_ARG="--signal-doc-id ${{ github.event.inputs.signal_doc_id }}"
           fi
-          PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \
-            --config config.yaml \
-            --ticker "${{ github.event.inputs.ticker }}" \
-            --signal-doc-id "${{ github.event.inputs.signal_doc_id }}" \
-            --debug-prompt \
-            $POS_ARG \
-            $OWN_ARG
+          if [ "$MODE" = "batch" ]; then
+            PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \
+              --config config.yaml \
+              --batch \
+              $DOC_ARG
+          else
+            if [ -z "${{ github.event.inputs.ticker }}" ]; then
+              echo "::error::ticker required for mode=single"
+              exit 1
+            fi
+            if [ -z "${{ github.event.inputs.signal_doc_id }}" ]; then
+              echo "::error::signal_doc_id required for mode=single"
+              exit 1
+            fi
+            POS_ARG=""
+            OWN_ARG=""
+            if [ -n "${{ github.event.inputs.position_id }}" ]; then
+              POS_ARG="--position-id ${{ github.event.inputs.position_id }}"
+            fi
+            if [ -n "${{ github.event.inputs.owner_uid }}" ]; then
+              OWN_ARG="--owner-uid ${{ github.event.inputs.owner_uid }}"
+            fi
+            PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \
+              --config config.yaml \
+              --ticker "${{ github.event.inputs.ticker }}" \
+              --signal-doc-id "${{ github.event.inputs.signal_doc_id }}" \
+              $POS_ARG \
+              $OWN_ARG
+          fi

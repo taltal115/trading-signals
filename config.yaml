@@ -130,7 +130,7 @@ ai:
   entry_min_total: 70
   entry_min_conviction: 0.7
   max_entry_evals_per_run: 15
-  max_holding_evals_per_run: 20
+  max_holding_evals_per_run: 40
   model: gpt-4.1
   # Optional USD per 1M tokens for estimated_cost_usd on ai_evals
   pricing:

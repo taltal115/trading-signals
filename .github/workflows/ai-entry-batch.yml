@@ -1,4 +1,4 @@
-# Batch AI entry eval for pending BUY rows on a signals run (or latest).
+# Batch AI entry eval for pending BUY rows (opens/refreshes paper positions).
 name: AI entry batch
 
 on:
@@ -8,15 +8,23 @@ on:
         description: "Firestore signals run doc id (empty = latest)"
         required: false
         default: ""
-  # Optional: weekdays after typical scan window (~09:00 ET ≈ 13:00 UTC)
+  # After typical Premarket scan (~08:30 ET). 13:30 & 14:00 UTC cover EST/EDT.
   schedule:
-    - cron: "0 13 * * 1-5"
+    - cron: "30 13 * * 1-5"
+    - cron: "0 14 * * 1-5"
+  # Chain when Premarket trading bot scan finishes successfully.
+  workflow_run:
+    workflows: ["Premarket trading bot scan"]
+    types: [completed]
 
 permissions:
   contents: read
 
 jobs:
   entry-batch:
+    if: >
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +60,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           DOC_ARG=""
-          if [ -n "${{ github.event.inputs.signal_doc_id }}" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.signal_doc_id }}" ]; then
             DOC_ARG="--signal-doc-id ${{ github.event.inputs.signal_doc_id }}"
           fi
           PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \

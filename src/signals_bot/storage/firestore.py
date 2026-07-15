@@ -23,6 +23,8 @@ MY_POSITIONS_COLLECTION = "my_positions"
 MY_POSITIONS_COLLECTION_LEGACY_ARCHIVE = "my_positions_old"
 # Staging collection for deterministic ids before renaming collections in Firebase.
 MY_POSITIONS_STAGING_COLLECTION = "my_positions_new"
+# Synthetic owner for bot BUY signals treated as open paper positions (holding advisor / monitor).
+SIGNAL_PAPER_OWNER_UID = "__signal_paper__"
 
 
 def _normalize_universe_symbols(symbols: Iterable[str]) -> list[str]:
@@ -474,6 +476,157 @@ def write_buy_signals(
     db = _build_client()
     new_id = signals_run_document_id(asof_date=asof_date, ts_utc=str(doc["ts_utc"]), run_id=run_id)
     db.collection(SIGNALS_COLLECTION).document(new_id).set(doc)
+
+    # Treat every BUY as an open paper position so holding/monitor AI flows apply.
+    paper_ids: list[str] = []
+    for row in payload_signals:
+        pid = upsert_signal_paper_position(
+            db=db,
+            signal_doc_id=new_id,
+            signal_row=row,
+            asof_date=asof_date,
+        )
+        paper_ids.append(pid)
+    if paper_ids:
+        # Stamp paper_position_id back onto each signal row for the UI.
+        snap = db.collection(SIGNALS_COLLECTION).document(new_id).get()
+        data = snap.to_dict() or {}
+        sigs = list(data.get("signals") or [])
+        by_ticker = {str(r.get("ticker", "")).upper(): pid for r, pid in zip(payload_signals, paper_ids)}
+        new_sigs = []
+        for r in sigs:
+            if not isinstance(r, dict):
+                new_sigs.append(r)
+                continue
+            nr = dict(r)
+            t = str(nr.get("ticker", "")).upper()
+            if t in by_ticker:
+                nr["paper_position_id"] = by_ticker[t]
+                nr["paper_status"] = "open"
+            new_sigs.append(nr)
+        db.collection(SIGNALS_COLLECTION).document(new_id).update({"signals": new_sigs})
+
+
+def paper_position_doc_id(*, signal_doc_id: str, ticker: str) -> str:
+    """Deterministic id so re-runs upsert instead of duplicating paper positions."""
+    sid = re.sub(r"[^A-Za-z0-9._-]+", "_", signal_doc_id.strip())[:120]
+    sym = ticker.strip().upper()
+    return f"paper__{sid}__{sym}"
+
+
+def upsert_signal_paper_position(
+    *,
+    db: firestore.Client | None = None,
+    signal_doc_id: str,
+    signal_row: dict[str, Any],
+    asof_date: str = "",
+) -> str:
+    """Create/update a my_positions row owned by SIGNAL_PAPER_OWNER_UID for a BUY signal."""
+    client = db or _build_client()
+    ticker = str(signal_row.get("ticker") or "").strip().upper()
+    if not ticker:
+        raise ValueError("signal_row missing ticker")
+    pos_id = paper_position_doc_id(signal_doc_id=signal_doc_id, ticker=ticker)
+    ref = client.collection(MY_POSITIONS_COLLECTION).document(pos_id)
+    existing = ref.get()
+    now = datetime.now(timezone.utc).isoformat()
+    entry = float(signal_row.get("close") or 0.0)
+    stop = signal_row.get("stop")
+    target = signal_row.get("target")
+    hold_days = signal_row.get("hold_days")
+    try:
+        hold_i = int(hold_days) if hold_days is not None else None
+    except (TypeError, ValueError):
+        hold_i = None
+
+    base: dict[str, Any] = {
+        "ticker": ticker,
+        "entry_price": entry,
+        "quantity": None,
+        "stop_price": float(stop) if stop is not None else None,
+        "target_price": float(target) if target is not None else None,
+        "signal_doc_id": signal_doc_id.strip(),
+        "signal_confidence": signal_row.get("confidence"),
+        "hold_days_from_signal": hold_i,
+        "signal_close_price": entry,
+        "sector": signal_row.get("sector"),
+        "industry": signal_row.get("industry"),
+        "estimated_hold_days": signal_row.get("estimated_hold_days"),
+        "status": "open",
+        "origin": "signal_paper",
+        "owner_uid": SIGNAL_PAPER_OWNER_UID,
+        "owner_email": "signal-paper@bot.local",
+        "owner_display_name": "Signal paper",
+        "notes": "Auto-opened from bot BUY signal (paper).",
+        "updated_at_utc": now,
+        "ai_gate": signal_row.get("ai_gate") or "pending",
+        "asof_date": asof_date or "",
+    }
+    if signal_row.get("recommendation") is not None:
+        base["recommendation"] = signal_row.get("recommendation")
+    if signal_row.get("ai") is not None:
+        base["ai"] = signal_row.get("ai")
+
+    if existing.exists:
+        prev = existing.to_dict() or {}
+        # Do not reopen if already closed by monitor/advisor.
+        if str(prev.get("status") or "").lower() == "closed":
+            return pos_id
+        patch = {k: v for k, v in base.items() if k not in ("created_at_utc", "owner_uid", "origin")}
+        # Keep created_at_utc; refresh plan levels from latest signal/AI.
+        ref.set(patch, merge=True)
+    else:
+        base["created_at_utc"] = now
+        ref.set(base)
+    return pos_id
+
+
+def mirror_holding_advice_to_signal(
+    *,
+    db: firestore.Client | None = None,
+    signal_doc_id: str,
+    ticker: str,
+    advice: dict[str, Any],
+    paper_position_id: str,
+    ai_summary: dict[str, Any] | None = None,
+) -> None:
+    """Copy holding advice onto the signals[] row for the Signals UI."""
+    if not signal_doc_id.strip() or not ticker.strip():
+        return
+    client = db or _build_client()
+    ref = client.collection(SIGNALS_COLLECTION).document(signal_doc_id.strip())
+    sym = ticker.strip().upper()
+
+    @firestore.transactional
+    def _do(transaction, run_ref):  # type: ignore[no-untyped-def]
+        snap = run_ref.get(transaction=transaction)
+        if not snap.exists:
+            return
+        data = snap.to_dict() or {}
+        sigs = data.get("signals")
+        if not isinstance(sigs, list):
+            return
+        new_sigs: list[Any] = []
+        for row in sigs:
+            if not isinstance(row, dict):
+                new_sigs.append(row)
+                continue
+            r = dict(row)
+            if str(r.get("ticker", "")).strip().upper() == sym:
+                r["holding_advice"] = advice
+                r["holding_advice_at_utc"] = datetime.now(timezone.utc).isoformat()
+                r["paper_position_id"] = paper_position_id
+                r["paper_status"] = "open"
+                if ai_summary:
+                    r["holding_ai"] = ai_summary
+                if str(advice.get("advice") or "").upper() == "EXIT":
+                    r["paper_status"] = "exit_advised"
+            new_sigs.append(r)
+        transaction.update(run_ref, {"signals": new_sigs})
+
+    txn = client.transaction()
+    _do(txn, ref)
+
 
 def _holdings_from_portfolio_doc(data: dict[str, Any]) -> tuple[set[str], dict[str, dict[str, Any]]]:
     holdings: set[str] = set()

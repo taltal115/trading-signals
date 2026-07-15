@@ -147,6 +147,12 @@
                   [ngClass]="chip.cls"
                   [title]="'AI: ' + chip.label"
                 >{{ chip.label }}</span>
+                <span
+                  *ngIf="holdingAdviceChip(row) as hchip"
+                  class="sig-ai-action-chip"
+                  [ngClass]="hchip.cls"
+                  [title]="'Holding: ' + hchip.label"
+                >{{ hchip.label }}</span>
                 <span class="sig-ai-tokens-teaser" *ngIf="aiTokensTeaser(row) as teaser" [title]="teaser">{{
                   teaser
                 }}</span>
@@ -305,6 +311,21 @@
                       {{ c.pass ? '✓' : '✗' }} {{ c.label }}
                     </li>
                   </ul>
+
+                  <div class="sig-holding-block" *ngIf="holdingAdviceForRow(row) as hold">
+                    <strong>Holding advice</strong>
+                    <div class="sig-ai-summary-head">
+                      <span class="sig-ai-action-chip" [ngClass]="aiActionClassOfPublic(hold.advice)">{{
+                        hold.advice
+                      }}</span>
+                      <span class="sig-ai-summary-meta" *ngIf="hold.riskLevel">risk: {{ hold.riskLevel }}</span>
+                      <span class="sig-ai-summary-meta" *ngIf="row.s['paper_status']"
+                        >paper: {{ row.s['paper_status'] }}</span
+                      >
+                    </div>
+                    <p class="sig-ai-headline" *ngIf="hold.headline"><strong>{{ hold.headline }}</strong></p>
+                    <p class="sig-ai-summary-why" *ngIf="hold.why">{{ hold.why }}</p>
+                  </div>
 
                   <div class="sig-ai-history-block">
                     <strong>AI history</strong>

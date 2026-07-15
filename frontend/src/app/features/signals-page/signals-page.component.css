@@ -225,3 +225,9 @@
   color: var(--muted, #8b949e);
   font-size: 0.85rem;
 }
+
+.sig-holding-block {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed rgba(139, 148, 158, 0.3);
+}

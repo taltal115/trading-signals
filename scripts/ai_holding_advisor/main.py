@@ -19,7 +19,11 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 sys.path.insert(0, str(REPO_ROOT))
 
 from signals_bot.config import load_config
-from signals_bot.storage.firestore import MY_POSITIONS_COLLECTION, get_firestore_client
+from signals_bot.storage.firestore import (
+    MY_POSITIONS_COLLECTION,
+    SIGNAL_PAPER_OWNER_UID,
+    get_firestore_client,
+)
 from signals_bot.trading_calendar import xnys_sessions_between
 
 from scripts.ai_stock_eval.context import finnhub_quote_and_news
@@ -124,6 +128,11 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="AI holding advisor for open positions.")
     p.add_argument("--config", default="config.yaml")
     p.add_argument("--owner-uid", default="", help="Limit to one owner (optional)")
+    p.add_argument(
+        "--paper-only",
+        action="store_true",
+        help=f"Only evaluate signal paper positions (owner={SIGNAL_PAPER_OWNER_UID})",
+    )
     p.add_argument("--ticker", default="", help="Limit to one ticker (optional)")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--stdout-json", action="store_true")
@@ -146,9 +155,15 @@ def main(argv: list[str] | None = None) -> int:
     db = get_firestore_client()
     q = db.collection(MY_POSITIONS_COLLECTION).where(filter=FieldFilter("status", "==", "open"))
     owner = str(args.owner_uid).strip()
+    if args.paper_only:
+        owner = SIGNAL_PAPER_OWNER_UID
     if owner:
         q = q.where(filter=FieldFilter("owner_uid", "==", owner))
     docs = list(q.stream())
+    # Prefer paper signal positions first so scheduled runs cover bot BUYs even when caps bind.
+    docs.sort(
+        key=lambda s: 0 if (s.to_dict() or {}).get("owner_uid") == SIGNAL_PAPER_OWNER_UID else 1
+    )
     ticker_filter = str(args.ticker).strip().upper()
     cap = int(getattr(ai_cfg, "max_holding_evals_per_run", 20) if ai_cfg else 20)
     model = str(getattr(ai_cfg, "model", "gpt-4.1") if ai_cfg else "gpt-4.1")
