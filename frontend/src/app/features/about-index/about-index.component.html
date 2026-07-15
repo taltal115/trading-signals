@@ -1,17 +1,39 @@
 <section class="panel about-panel active" aria-label="About">
   <h2>About</h2>
   <p class="about-intro">
-    This project is signal-only: no auto-trading. Summaries below mirror the main docs for the three operational areas.
+    Signal-only research stack: no auto-trading. Quick ops summaries below, then the full
+    <code>docs/</code> library rendered in the app.
   </p>
+
+  <h3 class="about-section-title">Operations (short)</h3>
   <ul class="about-toc">
     <li>
-      <a routerLink="/about/run">Bot run (scan)</a> — hourly/daily momentum scan, Slack, Firestore signals.
+      <a routerLink="/about/run">Bot run (scan)</a> — daily momentum scan, Slack, Firestore signals.
     </li>
     <li>
-      <a routerLink="/about/universe">Universe discovery</a> — Finnhub → filters → Firestore <code>universe/&#123;asof_date&#125;</code>.
+      <a routerLink="/about/universe">Universe discovery</a> — Finnhub → filters →
+      <code>universe/&#123;asof_date&#125;</code> scan list (BUY + high-setup WAIT).
     </li>
     <li>
       <a routerLink="/about/monitor">Position monitor</a> — GitHub Action, open positions, bracket alerts.
     </li>
   </ul>
+
+  <h3 class="about-section-title">Documentation</h3>
+  <p class="about-intro">
+    Every Markdown file under <code>docs/</code> (copied into the SPA build as
+    <code>/repo-docs/</code>).
+  </p>
+  @for (group of groups; track group.category) {
+    <h4 class="about-doc-cat">{{ group.category }}</h4>
+    <ul class="about-toc">
+      @for (d of group.docs; track d.id) {
+        <li>
+          <a [routerLink]="['/about/docs', d.id]">{{ d.title }}</a>
+          — {{ d.summary }}
+          <span class="about-doc-path"><code>{{ d.path }}</code></span>
+        </li>
+      }
+    </ul>
+  }
 </section>

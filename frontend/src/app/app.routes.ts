@@ -57,6 +57,11 @@ export const routes: Routes = [
           import('./features/about-index/about-index.component').then((m) => m.AboutIndexComponent),
       },
       {
+        path: 'about/docs/:docId',
+        loadComponent: () =>
+          import('./features/about-doc/about-doc.component').then((m) => m.AboutDocComponent),
+      },
+      {
         path: 'about/run',
         loadComponent: () =>
           import('./features/about-run/about-run.component').then((m) => m.AboutRunComponent),

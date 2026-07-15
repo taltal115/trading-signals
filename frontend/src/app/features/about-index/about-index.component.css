@@ -1,0 +1,33 @@
+.about-section-title {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.about-doc-cat {
+  margin: 1rem 0 0.35rem;
+  font-size: 0.92rem;
+  color: var(--muted, #9aa0a6);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.about-doc-path {
+  display: inline-block;
+  margin-left: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted, #9aa0a6);
+}
+
+.about-toc {
+  margin: 0 0 0.75rem;
+  padding-left: 1.2rem;
+}
+
+.about-toc li {
+  margin: 0.35rem 0;
+  line-height: 1.4;
+}
+
+.about-toc a {
+  color: var(--accent, #58a6ff);
+}

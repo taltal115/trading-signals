@@ -1,0 +1,40 @@
+<section class="panel about-panel active" aria-label="Documentation">
+  @if (doc(); as d) {
+    <p class="about-doc-crumb">
+      <a routerLink="/about">About</a>
+      <span aria-hidden="true"> / </span>
+      <span>{{ d.category }}</span>
+      <span aria-hidden="true"> / </span>
+      <span>{{ d.title }}</span>
+    </p>
+    <h2>{{ d.title }}</h2>
+    <p class="about-doc-meta">
+      <code>docs/{{ d.path }}</code>
+    </p>
+  } @else {
+    <h2>Documentation</h2>
+  }
+
+  @if (loading()) {
+    <p class="empty-state">Loading…</p>
+  } @else if (error()) {
+    <p class="empty-state">{{ error() }}</p>
+  } @else if (html()) {
+    <article class="about-doc about-md" [innerHTML]="html()"></article>
+  }
+
+  @let nav = prevNext();
+  <nav class="about-doc-nav" aria-label="Doc navigation">
+    @if (nav.prev; as p) {
+      <a [routerLink]="['/about/docs', p.id]">← {{ p.title }}</a>
+    } @else {
+      <span></span>
+    }
+    <a routerLink="/about">All docs</a>
+    @if (nav.next; as n) {
+      <a [routerLink]="['/about/docs', n.id]">{{ n.title }} →</a>
+    } @else {
+      <span></span>
+    }
+  </nav>
+</section>

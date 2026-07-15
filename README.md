@@ -3,11 +3,11 @@
 This project scans US stocks on **daily candles** for **breakout-momentum** setups (1–7 day swing ideas), journals signals to **SQLite**, and posts the top results to **Slack**. It does **not** place orders.
 
 ### Docs
+- All project docs under `docs/` — also readable in the SPA under **About** (in-app Markdown viewer)
 - Bot logic + strategy: `docs/bot-logic-and-strategy.md`
 - AI signal pipeline (entry gate + holding advisor): `docs/ai-signal-pipeline/README.md`
 - Firebase Hosting + dashboard + position monitor: `docs/firebase-hosting-setup.md`
 - Angular dashboard architecture: `docs/frontend-angular-architecture.md`
-- UI parity checklist (vanilla → Angular): `docs/frontend-vanilla-parity-checklist.md`
 - IBKR Client Portal Gateway (live portfolio + cloud sync plan): `docs/ibkr-client-portal-gateway-plan.md`
 
 ### What this is (and isn’t)
@@ -122,7 +122,7 @@ PYTHONPATH=./src python scripts/update_universe_finnhub.py \
 
 ### Web dashboard (Firebase Hosting)
 
-Static UI in [`web/`](web/) (universe history, signal runs, manual position form). Configure [`web/firebase-config.js`](web/firebase-config.js), deploy rules/indexes/hosting per [`docs/firebase-hosting-setup.md`](docs/firebase-hosting-setup.md). Sign-in is **Email/Password** (enable in Firebase Console).
+Angular SPA under [`frontend/`](frontend/) (Hosting). Data via Nest API; build with `cd frontend && npm ci && npx ng build`. Setup: [`docs/firebase-hosting-setup.md`](docs/firebase-hosting-setup.md). Docs library is available in-app under **About**.
 
 ### Position monitor (GitHub Actions)
 

@@ -2,6 +2,8 @@
 
 Two-stage BUY pipeline plus a holding advisor for **trading-signals**.
 
+The dashboard **Signals** page shows stored AI summaries (View). It does **not** dispatch AI jobs; use the [RUNBOOK](./RUNBOOK.md) (CLI / GitHub Actions).
+
 | Job | Role |
 |-----|------|
 | **1 — Breakout scan** | Rule-based candidates → Firestore `signals` with `ai_gate=pending` |

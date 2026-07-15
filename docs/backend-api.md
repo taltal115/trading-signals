@@ -77,10 +77,13 @@ For real Google sign-in locally, set `AUTH_BYPASS_LOCAL=false`, provide `GOOGLE_
 - `GET /api/auth/google` — start OAuth.
 - `GET /api/auth/google/callback` — OAuth callback; sets session; redirects to `FRONTEND_URL/dashboard`.
 - `POST /api/auth/logout` — clears session.
+- `GET /api/auth/dev-users` / `POST /api/auth/dev/persona` — local persona switching when `AUTH_BYPASS_LOCAL` + `DEV_LOCAL_USERS` are configured.
 - `GET /api/universe` — query `limit` (default 5, max 50), optional `cursor`. Each row exposes `asof_date`, `ts_utc`, `source`, `symbol_count`, `active_count` / `inactive_count`, and optional `status_counts` (buy/watch/stale/…). `GET /api/universe/:id/symbols` — query `offset`, `limit`, `sort`, `dir`, optional `status=active` (scan list only). Detail fields include `status`, `last_action`, `active_kind`, `last_confidence` (setup strength 0–100), `last_score`, profile fields when available.
-- `GET /api/signals` — public reads (mirrors previous client limits).
+- `GET /api/signals` — paginated signal run reads for the dashboard.
+- `GET /api/ai-evals` / `GET /api/ai-evals/recent` — read stored AI evaluation rows (`ai_evals`); no Nest route dispatches AI jobs.
+- `GET /api/market/quote` / `snapshot` / `candles` — Finnhub + Twelve Data / Alpha Vantage (server-side keys).
 - `GET|POST|PATCH /api/positions...`, `GET /api/monitor/checks` — session required (or bypass user).
-- `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**). Requires session + `GITHUB_PERSONAL_TOKEN` on the server.
+- `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**). Requires session + `GITHUB_PERSONAL_TOKEN` on the server. (Bot scan / AI eval are **not** exposed as Nest dispatch routes.)
 
 ## Google OAuth troubleshooting (`401 invalid_client` / “OAuth client was not found”)
 

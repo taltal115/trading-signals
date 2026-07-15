@@ -1,5 +1,7 @@
 # Signal strategy research — July 2026
 
+> **Superseded (universe eligibility, Jul 2026+):** Discovery `active` is no longer BUY-only. Current rule: **BUY** (≥ `--min-confidence`) **or high-setup WAIT** (≥ `--watch-min-confidence`), with explicit statuses (`inactive_below_min`, `inactive_wait`, `inactive_sell`, …), `status_counts`, and **no** silent empty-`active_symbols` → full history fallback. Historical tables below still describe the older BUY-only era.
+
 Research notes from investigating universe discovery, historical BUY performance, the STAK case study, strategy refactors, and the first post-refactor signal cohort (2026-06-28).
 
 **Data sources:** local SQLite (`data/signals.db`), Firestore (`signals`, `universe`), Yahoo Finance price history.

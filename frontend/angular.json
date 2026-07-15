@@ -58,6 +58,11 @@
                 "glob": "favicon.svg",
                 "input": "../web",
                 "output": "/"
+              },
+              {
+                "glob": "**/*.md",
+                "input": "../docs",
+                "output": "/repo-docs"
               }
             ],
             "styles": [
@@ -131,6 +136,11 @@
                 "glob": "favicon.svg",
                 "input": "../web",
                 "output": "/"
+              },
+              {
+                "glob": "**/*.md",
+                "input": "../docs",
+                "output": "/repo-docs"
               }
             ],
             "styles": [

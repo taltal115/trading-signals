@@ -12,8 +12,9 @@ This bot is a **signal generator** for **1–7 day swing ideas**. It does **not*
 - Env vars via `.env`: Slack credentials (never committed)
 
 2) **Load universe**
-- If `universe.firestore.enabled`: load `symbols` from Firestore collection `universe.firestore.collection` (document id = `asof_date` in `run.timezone`, with optional latest-snapshot fallback).
+- If `universe.firestore.enabled`: load **`active_symbols`** from Firestore `universe/{asof_date}` (today in `run.timezone`). Empty active lists do **not** expand to the full history `symbols` list; the loader may fall back to a recent snapshot that still has actives, then errors if none exist. Legacy docs without an `active_symbols` field still fall back to `symbols`.
 - Else: `universe.symbols`, `universe.symbols_csv`, and/or `universe.symbols_dir` (CSVs with a `symbol` column)
+- Discovery builds the scan list as **BUY** setups plus **high-setup WAIT** (watches). Dashboard “Setup” / `last_confidence` is **rule strength (0–100)**, not expected profit.
 
 3) **Fetch daily OHLCV (robust to provider failures)**
 - Providers are tried in `data.provider_order` for each ticker.
@@ -38,7 +39,9 @@ From the most recent daily bars:
 
 6) **Persist + notify**
 - Every emitted signal is appended into SQLite (`./data/signals.db` by default).
+- BUY runs are also written to Firestore `signals/{run_id}` for the dashboard.
 - Slack posts the top-ranked signals above `slack.min_confidence` (optional).
+- Optional AI evaluation is a **separate** job (`scripts/ai_stock_eval`, GHA); the dashboard shows stored AI summaries but does not dispatch those workflows from the UI.
 
 ### Strategy: breakout momentum (1–7 days)
 

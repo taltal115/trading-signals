@@ -4,9 +4,9 @@ Signal-only: the **web UI** and **position monitor** do not execute trades.
 
 ## Architecture
 
-- **Angular** (static): Universe, Signals, Positions, Monitor, About — all data via **`HttpClient`** to the **Nest API** ([`backend/`](../backend/)). See [`docs/backend-api.md`](backend-api.md).
+- **Angular** (static): Dashboard, Universe, Signals, Positions, Monitor, About (includes in-app Markdown from `docs/`) — all data via **`HttpClient`** to the **Nest API** ([`backend/`](../backend/)). See [`docs/backend-api.md`](backend-api.md).
 - **Nest** uses **firebase-admin**; the browser does **not** bundle the Firebase Web SDK for Auth/Firestore.
-- **Firestore** still stores `universe`, **`signals`** (canonical bot runs), optional **`signals_old`** (signal archive), **`my_positions`** (canonical positions), optional **`my_positions_old`** (position archive); Python jobs and the API write with Admin credentials.
+- **Firestore** still stores `universe`, **`signals`** (canonical bot runs), optional **`signals_old`**, **`my_positions`**, optional **`my_positions_old`**, and **`ai_evals`** (AI evaluation history); Python jobs and the API write with Admin credentials.
 
 Firestore has no bulk “rename collection” API. To align with that layout, copy or export/import documents (e.g. archive the former auto-id `signals` rows into `signals_old`, then copy deterministic canonical run documents into `signals`, and remove empty superseded collections). Deploy [`firestore.rules`](../firestore.rules) after the data move. Step-by-step scripts: [`docs/firestore-collection-migration.md`](firestore-collection-migration.md). One-off copy from `signals_old` → `signals` with regenerated deterministic ids (not same doc ids): [`scripts/migrate_signals_old_to_signals.py`](../scripts/migrate_signals_old_to_signals.py).
 
@@ -70,8 +70,9 @@ If the UI shows permission errors against Firestore **from the browser**, ensure
 
 | Collection     | Writer            | Purpose                                   |
 | -------------- | ----------------- | ----------------------------------------- |
-| `universe`     | Admin (discovery) | Daily symbol snapshot                     |
-| `signals`      | Admin (signals bot) | BUY run payloads                        |
+| `universe`     | Admin (discovery) | Daily snapshot; `active_symbols` = scan list (BUY + high-setup WAIT); optional `status_counts` |
+| `signals`      | Admin (signals bot) | BUY run payloads (+ optional AI fields) |
+| `ai_evals`     | Admin (AI jobs)   | Full AI evaluation history                |
 | `my_positions` | API + allowlisted user context | Manual fills; exit price + P/L |
 | `my_positions_old` | (optional archive) | Legacy auto-id rows; read/browse only in rules |
 

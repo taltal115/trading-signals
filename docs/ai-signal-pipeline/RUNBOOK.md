@@ -1,5 +1,7 @@
 # Runbook
 
+> **Triggers:** run these from CLI or GitHub Actions (`workflow_dispatch`). The dashboard does **not** offer Re-eval / AI eval buttons, and Nest does **not** expose `bot-scan` / `ai-stock-eval` dispatch routes. The UI only **displays** stored AI summaries (Signals AI column / View).
+
 ## Job 1 — Scan
 
 ```bash

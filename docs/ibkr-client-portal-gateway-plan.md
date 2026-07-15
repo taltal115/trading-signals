@@ -4,6 +4,7 @@ This document describes how to add **live IBKR portfolio data** via the **Client
 
 It replaces (or supplements) the current **Flex Web Service** integration, which is batch-oriented and often lags same-day trades.
 
+> **Status (Jul 2026):** **Phase 1 is largely implemented** in-repo — `src/signals_bot/providers/ibkr_cp_gateway.py`, `ibkr_holdings.py`, `scripts/ibkr_cp_gateway_test.py`, `scripts/sync_ibkr_portfolio.py`, and `config.yaml` `ibkr.client_portal`. Remaining work is mainly cloud VM / IBeam always-on ops, Nest `/api/ibkr/portfolio`, and dashboard reconciliation (Phases 3–4). Treat checklist items under Phase 1 as done unless you are validating a fresh environment.
 ---
 
 ## Goals
@@ -334,7 +335,7 @@ Frontend already uses Firestore-backed APIs; this is a thin controller + existin
 | Runs in GHA | Yes | No — needs VM |
 | Position freshness | Often EOD | Near real-time |
 | Best for | Simple CI fallback | Live tracking + cloud via Firestore sync |
-| This repo | `ibkr_flex.py` | **Planned** `ibkr_cp_gateway.py` + sync |
+| This repo | `ibkr_flex.py` | **Shipped (Phase 1)** `ibkr_cp_gateway.py` + sync; cloud VM / Nest UI still planned |
 
 **Recommendation:** Keep Flex as **fallback** until gateway sync is stable in cloud. Primary source of truth for holdings → **Firestore `ibkr_portfolio`**.
 

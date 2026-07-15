@@ -10,6 +10,7 @@
 
 ### Job 2 — AI entry eval (`scripts.ai_stock_eval`)
 
+- **Trigger:** manual / GHA only (not Nest, not dashboard buttons).
 - Inputs: `--signal-doc-id` (single ticker) or `--batch` over pending rows (capped by `ai.max_entry_evals_per_run`).
 - Builds context (OHLCV, Finnhub news, features) → entry prompts → JSON verdict → blended score.
 - Hard gate: `ai_gate=passed` only when `decision=BUY` **and** `total >= entry_min_total` **and** `conviction >= entry_min_conviction`.

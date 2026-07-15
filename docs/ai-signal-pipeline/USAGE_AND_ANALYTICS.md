@@ -50,6 +50,7 @@ Always store OpenAI `usage` token counts. Optional `config.ai.pricing[model].{pr
 
 ## UI
 
-- **Signals table:** AI chip from `ai_gate` / `ai.last_decision`; tokens/model teaser; toggle expands latest recommendation + history from `GET /api/ai-evals?signalDocId=&ticker=`.
+- **Signals table:** AI chip / View expand for stored evaluation (legacy `ai_evaluation` and newer `recommendation` + `ai`). Read-only — **no** dashboard buttons to start AI jobs.
 - **`/ai-analytics`:** aggregates via `GET /api/ai-evals/recent` (requests / tokens / cost by stage, ticker, day).
-- Compatibility aliases also exist under `/api/signals/ai-evals` and `/api/signals/ai-evals/recent`.
+- History reads also use `GET /api/ai-evals` (aliases under `/api/signals/ai-evals*` may exist).
+- Run AI evaluation via [RUNBOOK.md](./RUNBOOK.md) (CLI or GitHub Actions).
