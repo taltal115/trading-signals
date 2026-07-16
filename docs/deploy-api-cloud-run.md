@@ -182,6 +182,11 @@ In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/
 
 ## Troubleshooting
 
+- **`gcloud crashed (CommandLoadFailure): Problem loading gcloud.builds: unsupported operand type(s) for |`:** Recent Google Cloud SDK builds require **Python 3.10+**. macOS `/usr/bin/python3` is often **3.9**. [`scripts/deploy_nest_cloud_run.sh`](../scripts/deploy_nest_cloud_run.sh) auto-sets `CLOUDSDK_PYTHON` to `.venv` or `python3.11+`. To fix manually:
+  ```bash
+  export CLOUDSDK_PYTHON="$(which python3.11)"   # or brew install python@3.11
+  ./scripts/deploy.sh be
+  ```
 - **`PERMISSION_DENIED` on `gcloud builds submit`:** The account you use with `gcloud` (e.g. your Gmail) must be allowed to create Cloud Build jobs and upload sources. In [GCP Console → IAM](https://console.cloud.google.com/iam-admin/iam?project=trading-goals), for project **trading-goals**, grant your user one of:
   - **Cloud Build Editor** (`roles/cloudbuild.builds.editor`), plus **Storage** access to the Cloud Build staging bucket if prompted; or
   - **Editor** (`roles/editor`) on a personal dev project (broad but common for solo projects); or

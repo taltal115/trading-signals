@@ -3,13 +3,24 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { AiAggChartComponent } from '../ai-agg-chart/ai-agg-chart.component';
+import type { AiChartRow } from '../../core/ai-analytics-chart.util';
 
 type AggRow = { key: string; requests: number; tokens: number; cost: number };
+
+function toChartRows(rows: AggRow[]): AiChartRow[] {
+  return rows.map((r) => ({
+    label: r.key,
+    requests: r.requests,
+    tokens: r.tokens,
+    cost: r.cost,
+  }));
+}
 
 @Component({
   selector: 'app-ai-analytics-page',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, AiAggChartComponent],
   templateUrl: './ai-analytics-page.component.html',
   styleUrl: './ai-analytics-page.component.css',
 })
@@ -34,6 +45,11 @@ export class AiAnalyticsPageComponent implements OnInit {
 
   readonly byStage = computed(() => this.aggregate('stage'));
   readonly byTicker = computed(() => this.aggregate('ticker'));
+  readonly byStageChart = computed(() => toChartRows(this.byStage()));
+  readonly byDayChart = computed(() =>
+    toChartRows([...this.byDay()].sort((a, b) => a.key.localeCompare(b.key)))
+  );
+  readonly byTickerChart = computed(() => toChartRows(this.byTicker()));
   readonly byDay = computed(() => {
     const map = new Map<string, AggRow>();
     for (const r of this.rows()) {

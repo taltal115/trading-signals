@@ -18,69 +18,9 @@
     </dl>
 
     <div class="ai-agg-grid">
-      <div>
-        <h3>By stage</h3>
-        <table class="ai-agg-table">
-          <thead>
-            <tr>
-              <th>stage</th>
-              <th>requests</th>
-              <th>tokens</th>
-              <th>cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let r of byStage()">
-              <td>{{ r.key }}</td>
-              <td>{{ r.requests }}</td>
-              <td>{{ r.tokens }}</td>
-              <td>{{ r.cost | number: '1.2-4' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div>
-        <h3>By day</h3>
-        <table class="ai-agg-table">
-          <thead>
-            <tr>
-              <th>day</th>
-              <th>requests</th>
-              <th>tokens</th>
-              <th>cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let r of byDay()">
-              <td class="code">{{ r.key }}</td>
-              <td>{{ r.requests }}</td>
-              <td>{{ r.tokens }}</td>
-              <td>{{ r.cost | number: '1.2-4' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div>
-        <h3>By ticker</h3>
-        <table class="ai-agg-table">
-          <thead>
-            <tr>
-              <th>ticker</th>
-              <th>requests</th>
-              <th>tokens</th>
-              <th>cost</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr *ngFor="let r of byTicker()">
-              <td class="code">{{ r.key }}</td>
-              <td>{{ r.requests }}</td>
-              <td>{{ r.tokens }}</td>
-              <td>{{ r.cost | number: '1.2-4' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <app-ai-agg-chart title="By stage" [rows]="byStageChart()" variant="donut" />
+      <app-ai-agg-chart title="By day" [rows]="byDayChart()" variant="vertical" />
+      <app-ai-agg-chart title="By ticker" [rows]="byTickerChart()" variant="horizontal" />
     </div>
 
     <h3>Recent calls</h3>

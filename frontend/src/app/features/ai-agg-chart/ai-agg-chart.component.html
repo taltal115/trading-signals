@@ -1,0 +1,21 @@
+<div class="ai-chart-card">
+  <div class="ai-chart-head">
+    <h3>{{ title }}</h3>
+    <div class="ai-chart-metric-tabs" role="tablist" [attr.aria-label]="title + ' metric'">
+      <button
+        type="button"
+        *ngFor="let m of metrics"
+        role="tab"
+        class="ai-chart-metric-btn"
+        [class.active]="metric() === m"
+        [attr.aria-selected]="metric() === m"
+        (click)="setMetric(m)"
+      >
+        {{ m }}
+      </button>
+    </div>
+  </div>
+  <div class="ai-chart-canvas-wrap">
+    <canvas #canvasEl class="ai-chart-canvas" aria-hidden="true"></canvas>
+  </div>
+</div>

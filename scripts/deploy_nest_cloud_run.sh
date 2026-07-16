@@ -9,6 +9,45 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# gcloud 560+ needs Python 3.10+ (system macOS python3 is often 3.9 → builds module crash).
+resolve_cloudsdk_python() {
+  if [[ -n "${CLOUDSDK_PYTHON:-}" && -x "${CLOUDSDK_PYTHON}" ]]; then
+    echo "${CLOUDSDK_PYTHON}"
+    return 0
+  fi
+  local candidates=(
+    "${ROOT}/.venv/bin/python"
+    "$(command -v python3.13 2>/dev/null || true)"
+    "$(command -v python3.12 2>/dev/null || true)"
+    "$(command -v python3.11 2>/dev/null || true)"
+    "$(command -v python3.10 2>/dev/null || true)"
+    "$(command -v python3 2>/dev/null || true)"
+  )
+  local py ver major minor
+  for py in "${candidates[@]}"; do
+    [[ -n "$py" && -x "$py" ]] || continue
+    ver="$("$py" -c 'import sys; print(".".join(map(str, sys.version_info[:2])))' 2>/dev/null || true)"
+    [[ "$ver" =~ ^([0-9]+)\.([0-9]+)$ ]] || continue
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+    if (( major > 3 || (major == 3 && minor >= 10) )); then
+      echo "$py"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if CLOUDSDK_PYTHON="$(resolve_cloudsdk_python)"; then
+  export CLOUDSDK_PYTHON
+  echo "Using CLOUDSDK_PYTHON=$CLOUDSDK_PYTHON ($("$CLOUDSDK_PYTHON" --version 2>&1 | head -1))"
+else
+  echo "ERROR: gcloud needs Python 3.10+. Install one (e.g. brew install python@3.11) or set CLOUDSDK_PYTHON." >&2
+  echo "  export CLOUDSDK_PYTHON=/path/to/python3.11" >&2
+  exit 1
+fi
+
 PROJECT="${GCP_PROJECT:-trading-goals}"
 REGION="${GCP_REGION:-us-central1}"
 SERVICE="${CLOUD_RUN_SERVICE:-trading-signals-api}"
@@ -40,9 +79,11 @@ else
   echo "Building image via Cloud Build (context: backend/)..."
   if ! gcloud builds submit "${ROOT}/backend" --tag "${IMAGE}"; then
     echo "" >&2
-    echo "Cloud Build failed (often PERMISSION_DENIED). Fix IAM or use local Docker:" >&2
-    echo "  USE_LOCAL_DOCKER=1 bash scripts/deploy_nest_cloud_run.sh" >&2
-    echo "See docs/deploy-api-cloud-run.md → Troubleshooting → Cloud Build permission denied." >&2
+    echo "Cloud Build failed. Common causes:" >&2
+    echo "  • PERMISSION_DENIED — fix IAM (see docs/deploy-api-cloud-run.md)" >&2
+    echo "  • gcloud Python 3.9 crash on 'unsupported operand type |' — script sets CLOUDSDK_PYTHON;" >&2
+    echo "    if this persists: export CLOUDSDK_PYTHON=\$(which python3.11)" >&2
+    echo "  • Or build locally: USE_LOCAL_DOCKER=1 bash scripts/deploy_nest_cloud_run.sh" >&2
     exit 1
   fi
 fi
