@@ -116,11 +116,25 @@ export const ABOUT_DOCS: AboutDocEntry[] = [
     summary: 'ai_evals storage and analytics surfaces.',
   },
   {
-    id: docPathToId('research/signal-strategy-research-2026-07.md'),
-    path: 'research/signal-strategy-research-2026-07.md',
+    id: docPathToId('research/README.md'),
+    path: 'research/README.md',
+    title: 'Research index',
+    category: 'Research',
+    summary: 'Month folders for strategy research cohorts.',
+  },
+  {
+    id: docPathToId('research/2026-07/signal-strategy-research-2026-07.md'),
+    path: 'research/2026-07/signal-strategy-research-2026-07.md',
     title: 'Strategy research (Jul 2026)',
     category: 'Research',
     summary: 'Dated backtest notes; universe section has a current-state supersede note.',
+  },
+  {
+    id: docPathToId('research/2026-07/signal-strategy-research-2026-07-followup.md'),
+    path: 'research/2026-07/signal-strategy-research-2026-07-followup.md',
+    title: 'Strategy research follow-up (profit @ hold)',
+    category: 'Research',
+    summary: 'Post-6/28 winners/losers by raw hold PnL; AI coverage gap; rule/AI recommendations.',
   },
   {
     id: docPathToId('ibkr-client-portal-gateway-plan.md'),

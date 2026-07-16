@@ -167,6 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     ticker_filter = str(args.ticker).strip().upper()
     cap = int(getattr(ai_cfg, "max_holding_evals_per_run", 40) if ai_cfg else 40)
+    cooldown_h = float(getattr(ai_cfg, "holding_min_hours_between_evals", 12.0) if ai_cfg else 12.0)
     if ai_cfg is not None:
         model = str(
             getattr(ai_cfg, "holding_model", None)
@@ -181,6 +182,8 @@ def main(argv: list[str] | None = None) -> int:
     market_tz = ZoneInfo(cfg.run.timezone)
     now = datetime.now(timezone.utc)
     evaluated = 0
+    skipped_filtered = 0
+    skipped_cooldown = 0
 
     for snap in docs:
         if evaluated >= cap:
@@ -191,6 +194,32 @@ def main(argv: list[str] | None = None) -> int:
             continue
         if ticker_filter and ticker != ticker_filter:
             continue
+
+        # Non-actionable entry outcomes — do not burn holding budget.
+        gate = str(data.get("ai_gate") or "").strip().lower()
+        if gate in ("filtered", "skipped"):
+            skipped_filtered += 1
+            continue
+
+        if cooldown_h > 0:
+            last_at = data.get("holding_advice_at_utc")
+            if not last_at:
+                advice = data.get("holding_advice")
+                if isinstance(advice, dict):
+                    last_at = advice.get("ts_utc") or advice.get("evaluated_at_utc")
+            if not last_at:
+                ai_sum = data.get("ai") if isinstance(data.get("ai"), dict) else {}
+                if str(ai_sum.get("last_stage") or "") == "holding":
+                    last_at = ai_sum.get("last_at_utc")
+            if isinstance(last_at, str) and last_at.strip():
+                try:
+                    last_dt = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
+                    age_h = (now - last_dt.astimezone(timezone.utc)).total_seconds() / 3600.0
+                    if age_h < cooldown_h:
+                        skipped_cooldown += 1
+                        continue
+                except ValueError:
+                    pass
 
         entry = float(data.get("entry_price") or 0.0)
         stop = float(data.get("stop_price") or data.get("ai_revised_stop") or 0.0)
@@ -275,7 +304,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         evaluated += 1
 
-    log.info("Holding advisor complete evaluated=%s", evaluated)
+    log.info(
+        "Holding advisor complete evaluated=%s skipped_filtered=%s skipped_cooldown=%s",
+        evaluated,
+        skipped_filtered,
+        skipped_cooldown,
+    )
     return 0
 
 

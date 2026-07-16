@@ -95,6 +95,14 @@ strategy:
   # only throttled traffic. Lowered to 70.
   min_buy_confidence: 70
 
+  # Ranking soft band (2026-07 follow-up): prefer ret_5d in 8–20% for Slack/top-N.
+  # Outside the band is demoted; confidence is only a tiebreaker.
+  ret_5d_prefer_min_pct: 8.0
+  ret_5d_prefer_max_pct: 20.0
+  # Lottery flag: vol ≥ 5× or ret_5d ≥ 50% — demoted; Slack only after AI pass.
+  lottery_vol_ratio_min: 5.0
+  lottery_ret_5d_min_pct: 50.0
+
   # Position guidance (manual)
   max_hold_days: 5              # ceiling; actual hold is ATR-based per signal (2..max)
   # Trailing exit (research: 2026-06-28 cohort — 74% of trades exited on a fixed time limit;
@@ -120,6 +128,8 @@ slack:
   channel: "#trading-signals"
   post_top_n: 5
   min_confidence: 70
+  # Defer Slack to AI entry batch; only post ai_gate=passed BUYs (2026-07 follow-up).
+  require_ai_passed: true
 
 logging:
   level: "INFO"
@@ -129,8 +139,15 @@ ai:
   enabled: true
   entry_min_total: 70
   entry_min_conviction: 0.7
-  max_entry_evals_per_run: 15
-  max_holding_evals_per_run: 40
+  # Entry LLM only on top-N BUYs by signal_quality rank; rest get ai_gate=skipped (no tokens).
+  max_entry_evals_per_run: 5
+  max_holding_evals_per_run: 10
+  # Spend budget on entry; avoid re-advising the same paper name every cron tick.
+  holding_min_hours_between_evals: 12
+  # Lottery BUYs (extreme vol / ret_5d) need a harder AI pass + pro model.
+  lottery_entry_min_total: 80
+  lottery_entry_min_conviction: 0.8
+  lottery_force_pro_model: true
   # Legacy alias; entry_model wins for the entry gate.
   model: gpt-5.4
   entry_model: gpt-5.4

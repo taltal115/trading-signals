@@ -60,6 +60,8 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           NEWSAPI_API_KEY: ${{ secrets.NEWSAPI_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
           USE_NEWSAPI: ${{ vars.USE_NEWSAPI || 'true' }}
           USE_GDELT: ${{ vars.USE_GDELT || 'true' }}
           USE_FRED: ${{ vars.USE_FRED || 'true' }}
@@ -68,6 +70,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.signal_doc_id }}" ]; then
             DOC_ARG="--signal-doc-id ${{ github.event.inputs.signal_doc_id }}"
           fi
+          # Top-N by signal_quality rank get LLM; rest rule-skipped (0 tokens).
           PYTHONPATH=./src:. python -m scripts.ai_stock_eval.main \
             --config config.yaml \
             --batch \

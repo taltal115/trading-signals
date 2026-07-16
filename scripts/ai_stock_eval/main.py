@@ -31,8 +31,11 @@ from .features import build_features_strategy_and_placeholders, render_user_prom
 from .firestore_write import (
     latest_signal_doc_id,
     list_pending_tickers,
+    load_signal_run_rows,
     read_candidate_score,
+    read_signal_row,
     write_entry_evaluation,
+    write_entry_rank_skipped,
 )
 from .llm import call_openai_json, normalize_verdict
 from .prompts import get_entry_prompts
@@ -68,7 +71,7 @@ def _ai_pricing(cfg: Any) -> dict[str, dict[str, float]] | None:
     return getattr(ai, "pricing", None)
 
 
-def _ai_model(cfg: Any, *, technical_score: float) -> str:
+def _ai_model(cfg: Any, *, technical_score: float, force_pro: bool = False) -> str:
     """Entry gate model: gpt-5.4 by default; gpt-5.4-pro when technical score is high."""
     ai = getattr(cfg, "ai", None)
     if ai is None:
@@ -76,6 +79,8 @@ def _ai_model(cfg: Any, *, technical_score: float) -> str:
     entry = str(getattr(ai, "entry_model", None) or getattr(ai, "model", None) or "gpt-5.4")
     pro = str(getattr(ai, "pro_model", None) or "gpt-5.4-pro")
     threshold = float(getattr(ai, "pro_min_technical_score", 75.0) or 75.0)
+    if force_pro and pro:
+        return pro
     if technical_score >= threshold and pro:
         return pro
     return entry
@@ -98,6 +103,7 @@ def evaluate_one(
     stdout_json: bool,
     verify_only: bool,
     github_verify_annotations: bool,
+    lottery_flag: bool = False,
 ) -> int:
     system_prompt, user_template = get_entry_prompts()
     ctx = build_context(ticker=ticker, cfg=cfg, candidate_score=candidate_score)
@@ -139,13 +145,18 @@ def evaluate_one(
         print(user_msg, flush=True)
         print("========== END DEBUG PROMPTS ==========", flush=True)
 
+    ai_cfg = getattr(cfg, "ai", None)
+    force_pro = bool(
+        lottery_flag and ai_cfg is not None and getattr(ai_cfg, "lottery_force_pro_model", True)
+    )
     technical_for_routing = float(feats.get("technical_score") or candidate_score or 0.0)
-    entry_model = _ai_model(cfg, technical_score=technical_for_routing)
+    entry_model = _ai_model(cfg, technical_score=technical_for_routing, force_pro=force_pro)
     log.info(
-        "Entry model for %s: %s (technical_score=%.1f)",
+        "Entry model for %s: %s (technical_score=%.1f lottery=%s)",
         ticker,
         entry_model,
         technical_for_routing,
+        lottery_flag,
     )
     raw_verdict, usage, raw_response_text = call_openai_json(
         system=system_prompt,
@@ -177,9 +188,19 @@ def evaluate_one(
         scores=scores,
         technical_score=technical,
     )
-    ai_cfg = getattr(cfg, "ai", None)
     entry_min_total = float(getattr(ai_cfg, "entry_min_total", 70.0) if ai_cfg else 70.0)
     entry_min_conviction = float(getattr(ai_cfg, "entry_min_conviction", 0.7) if ai_cfg else 0.7)
+    if lottery_flag and ai_cfg is not None:
+        entry_min_total = float(getattr(ai_cfg, "lottery_entry_min_total", entry_min_total))
+        entry_min_conviction = float(
+            getattr(ai_cfg, "lottery_entry_min_conviction", entry_min_conviction)
+        )
+        log.info(
+            "Lottery thresholds for %s: min_total=%.1f min_conviction=%.2f",
+            ticker,
+            entry_min_total,
+            entry_min_conviction,
+        )
     ai_gate = resolve_ai_gate(
         recommendation=recommendation,
         conviction=conviction,
@@ -326,15 +347,54 @@ def main(argv: list[str] | None = None) -> int:
     owner_uid = str(args.owner_uid).strip() or None
 
     if args.batch:
-        pending = list_pending_tickers(db, signal_doc_id)
-        cap = int(getattr(ai_cfg, "max_entry_evals_per_run", 15) if ai_cfg else 15)
-        pending = pending[: max(0, cap)]
-        log.info("Batch entry eval doc=%s pending=%s (cap=%s)", signal_doc_id, len(pending), cap)
-        if not pending:
+        strat = getattr(cfg, "strategy", None)
+        prefer_min = float(getattr(strat, "ret_5d_prefer_min_pct", 8.0) if strat else 8.0)
+        prefer_max = float(getattr(strat, "ret_5d_prefer_max_pct", 20.0) if strat else 20.0)
+        lottery_vol = float(getattr(strat, "lottery_vol_ratio_min", 5.0) if strat else 5.0)
+        lottery_ret = float(getattr(strat, "lottery_ret_5d_min_pct", 50.0) if strat else 50.0)
+        pending_all = list_pending_tickers(
+            db,
+            signal_doc_id,
+            prefer_min_pct=prefer_min,
+            prefer_max_pct=prefer_max,
+            lottery_vol_ratio_min=lottery_vol,
+            lottery_ret_5d_min_pct=lottery_ret,
+        )
+        top_n = int(getattr(ai_cfg, "max_entry_evals_per_run", 5) if ai_cfg else 5)
+        top_n = max(0, top_n)
+        for_llm = pending_all[:top_n]
+        for_skip = pending_all[top_n:]
+        log.info(
+            "Batch entry doc=%s pending=%s llm_top_n=%s (llm=%s skipped=%s)",
+            signal_doc_id,
+            len(pending_all),
+            top_n,
+            len(for_llm),
+            len(for_skip),
+        )
+        if not pending_all:
             log.info("No pending tickers")
+            _maybe_slack_ai_passed(cfg, log, db, signal_doc_id, dry_run=bool(args.dry_run))
             return 0
         failures = 0
-        for ticker, _idx, cand in pending:
+        if not args.dry_run and not args.verify_only:
+            for rank, (ticker, _idx, _cand) in enumerate(for_skip, start=top_n + 1):
+                try:
+                    write_entry_rank_skipped(
+                        ticker=ticker,
+                        signal_doc_id=signal_doc_id,
+                        rank=rank,
+                        top_n=top_n,
+                    )
+                    log.info("Entry skip %s rank=%s (below top %s)", ticker, rank, top_n)
+                except Exception as e:  # noqa: BLE001
+                    log.error("Entry skip write failed %s: %s", ticker, e)
+                    failures += 1
+        elif for_skip:
+            log.info("Dry-run/verify: would skip %s tickers below top %s", len(for_skip), top_n)
+        for ticker, _idx, cand in for_llm:
+            row = read_signal_row(db, signal_doc_id, ticker) or {}
+            lottery = bool(row.get("lottery_flag"))
             rc = evaluate_one(
                 cfg=cfg,
                 log=log,
@@ -351,9 +411,12 @@ def main(argv: list[str] | None = None) -> int:
                 stdout_json=bool(args.stdout_json),
                 verify_only=bool(args.verify_only),
                 github_verify_annotations=bool(args.github_verify_annotations),
+                lottery_flag=lottery,
             )
             if rc != 0:
                 failures += 1
+        if not args.verify_only:
+            _maybe_slack_ai_passed(cfg, log, db, signal_doc_id, dry_run=bool(args.dry_run))
         return 1 if failures else 0
 
     ticker = str(args.ticker).strip().upper()
@@ -367,6 +430,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         candidate_score = read_candidate_score(db, signal_doc_id, ticker)
         candidate_from_firestore = True
+    _row_single = read_signal_row(db, signal_doc_id, ticker) or {}
+    _lottery_single = bool(_row_single.get("lottery_flag"))
 
     return evaluate_one(
         cfg=cfg,
@@ -384,7 +449,43 @@ def main(argv: list[str] | None = None) -> int:
         stdout_json=bool(args.stdout_json),
         verify_only=bool(args.verify_only),
         github_verify_annotations=bool(args.github_verify_annotations),
+        lottery_flag=_lottery_single,
     )
+
+
+def _maybe_slack_ai_passed(
+    cfg: Any,
+    log: logging.Logger,
+    db: Any,
+    signal_doc_id: str,
+    *,
+    dry_run: bool,
+) -> None:
+    """When slack.require_ai_passed, post only ai_gate=passed BUYs after entry batch."""
+    slack_cfg = getattr(cfg, "slack", None)
+    ai_cfg = getattr(cfg, "ai", None)
+    if slack_cfg is None or not bool(getattr(slack_cfg, "enabled", False)):
+        return
+    if not bool(getattr(slack_cfg, "require_ai_passed", False)):
+        return
+    if ai_cfg is not None and not bool(getattr(ai_cfg, "enabled", True)):
+        return
+    if dry_run:
+        log.info("Slack AI-passed skipped (dry-run)")
+        return
+    asof, rows = load_signal_run_rows(db, signal_doc_id)
+    try:
+        from signals_bot.notifiers.slack import SlackNotifier
+
+        notifier = SlackNotifier.from_env_and_config(channel=str(slack_cfg.channel))
+        notifier.post_ai_passed_rows(
+            asof_date=asof or "unknown",
+            rows=rows,
+            top_n=int(getattr(slack_cfg, "post_top_n", 5)),
+            min_confidence=int(getattr(slack_cfg, "min_confidence", 70)),
+        )
+    except Exception as e:  # noqa: BLE001
+        log.error("Slack AI-passed post failed: %s", e)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
-from typing import Iterable
+from typing import Any, Iterable
 
 from dotenv import load_dotenv
 from slack_sdk import WebClient
@@ -269,16 +269,14 @@ class SlackNotifier:
         min_confidence: int,
     ) -> None:
         sigs = [s for s in signals if s.confidence >= min_confidence]
-        sigs = sigs[:top_n]
-        if not sigs:
-            return
-
-        actionable = [s for s in sigs if s.action == "BUY"]
+        # Prefer non-lottery when posting from the scan path (AI-deferred path uses
+        # post_ai_passed_rows instead).
+        buys = [s for s in sigs if s.action == "BUY"]
+        non_lottery = [s for s in buys if not bool((s.metrics or {}).get("lottery_flag"))]
+        actionable = (non_lottery or buys)[:top_n]
         if not actionable:
             return
 
-        # Top-level Block Kit only. Legacy ``attachments`` with nested ``blocks`` triggers
-        # ``invalid_attachments`` / validation errors on many workspaces (see slackapi SDK #1247).
         now = datetime.now(timezone.utc)
         header = f":chart_with_upwards_trend: *Signal scan* — {now.strftime('%Y-%m-%d %H:%M')} UTC"
         blocks: list[dict] = [{"type": "section", "text": {"type": "mrkdwn", "text": header}}]
@@ -287,6 +285,62 @@ class SlackNotifier:
             if body:
                 blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": body}})
 
+        self._post_blocks(header=header, blocks=blocks)
+
+    def post_ai_passed_rows(
+        self,
+        *,
+        asof_date: str,
+        rows: Iterable[dict[str, Any]],
+        top_n: int,
+        min_confidence: int,
+    ) -> None:
+        """Post Firestore BUY rows that already passed the AI entry gate."""
+        passed: list[dict[str, Any]] = []
+        for r in rows:
+            if not isinstance(r, dict):
+                continue
+            gate = str(r.get("ai_gate") or "").strip().lower()
+            if gate != "passed":
+                continue
+            try:
+                conf = int(r.get("confidence") or 0)
+            except (TypeError, ValueError):
+                conf = 0
+            if conf < min_confidence:
+                continue
+            passed.append(r)
+
+        def _row_sort(r: dict[str, Any]) -> tuple:
+            preferred = 0 if r.get("preferred_ret_5d_band") else 1
+            lottery = 1 if r.get("lottery_flag") else 0
+            try:
+                ret = float(r.get("ret_5d_pct")) if r.get("ret_5d_pct") is not None else 999.0
+            except (TypeError, ValueError):
+                ret = 999.0
+            return (preferred, lottery, ret)
+
+        passed.sort(key=_row_sort)
+        passed = passed[: max(0, top_n)]
+        if not passed:
+            log.info("Slack AI-passed: nothing to post (asof=%s)", asof_date)
+            return
+
+        now = datetime.now(timezone.utc)
+        header = (
+            f":robot_face: *AI-passed BUYs* — asof {asof_date} — "
+            f"{now.strftime('%Y-%m-%d %H:%M')} UTC"
+        )
+        blocks: list[dict] = [{"type": "section", "text": {"type": "mrkdwn", "text": header}}]
+        for r in passed:
+            body = _firestore_buy_mrkdown(r)
+            if body:
+                blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": body}})
+        self._post_blocks(header=header, blocks=blocks)
+
+    def _post_blocks(self, *, header: str, blocks: list[dict]) -> None:
+        # Top-level Block Kit only. Legacy ``attachments`` with nested ``blocks`` triggers
+        # ``invalid_attachments`` / validation errors on many workspaces (see slackapi SDK #1247).
         if len(blocks) < 2:
             return
 
@@ -298,7 +352,7 @@ class SlackNotifier:
                 blocks=blocks,
             )
             log.info(
-                "Slack post ok channel=%s BUY_sections=%d (min_confidence filter already applied)",
+                "Slack post ok channel=%s sections=%d",
                 post_ch,
                 len(blocks) - 1,
             )
@@ -313,4 +367,54 @@ class SlackNotifier:
                     "(join public channels), then reinstall the workspace app."
                 )
             raise RuntimeError(f"Slack post failed: {err}{hint}") from e
+
+
+def _firestore_buy_mrkdown(r: dict[str, Any]) -> str | None:
+    ticker = str(r.get("ticker") or "").strip().upper()
+    if not ticker:
+        return None
+    try:
+        close = float(r.get("close") or 0.0)
+    except (TypeError, ValueError):
+        close = 0.0
+    conf = r.get("confidence")
+    stop = r.get("stop")
+    target = r.get("target")
+    hold = r.get("hold_days")
+    rec = r.get("recommendation") if isinstance(r.get("recommendation"), dict) else {}
+    total = None
+    scores = rec.get("scores") if isinstance(rec.get("scores"), dict) else {}
+    if scores:
+        try:
+            total = float(scores.get("total"))
+        except (TypeError, ValueError):
+            total = None
+    flags: list[str] = []
+    if r.get("lottery_flag"):
+        flags.append("lottery")
+    if r.get("preferred_ret_5d_band"):
+        flags.append("pref-band")
+    flag_s = f" ({', '.join(flags)})" if flags else ""
+    ai_s = f" ai_total={total:.0f}" if total is not None else ""
+    header = f":green_circle: *BUY* `{ticker}` conf={conf}{ai_s}{flag_s} • Price: {_fmt_money(close)}"
+    stop_f: float | None
+    target_f: float | None
+    try:
+        stop_f = float(stop) if stop is not None else None
+    except (TypeError, ValueError):
+        stop_f = None
+    try:
+        target_f = float(target) if target is not None else None
+    except (TypeError, ValueError):
+        target_f = None
+    lines = [
+        header,
+        f"• Hold: {hold}d" if hold is not None else "• Hold: -",
+        f"• SL: {_fmt_money(stop_f)}",
+        f"• TP: {_fmt_money(target_f)}",
+    ]
+    why = str(rec.get("headline") or rec.get("why") or "").strip()
+    if why:
+        lines.append(f"• AI: {why[:160]}")
+    return "\n".join(lines)
 

@@ -17,20 +17,26 @@ from signals_bot.providers.ibkr_holdings import load_holdings_for_scan
 from signals_bot.storage.firestore import write_buy_signals
 from signals_bot.storage.sqlite import SqliteStore
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy, Signal
+from signals_bot.strategy.signal_quality import annotate_buy_quality_flags, buy_rank_key
 
 
-def _signal_rank_key(signal: Signal) -> tuple[int, float, float, float]:
-    """Sort key for Slack/Firestore ordering: BUY first, then least overextended.
+def _signal_rank_key(signal: Signal, cfg: AppConfig) -> tuple:
+    """Sort key: BUY first, preferred ret_5d band, non-lottery, least overextended.
 
-    Research (2026-07): confidence did not predict returns (mid-tier 80-89 beat 95-99 on the
-    2026-06-28 cohort), while lower ``ret_5d`` among BUYs consistently outperformed. Rank BUYs
-    by ascending ``ret_5d_pct`` (least-chased first) instead of confidence; confidence is kept
-    only as a tiebreaker.
+    Research (2026-07 follow-up): confidence is not predictive; prefer ret_5d in ~8–20%
+    and demote lottery extremes (vol ≥ 5× or ret_5d ≥ 50%).
     """
-    action_rank = 0 if signal.action == "BUY" else (1 if signal.action == "SELL" else 2)
-    ret_5d = signal.metrics.get("ret_5d_pct") if signal.action == "BUY" else None
-    overextension_rank = float(ret_5d) if ret_5d is not None else 0.0
-    return (action_rank, overextension_rank, -float(signal.confidence), -float(signal.score))
+    metrics = signal.metrics if signal.action == "BUY" else {}
+    return buy_rank_key(
+        action=signal.action,
+        confidence=float(signal.confidence),
+        score=float(signal.score),
+        metrics=metrics or {},
+        prefer_min_pct=cfg.strategy.ret_5d_prefer_min_pct,
+        prefer_max_pct=cfg.strategy.ret_5d_prefer_max_pct,
+        lottery_vol_ratio_min=cfg.strategy.lottery_vol_ratio_min,
+        lottery_ret_5d_min_pct=cfg.strategy.lottery_ret_5d_min_pct,
+    )
 
 
 def _apply_min_buy_confidence(signal: Signal, min_conf: int) -> Signal:
@@ -192,15 +198,23 @@ def main() -> int:
             except Exception:
                 pass
 
+        if signal.action == "BUY":
+            signal.metrics = annotate_buy_quality_flags(
+                signal.metrics or {},
+                prefer_min_pct=cfg.strategy.ret_5d_prefer_min_pct,
+                prefer_max_pct=cfg.strategy.ret_5d_prefer_max_pct,
+                lottery_vol_ratio_min=cfg.strategy.lottery_vol_ratio_min,
+                lottery_ret_5d_min_pct=cfg.strategy.lottery_ret_5d_min_pct,
+            )
+
         signals.append(signal)
         log_signal(logger, signal)
 
         if store:
             store.insert_signal(run_id=run_id, asof_date=cfg.asof_date(), signal=signal)
 
-    # Rank for Slack/Firestore: BUY first, then least-overextended BUYs first (see
-    # _signal_rank_key — research-backed, confidence is only a tiebreaker).
-    signals_sorted = sorted(signals, key=_signal_rank_key)
+    # Rank for Slack/Firestore: preferred ret_5d band → non-lottery → least overextended.
+    signals_sorted = sorted(signals, key=lambda s: _signal_rank_key(s, cfg))
 
     if store:
         store.finish_run(run_id=run_id, status="ok", summary_json=asdict(cfg.to_summary()))
@@ -215,7 +229,13 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             logger.warning("Firestore write failed: %s", e)
 
-    slack_enabled = cfg.slack.enabled and not args.no_slack and not args.dry_run
+    defer_slack = bool(cfg.ai.enabled and cfg.slack.require_ai_passed)
+    slack_enabled = cfg.slack.enabled and not args.no_slack and not args.dry_run and not defer_slack
+    if defer_slack and cfg.slack.enabled and not args.no_slack and not args.dry_run:
+        logger.info(
+            "Slack deferred: ai.enabled + slack.require_ai_passed — "
+            "AI entry batch posts ai_gate=passed BUYs only"
+        )
     if slack_enabled:
         try:
             notifier = SlackNotifier.from_env_and_config(channel=cfg.slack.channel)

@@ -118,6 +118,12 @@ class StrategyConfig:
     stop_atr_mult: float = 1.5
     target_atr_mult: float = 3.0
     min_buy_confidence: int = 0
+    # Soft ranking band (research 2026-07 follow-up): prefer ret_5d in this range for Slack/top-N.
+    ret_5d_prefer_min_pct: float = 8.0
+    ret_5d_prefer_max_pct: float = 20.0
+    # Lottery flag: extreme vol or ret_5d — demote in ranking; require AI pass for Slack.
+    lottery_vol_ratio_min: float = 5.0
+    lottery_ret_5d_min_pct: float = 50.0
     weights: StrategyWeights = StrategyWeights()
 
 
@@ -133,6 +139,8 @@ class SlackConfig:
     channel: str = "YOUR_CHANNEL_ID"
     post_top_n: int = 10
     min_confidence: int = 75
+    # When True and ai.enabled, scan skips Slack; AI entry batch posts ai_gate=passed only.
+    require_ai_passed: bool = True
 
 
 @dataclass(frozen=True)
@@ -145,8 +153,15 @@ class AiConfig:
     enabled: bool = True
     entry_min_total: float = 70.0
     entry_min_conviction: float = 0.7
-    max_entry_evals_per_run: int = 15
-    max_holding_evals_per_run: int = 40
+    # Max entry LLM calls per batch — only top-N by signal_quality rank; rest rule-skipped.
+    max_entry_evals_per_run: int = 5
+    max_holding_evals_per_run: int = 10
+    # Skip holding re-eval when last holding_advice is newer than this (0 = no cooldown).
+    holding_min_hours_between_evals: float = 12.0
+    # Stricter gate + pro model for lottery_flag BUYs.
+    lottery_entry_min_total: float = 80.0
+    lottery_entry_min_conviction: float = 0.8
+    lottery_force_pro_model: bool = True
     # Default / legacy single model (overridden by entry/holding/pro when set).
     model: str = "gpt-5.4"
     entry_model: str = "gpt-5.4"
@@ -322,8 +337,12 @@ def load_config(config_path: Path) -> AppConfig:
         enabled=bool(ai_raw.get("enabled", True)),
         entry_min_total=float(ai_raw.get("entry_min_total", 70.0)),
         entry_min_conviction=float(ai_raw.get("entry_min_conviction", 0.7)),
-        max_entry_evals_per_run=int(ai_raw.get("max_entry_evals_per_run", 15)),
+        max_entry_evals_per_run=int(ai_raw.get("max_entry_evals_per_run", 5)),
         max_holding_evals_per_run=int(ai_raw.get("max_holding_evals_per_run", 40)),
+        holding_min_hours_between_evals=float(ai_raw.get("holding_min_hours_between_evals", 12.0)),
+        lottery_entry_min_total=float(ai_raw.get("lottery_entry_min_total", 80.0)),
+        lottery_entry_min_conviction=float(ai_raw.get("lottery_entry_min_conviction", 0.8)),
+        lottery_force_pro_model=bool(ai_raw.get("lottery_force_pro_model", True)),
         model=str(ai_raw.get("model", "gpt-5.4")),
         entry_model=str(ai_raw.get("entry_model", ai_raw.get("model", "gpt-5.4"))),
         holding_model=str(ai_raw.get("holding_model", "gpt-5.4-mini")),
@@ -357,6 +376,10 @@ def load_config(config_path: Path) -> AppConfig:
         stop_atr_mult=float(strategy_raw.get("stop_atr_mult", 1.5)),
         target_atr_mult=float(strategy_raw.get("target_atr_mult", 3.0)),
         min_buy_confidence=int(strategy_raw.get("min_buy_confidence", 0)),
+        ret_5d_prefer_min_pct=float(strategy_raw.get("ret_5d_prefer_min_pct", 8.0)),
+        ret_5d_prefer_max_pct=float(strategy_raw.get("ret_5d_prefer_max_pct", 20.0)),
+        lottery_vol_ratio_min=float(strategy_raw.get("lottery_vol_ratio_min", 5.0)),
+        lottery_ret_5d_min_pct=float(strategy_raw.get("lottery_ret_5d_min_pct", 50.0)),
         weights=strategy_weights,
     )
 
@@ -394,6 +417,7 @@ def load_config(config_path: Path) -> AppConfig:
             channel=str(slack_raw.get("channel", "YOUR_CHANNEL_ID")),
             post_top_n=int(slack_raw.get("post_top_n", 10)),
             min_confidence=int(slack_raw.get("min_confidence", 75)),
+            require_ai_passed=bool(slack_raw.get("require_ai_passed", True)),
         ),
         logging=LoggingConfig(level=str(logging_raw.get("level", "INFO"))),
         ibkr=IbkrConfig(

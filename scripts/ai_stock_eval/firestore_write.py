@@ -54,8 +54,32 @@ def read_candidate_score(db: firestore.Client, signal_doc_id: str, ticker: str) 
     return 0.0
 
 
-def list_pending_tickers(db: firestore.Client, signal_doc_id: str) -> list[tuple[str, int, float]]:
-    """Return [(ticker, index, candidate_score_0_100), ...] for rows needing entry AI."""
+from signals_bot.strategy.signal_quality import buy_rank_key_from_row
+
+
+def _candidate_score_from_row(item: dict[str, Any]) -> float:
+    raw = item.get("score")
+    try:
+        s = float(raw)
+        return s * 100.0 if s <= 1.0 + 1e-9 else s
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def list_pending_tickers(
+    db: firestore.Client,
+    signal_doc_id: str,
+    *,
+    prefer_min_pct: float = 8.0,
+    prefer_max_pct: float = 20.0,
+    lottery_vol_ratio_min: float = 5.0,
+    lottery_ret_5d_min_pct: float = 50.0,
+) -> list[tuple[str, int, float]]:
+    """Return pending BUYs sorted by signal_quality rank (best first).
+
+    Each entry is ``(ticker, index, candidate_score_0_100)``. Caller takes top N for LLM;
+    the rest should be rule-skipped without an OpenAI call.
+    """
     snap = db.collection(SIGNALS_COLLECTION).document(signal_doc_id.strip()).get()
     if not snap.exists:
         return []
@@ -63,25 +87,58 @@ def list_pending_tickers(db: firestore.Client, signal_doc_id: str) -> list[tuple
     arr = data.get("signals")
     if not isinstance(arr, list):
         return []
-    out: list[tuple[str, int, float]] = []
+    ranked: list[tuple[tuple, str, int, float]] = []
     for i, item in enumerate(arr):
         if not isinstance(item, dict):
             continue
-        ticker = str(item.get("ticker") or "").strip().upper()
+        row = dict(item)
+        ticker = str(row.get("ticker") or "").strip().upper()
         if not ticker:
             continue
-        gate = str(item.get("ai_gate") or "pending").strip().lower()
+        gate = str(row.get("ai_gate") or "pending").strip().lower()
         if gate not in ("pending", ""):
-            # Re-eval only pending; already evaluated stay unless forced
             continue
-        raw = item.get("score")
-        try:
-            s = float(raw)
-            cand = s * 100.0 if s <= 1.0 + 1e-9 else s
-        except (TypeError, ValueError):
-            cand = 0.0
-        out.append((ticker, i, cand))
-    return out
+        rank = buy_rank_key_from_row(
+            row,
+            prefer_min_pct=prefer_min_pct,
+            prefer_max_pct=prefer_max_pct,
+            lottery_vol_ratio_min=lottery_vol_ratio_min,
+            lottery_ret_5d_min_pct=lottery_ret_5d_min_pct,
+        )
+        ranked.append((rank, ticker, i, _candidate_score_from_row(row)))
+    ranked.sort(key=lambda t: t[0])
+    return [(ticker, idx, cand) for _rank, ticker, idx, cand in ranked]
+
+
+def read_signal_row(db: firestore.Client, signal_doc_id: str, ticker: str) -> dict[str, Any] | None:
+    """Return the signals[] row for ticker, or None."""
+    sym = ticker.strip().upper()
+    snap = db.collection(SIGNALS_COLLECTION).document(signal_doc_id.strip()).get()
+    if not snap.exists:
+        return None
+    data = snap.to_dict() or {}
+    arr = data.get("signals")
+    if not isinstance(arr, list):
+        return None
+    for item in arr:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("ticker", "")).strip().upper() == sym:
+            return dict(item)
+    return None
+
+
+def load_signal_run_rows(db: firestore.Client, signal_doc_id: str) -> tuple[str, list[dict[str, Any]]]:
+    """Return (asof_date, signals[]) for a run document."""
+    snap = db.collection(SIGNALS_COLLECTION).document(signal_doc_id.strip()).get()
+    if not snap.exists:
+        return "", []
+    data = snap.to_dict() or {}
+    asof = str(data.get("asof_date") or "")
+    arr = data.get("signals")
+    if not isinstance(arr, list):
+        return asof, []
+    return asof, [dict(x) for x in arr if isinstance(x, dict)]
 
 
 def latest_signal_doc_id(db: firestore.Client) -> str | None:
@@ -328,6 +385,58 @@ def write_entry_evaluation(
         )
 
     return eval_id
+
+
+def write_entry_rank_skipped(
+    *,
+    ticker: str,
+    signal_doc_id: str,
+    rank: int,
+    top_n: int,
+) -> str:
+    """Mark a pending BUY as skipped (no LLM) — below signal_quality top-N cutoff."""
+    from types import SimpleNamespace
+
+    why = (
+        f"Deprioritized by signal_quality rank ({rank} > top {top_n}); "
+        "entry LLM not run to save cost."
+    )
+    recommendation: dict[str, Any] = {
+        "decision": "WAIT",
+        "headline": "Skipped — below entry LLM top-N",
+        "why": why,
+        "scores": {"technical": 0.0, "ai": 0.0, "total": 0.0},
+        "plan": {
+            "entry": {"ideal": 0.0, "min": 0.0, "max": 0.0},
+            "stop": 0.0,
+            "target": 0.0,
+            "hold_days": 0,
+            "invalidation": "",
+        },
+        "checklist": [],
+        "detail": {"skip_reason": "rank_below_top_n", "rank": rank, "top_n": top_n},
+    }
+    usage = SimpleNamespace(
+        model="rule_skip",
+        prompt_tokens=0,
+        completion_tokens=0,
+        total_tokens=0,
+        estimated_cost_usd=0.0,
+        cost_estimated=False,
+        source="rank_skip",
+    )
+    return write_entry_evaluation(
+        ticker=ticker,
+        signal_doc_id=signal_doc_id,
+        position_id=None,
+        owner_uid=None,
+        recommendation=recommendation,
+        ai_gate="skipped",
+        stage="entry",
+        usage=usage,
+        detail={"skip_reason": "rank_below_top_n", "rank": rank, "top_n": top_n},
+        apply_plan_overrides=False,
+    )
 
 
 def write_holding_evaluation(

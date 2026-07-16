@@ -2,7 +2,7 @@
 # hold_days sessions <= today) with a permanent P&L outcome (isProfitable / pnlValue / pnlPct /
 # outcome / exitDate / reason) in Firestore `signals`. Idempotent — already-finalized signals
 # are skipped, so this also works as a one-off historical backfill.
-# See docs/research/signal-strategy-research-2026-07.md and scripts/research_open_signals.py.
+# See docs/research/2026-07/ and scripts/research_open_signals.py.
 #
 # Schedule: weekdays ~08:00 America/New_York (12:00 UTC during EDT, 13:00 during EST) — before
 # the 09:30 ET market open, after the universe-discovery run.

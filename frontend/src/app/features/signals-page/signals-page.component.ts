@@ -79,7 +79,22 @@ function parseSignalTimeMs(s: Record<string, unknown>): number | null {
   return null;
 }
 
+/** Lower = more actionable for table sort (passed > pending > filtered/none). */
+function aiGateRank(s: Record<string, unknown>): number {
+  const gate = String(s['ai_gate'] || '')
+    .trim()
+    .toLowerCase();
+  if (gate === 'passed') return 0;
+  if (gate === 'pending' || gate === '') return 1;
+  if (gate === 'filtered') return 2;
+  if (gate === 'skipped') return 2;
+  return 3;
+}
+
 function compareInstances(a: FlatSigInst, b: FlatSigInst): number {
+  // Prefer AI-passed (actionable) over filtered WAIT when ranking the Signals table.
+  const ag = aiGateRank(a.s) - aiGateRank(b.s);
+  if (ag !== 0) return ag;
   if (b.docTsMs !== a.docTsMs) return b.docTsMs - a.docTsMs;
   const d = b.sigSortMs - a.sigSortMs;
   if (d !== 0) return d;
@@ -1183,7 +1198,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   /** True when this signal row has AI data or is pending evaluation. */
   hasAiEval(row: SigDisplayRow): boolean {
     const gate = String(row.s['ai_gate'] || '').toLowerCase();
-    if (gate === 'pending' || gate === 'passed' || gate === 'filtered') return true;
+    if (gate === 'pending' || gate === 'passed' || gate === 'filtered' || gate === 'skipped') return true;
     const ai = row.s['ai'];
     if (ai && typeof ai === 'object' && (ai as Record<string, unknown>)['has_eval']) return true;
     const rec = row.s['recommendation'];
@@ -1225,9 +1240,12 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     if (gate === 'passed' && view) {
       return { label: `${view.action} ✓`, cls: view.actionClass };
     }
-    if (gate === 'filtered' && view) {
-      return { label: `${view.action} ✕`, cls: view.actionClass };
-    }
+  if (gate === 'filtered' && view) {
+    return { label: `${view.action} ✕`, cls: view.actionClass };
+  }
+  if (gate === 'skipped') {
+    return { label: 'Skipped', cls: aiActionClassOf('FILTERED') };
+  }
     if (!view) return null;
     return { label: view.action, cls: view.actionClass };
   }

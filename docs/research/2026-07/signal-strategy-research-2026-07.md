@@ -232,7 +232,7 @@ All five "next experiments" above were implemented:
 | 2 | Stop left at 1.5×ATR (unchanged) — confirmed correct by the data, no action needed. | `config.yaml` |
 | 3 | Slack/Firestore ranking now sorts BUYs by ascending `ret_5d_pct` (least-overextended first); confidence is only a tiebreaker. | `main.py` (`_signal_rank_key`) |
 | 4 | Use `scripts/backtest_recent_signals.py` (below) to re-measure any cohort at +3/+5 (or custom) sessions once it matures. | — |
-| 5 | New `scripts/backtest_recent_signals.py` pulls BUYs from Firestore for a date/range, reports raw and managed win-rate at N sessions, and can append a summary row to `docs/research/cohort_tracking.csv` for tracking over time. | `scripts/backtest_recent_signals.py` |
+| 5 | New `scripts/backtest_recent_signals.py` pulls BUYs from Firestore for a date/range, reports raw and managed win-rate at N sessions, and can append a summary row to `docs/research/2026-07/cohort_tracking.csv` for tracking over time. | `scripts/backtest_recent_signals.py` |
 
 Also tightened the standard `atr_pct_max` from 14 → 10 (bucket data: 3–5% ATR won 56%/PF 1.75, 5–7% won only 37%/PF 0.78, 10%+ was worst). High-volume fresh breakouts (STAK-style, `vol_ratio ≥ overextension_bypass_vol_ratio`) and volume-ignition entries still get the wider `ignite_atr_pct_max` (20) ceiling, so the STAK case study rules are unaffected — verified both STAK 2026-06-02 (ignition) and 2026-06-03 (fresh breakout) still produce BUY signals under the new config.
 
@@ -278,3 +278,5 @@ PYTHONPATH=./src python scripts/backtest_buy_signals.py --csv data/backtest_buys
 **Related docs:** `docs/bot-logic-and-strategy.md`, `README.md` (universe active/inactive).
 
 **Analysis date:** 2026-07-04.
+
+**Follow-up (2026-07-16):** profit-at-default-hold analysis of later signals + AI layer — see [`signal-strategy-research-2026-07-followup.md`](./signal-strategy-research-2026-07-followup.md). Cohort folder: [`docs/research/2026-07/`](./).

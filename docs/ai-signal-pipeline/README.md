@@ -36,22 +36,21 @@ ai:
   enabled: true
   entry_min_total: 70
   entry_min_conviction: 0.7
-  max_entry_evals_per_run: 15
-  max_holding_evals_per_run: 40
+  max_entry_evals_per_run: 5   # LLM top-N by signal_quality rank; rest ai_gate=skipped
+  max_holding_evals_per_run: 10
+  holding_min_hours_between_evals: 12
+  lottery_entry_min_total: 80
+  lottery_entry_min_conviction: 0.8
+  lottery_force_pro_model: true
   entry_model: gpt-5.4
   holding_model: gpt-5.4-mini
   pro_model: gpt-5.4-pro
   pro_min_technical_score: 75
-  pricing:
-    gpt-5.4:
-      prompt_per_1m: 2.5
-      completion_per_1m: 15.0
-    gpt-5.4-mini:
-      prompt_per_1m: 0.75
-      completion_per_1m: 4.5
-    gpt-5.4-pro:
-      prompt_per_1m: 30.0
-      completion_per_1m: 180.0
+
+slack:
+  require_ai_passed: true   # scan defers Slack; entry batch posts passed only
 ```
 
-Secrets: `OPENAI_API_KEY`, `FINNHUB_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`. Optional: `NEWSAPI_API_KEY`, `FRED_API_KEY` (GDELT is free, no key).
+Secrets: `OPENAI_API_KEY`, `FINNHUB_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `SLACK_BOT_TOKEN` (for AI-passed Slack). Optional: `NEWSAPI_API_KEY`, `FRED_API_KEY` (GDELT is free, no key).
+
+Research: [`docs/research/2026-07/`](../research/2026-07/) (profit-at-hold follow-up drove ranking + AI gate changes).

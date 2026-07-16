@@ -24,7 +24,7 @@ over old runs (raise ``--lookback-days`` to cover more history).
 
 Read-only for trading purposes — this only annotates existing signal rows after the fact; it
 never places or suggests placing an order. See
-``docs/research/signal-strategy-research-2026-07.md`` for the research this formalizes.
+``docs/research/2026-07/signal-strategy-research-2026-07.md`` for the research this formalizes.
 
 Usage:
     PYTHONPATH=./src python scripts/research_open_signals.py --config config.yaml

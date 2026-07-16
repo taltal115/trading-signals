@@ -18,7 +18,7 @@ window of ``asof_date`` values, this:
 Usage:
     python scripts/backtest_recent_signals.py --since 2026-06-28
     python scripts/backtest_recent_signals.py --asof 2026-06-28 --sessions 3,5 \
-        --append-csv docs/research/cohort_tracking.csv
+        --append-csv docs/research/2026-07/cohort_tracking.csv
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.storage.firestore import SIGNALS_COLLECTION, get_firestore_client
 
-DEFAULT_CSV = ROOT_DIR / "docs" / "research" / "cohort_tracking.csv"
+DEFAULT_CSV = ROOT_DIR / "docs" / "research" / "2026-07" / "cohort_tracking.csv"
 
 
 @dataclass

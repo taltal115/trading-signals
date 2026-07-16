@@ -447,6 +447,17 @@ def write_buy_signals(
         stop = s.suggested_stop
         target = s.suggested_target
         m = s.metrics or {}
+        # Persist entry features for dashboard / AI / research (2026-07 follow-up).
+        metrics_payload = {
+            "ret_1d_pct": m.get("ret_1d_pct"),
+            "ret_5d_pct": m.get("ret_5d_pct"),
+            "ret_10d_pct": m.get("ret_10d_pct"),
+            "atr_pct": m.get("atr_pct"),
+            "vol_ratio": m.get("vol_ratio"),
+            "breakout_dist_pct": m.get("breakout_dist_pct"),
+            "lottery_flag": bool(m.get("lottery_flag")),
+            "preferred_ret_5d_band": bool(m.get("preferred_ret_5d_band")),
+        }
         payload_signals.append(
             {
                 "ticker": s.ticker,
@@ -461,6 +472,15 @@ def write_buy_signals(
                 "estimated_hold_days": m.get("estimated_hold_days"),
                 "sector": m.get("sector"),
                 "industry": m.get("industry"),
+                "notes": s.notes,
+                "metrics": metrics_payload,
+                "ret_5d_pct": m.get("ret_5d_pct"),
+                "ret_10d_pct": m.get("ret_10d_pct"),
+                "atr_pct": m.get("atr_pct"),
+                "vol_ratio": m.get("vol_ratio"),
+                "breakout_dist_pct": m.get("breakout_dist_pct"),
+                "lottery_flag": bool(m.get("lottery_flag")),
+                "preferred_ret_5d_band": bool(m.get("preferred_ret_5d_band")),
                 "pipeline_stage": "technical",
                 "ai_gate": "pending",
             }
