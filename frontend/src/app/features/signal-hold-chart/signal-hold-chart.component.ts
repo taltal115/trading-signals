@@ -17,7 +17,7 @@ import {
   isProviderQuotaError,
   type CandleProviderId,
 } from '../../core/market-data.service';
-import { drawCandleChart, type CandleHit } from '../../core/candle-chart.util';
+import { drawHoldLineChart, lastIndexAtOrBefore, type HoldLineHit } from '../../core/hold-line-chart.util';
 import { computeSignalHoldWindow } from '../../core/signal-hold-window';
 import { fmtUsd } from '../../core/positions-logic';
 
@@ -47,10 +47,10 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
   tipX = 0;
   tipY = 0;
   tipTime = '';
-  tipOhlc = '';
+  tipPrice = '';
 
   private viewReady = false;
-  private hits: CandleHit[] = [];
+  private hits: HoldLineHit[] = [];
   private moveListener?: (e: MouseEvent) => void;
   private leaveListener?: () => void;
   private ro?: ResizeObserver;
@@ -121,7 +121,8 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
 
     try {
       const win = computeSignalHoldWindow(this.asofDate);
-      const fromSec = Math.floor(win.entryMs / 1000);
+      // Include signal-day RTH (09:30) so entry is on asof_date, not next open.
+      const fromSec = Math.floor(win.fetchFromMs / 1000);
       const toSec = Math.floor(win.fetchToMs / 1000);
       if (toSec <= fromSec) {
         throw new Error('Hold window has not started yet (entry is in the future)');
@@ -130,13 +131,25 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
       const candles = await this.market.fetchHourlyCandles(sym, fromSec, toSec);
       if (gen !== this.loadGen) return;
 
-      const windowComplete = !win.inProgress;
-      let exitPrice: number | null = null;
-      if (windowComplete && candles.c.length) {
-        exitPrice = candles.c[candles.c.length - 1];
+      // Drop any bars after planned exit (provider may overshoot).
+      const exitCut = lastIndexAtOrBefore(candles.t, win.exitMs);
+      const clipped = {
+        t: candles.t.slice(0, exitCut + 1),
+        o: candles.o.slice(0, exitCut + 1),
+        h: candles.h.slice(0, exitCut + 1),
+        l: candles.l.slice(0, exitCut + 1),
+        c: candles.c.slice(0, exitCut + 1),
+        provider: candles.provider,
+      };
+      if (clipped.c.length < 2) {
+        throw new Error('Not enough hourly bars in the hold window');
       }
 
-      const { hits } = drawCandleChart(canvas, candles, {
+      const exitIdx = lastIndexAtOrBefore(clipped.t, win.exitMs);
+      const exitPrice =
+        !win.inProgress && clipped.c.length ? clipped.c[exitIdx] : null;
+
+      const { hits } = drawHoldLineChart(canvas, clipped, {
         entryMs: win.entryMs,
         exitMs: win.exitMs,
         entryPrice: entry,
@@ -144,12 +157,10 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
         inProgress: win.inProgress,
       });
       this.hits = hits;
-      this.providerLabel.set(
-        candleProviderLabel(candles.provider as CandleProviderId)
-      );
+      this.providerLabel.set(candleProviderLabel(candles.provider as CandleProviderId));
       this.progressCaption.set(
         win.inProgress
-          ? '3 trading-day hold in progress (hourly bars through now)'
+          ? '3 trading-day hold in progress (hourly closes through now)'
           : '3 trading-day hold window complete'
       );
 
@@ -162,7 +173,8 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
     } catch (err) {
       if (gen !== this.loadGen) return;
       const msg = err instanceof Error ? err.message : String(err);
-      this.errorMsg.set(isProviderQuotaError(err) ? msg : msg);
+      this.errorMsg.set(msg);
+      void isProviderQuotaError(err);
     } finally {
       if (gen === this.loadGen) this.loading.set(false);
     }
@@ -172,32 +184,32 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
-    let closest: CandleHit | null = null;
+    let closest: HoldLineHit | null = null;
     let closestDist = Infinity;
     for (const h of this.hits) {
       const dx = h.cx - mx;
-      const dist = Math.abs(dx);
-      if (dist < closestDist && dist < 18) {
+      const dy = h.cy - my;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < closestDist && dist < 24) {
         closestDist = dist;
         closest = h;
       }
     }
-    const tip = this.tipRef?.nativeElement;
-    if (closest && tip) {
+    if (closest) {
       const d = new Date(closest.timeSec * 1000);
-      this.tipTime = d.toLocaleString('en-US', {
-        timeZone: 'America/New_York',
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      }) + ' ET';
-      this.tipOhlc =
-        `O ${fmtUsd(closest.open)}  H ${fmtUsd(closest.high)}  L ${fmtUsd(closest.low)}  C ${fmtUsd(closest.close)}`;
-      this.tipX = Math.min(Math.max(8, mx + 12), rect.width - 180);
-      this.tipY = Math.min(Math.max(8, my + 12), rect.height - 56);
+      this.tipTime =
+        d.toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        }) + ' ET';
+      this.tipPrice = fmtUsd(closest.price);
+      this.tipX = Math.min(Math.max(8, mx + 12), rect.width - 140);
+      this.tipY = Math.min(Math.max(8, my + 12), rect.height - 48);
       this.tipVisible = true;
     } else {
       this.tipVisible = false;
