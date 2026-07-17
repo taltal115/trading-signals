@@ -1379,6 +1379,23 @@ button.btn-sig-stock-info.is-open {
   background: rgba(61, 214, 198, 0.12);
 }
 
+.sig-details-toggle-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+tr.sig-hold-chart-tr > td.sig-hold-chart-cell {
+  padding: 0.65rem 1rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+tr.sig-hold-chart-tr.sig-stock-details-for-older .sig-hold-chart-cell {
+  opacity: 0.92;
+}
+
 tr.sig-stock-details-tr > td.sig-stock-details-cell {
   padding: 0;
   border-bottom: 1px solid var(--border);

@@ -13,6 +13,18 @@ export interface DailyCandlesDto {
   o: number[];
 }
 
+export type CandleProviderId = 'twelve_data' | 'alpha_vantage' | 'finnhub';
+
+/** Hourly OHLC candles with which upstream provider succeeded. */
+export interface HourlyCandlesDto {
+  t: number[];
+  o: number[];
+  h: number[];
+  l: number[];
+  c: number[];
+  provider: CandleProviderId;
+}
+
 /** Combined Finnhub quote + company profile for UI “stock details”. */
 export interface StockSnapshotDto {
   symbol: string;
@@ -426,5 +438,235 @@ export class MarketService implements OnModuleInit {
       throw new BadRequestException('Not enough candle history');
     }
     return fromFh;
+  }
+
+  private static readonly MAX_HOURLY_SPAN_SEC = 10 * 86400;
+
+  private async hourlyTwelveData(
+    symbol: string,
+    fromSec: number,
+    toSec: number
+  ): Promise<HourlyCandlesDto> {
+    const key = this.twelveKey;
+    if (!key) throw new Error('no twelve data key');
+    const start = new Date(fromSec * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    const end = new Date(toSec * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    const url =
+      `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}` +
+      `&interval=1h&start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}` +
+      `&timezone=UTC&apikey=${encodeURIComponent(key)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Twelve Data HTTP ' + res.status);
+    const data = (await res.json()) as {
+      status?: string;
+      code?: number;
+      message?: string;
+      values?: {
+        datetime?: string;
+        open?: string;
+        high?: string;
+        low?: string;
+        close?: string;
+      }[];
+    };
+    if (data.status === 'error' || data.code === 401 || data.code === 403) {
+      throw new Error('Twelve Data: ' + (data.message || 'error' + (data.code ? ` (${data.code})` : '')));
+    }
+    const values = data.values;
+    if (!values?.length) throw new Error('Twelve Data: no hourly values');
+    const chronological = [...values].reverse();
+    const t: number[] = [];
+    const o: number[] = [];
+    const h: number[] = [];
+    const l: number[] = [];
+    const c: number[] = [];
+    for (const row of chronological) {
+      const ds = String(row.datetime || '').trim();
+      if (!ds) continue;
+      const iso = ds.includes('T') ? ds : ds.replace(' ', 'T');
+      const withZ = /Z$|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`;
+      const ts = Math.floor(new Date(withZ).getTime() / 1000);
+      if (!Number.isFinite(ts) || ts < fromSec || ts > toSec) continue;
+      const open = parseFloat(String(row.open ?? ''));
+      const high = parseFloat(String(row.high ?? ''));
+      const low = parseFloat(String(row.low ?? ''));
+      const close = parseFloat(String(row.close ?? ''));
+      if (!Number.isFinite(close)) continue;
+      t.push(ts);
+      o.push(Number.isFinite(open) ? open : close);
+      h.push(Number.isFinite(high) ? high : close);
+      l.push(Number.isFinite(low) ? low : close);
+      c.push(close);
+    }
+    if (c.length < 2) throw new Error('Twelve Data: not enough hourly bars in window');
+    return { t, o, h, l, c, provider: 'twelve_data' };
+  }
+
+  private async hourlyAlphaVantage(
+    symbol: string,
+    fromSec: number,
+    toSec: number
+  ): Promise<HourlyCandlesDto> {
+    const key = this.alphaKey;
+    if (!key) throw new Error('no Alpha Vantage key');
+
+    return this.runAlphaVantageExclusive(async () => {
+      const url =
+        `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY` +
+        `&symbol=${encodeURIComponent(symbol)}&interval=60min&outputsize=full` +
+        `&apikey=${encodeURIComponent(key)}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Alpha Vantage HTTP ' + res.status);
+      const data = (await res.json()) as Record<string, unknown>;
+      const errMsg = data['Error Message'];
+      if (typeof errMsg === 'string') throw new Error('Alpha Vantage: ' + errMsg.slice(0, 200));
+      const note = data['Note'] ?? data['Information'];
+      if (typeof note === 'string') throw new Error('Alpha Vantage: ' + note.slice(0, 200));
+      const series = data['Time Series (60min)'] as
+        | Record<
+            string,
+            { '1. open'?: string; '2. high'?: string; '3. low'?: string; '4. close'?: string }
+          >
+        | undefined;
+      if (!series || typeof series !== 'object') {
+        throw new Error('Alpha Vantage: no Time Series (60min)');
+      }
+      const keys = Object.keys(series).sort();
+      const t: number[] = [];
+      const o: number[] = [];
+      const h: number[] = [];
+      const l: number[] = [];
+      const c: number[] = [];
+      for (const ds of keys) {
+        const ts = Math.floor(new Date(ds.includes('T') ? ds : ds.replace(' ', 'T')).getTime() / 1000);
+        if (!Number.isFinite(ts) || ts < fromSec || ts > toSec) continue;
+        const row = series[ds];
+        const close = parseFloat(String(row?.['4. close'] ?? ''));
+        if (!Number.isFinite(close)) continue;
+        const open = parseFloat(String(row?.['1. open'] ?? ''));
+        const high = parseFloat(String(row?.['2. high'] ?? ''));
+        const low = parseFloat(String(row?.['3. low'] ?? ''));
+        t.push(ts);
+        o.push(Number.isFinite(open) ? open : close);
+        h.push(Number.isFinite(high) ? high : close);
+        l.push(Number.isFinite(low) ? low : close);
+        c.push(close);
+      }
+      if (c.length < 2) throw new Error('Alpha Vantage: not enough hourly bars in window');
+      return { t, o, h, l, c, provider: 'alpha_vantage' };
+    });
+  }
+
+  private async hourlyFinnhub(
+    symbol: string,
+    fromSec: number,
+    toSec: number
+  ): Promise<HourlyCandlesDto> {
+    if (!this.finnhubKey) {
+      throw new ServiceUnavailableException(FINNHUB_KEY_MISSING_MSG);
+    }
+    if (Date.now() < this.finnhubCandlesCircuitOpenUntil) {
+      throw this.finnhubCandlesCircuitError();
+    }
+    return this.runFinnhubExclusive(async () => {
+      if (Date.now() < this.finnhubCandlesCircuitOpenUntil) {
+        throw this.finnhubCandlesCircuitError();
+      }
+      const url =
+        `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(symbol)}` +
+        `&resolution=60&from=${fromSec}&to=${toSec}&token=${this.finnhubKey}`;
+      const res = await fetch(url);
+      if (res.status === 429) {
+        throw new ServiceUnavailableException('Finnhub rate limited');
+      }
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        if (res.status === 403) {
+          const wasClosed = Date.now() >= this.finnhubCandlesCircuitOpenUntil;
+          this.finnhubCandlesCircuitOpenUntil = Date.now() + this.FINNHUB_CANDLES_COOLDOWN_MS;
+          if (wasClosed) {
+            this.logger.warn(
+              'Finnhub stock/candle returned 403 (no access on this plan). ' +
+                `Cooling down ${this.FINNHUB_CANDLES_COOLDOWN_MS / 60000}m; set TWELVE_DATA_API_KEY for candles.`
+            );
+          }
+        } else {
+          this.logger.warn(`Finnhub hourly candle ${res.status} ${symbol} ${body.slice(0, 120)}`);
+        }
+        throw new ServiceUnavailableException(
+          res.status === 403
+            ? 'Finnhub candle access denied (403)'
+            : `Finnhub candle HTTP ${res.status}`
+        );
+      }
+      const data = (await res.json()) as {
+        s?: string;
+        t?: number[];
+        o?: number[];
+        h?: number[];
+        l?: number[];
+        c?: number[];
+      };
+      if (data.s === 'no_data' || !data.t?.length || !data.c?.length) {
+        throw new BadRequestException('No hourly candle data for symbol');
+      }
+      const t: number[] = [];
+      const o: number[] = [];
+      const h: number[] = [];
+      const l: number[] = [];
+      const c: number[] = [];
+      for (let i = 0; i < data.t.length; i++) {
+        const ts = data.t[i];
+        if (ts < fromSec || ts > toSec) continue;
+        const close = data.c[i];
+        if (close == null || !Number.isFinite(close)) continue;
+        t.push(ts);
+        o.push(data.o?.[i] != null && Number.isFinite(data.o[i]) ? data.o[i] : close);
+        h.push(data.h?.[i] != null && Number.isFinite(data.h[i]) ? data.h[i] : close);
+        l.push(data.l?.[i] != null && Number.isFinite(data.l[i]) ? data.l[i] : close);
+        c.push(close);
+      }
+      if (c.length < 2) throw new BadRequestException('Not enough hourly bars in window');
+      return { t, o, h, l, c, provider: 'finnhub' };
+    });
+  }
+
+  async getHourlyCandles(symbol: string, fromSec: number, toSec: number): Promise<HourlyCandlesDto> {
+    if (!this.marketDataEnabled) throw this.disabledError();
+    const sym = String(symbol || '')
+      .trim()
+      .toUpperCase();
+    if (!sym) throw new BadRequestException('Missing symbol');
+    if (!Number.isFinite(fromSec) || !Number.isFinite(toSec)) {
+      throw new BadRequestException('from and to must be unix seconds');
+    }
+    if (toSec <= fromSec) {
+      throw new BadRequestException('to must be greater than from');
+    }
+    if (toSec - fromSec > MarketService.MAX_HOURLY_SPAN_SEC) {
+      throw new BadRequestException('Hourly window too large (max 10 calendar days)');
+    }
+
+    if (this.twelveKey) {
+      try {
+        const fromTd = await this.hourlyTwelveData(sym, fromSec, toSec);
+        if (fromTd.c.length >= 2) return fromTd;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`Twelve Data hourly candles failed for ${sym}: ${msg}`);
+      }
+    }
+
+    if (this.alphaKey) {
+      try {
+        const fromAv = await this.hourlyAlphaVantage(sym, fromSec, toSec);
+        if (fromAv.c.length >= 2) return fromAv;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`Alpha Vantage hourly candles failed for ${sym}: ${msg}`);
+      }
+    }
+
+    return this.hourlyFinnhub(sym, fromSec, toSec);
   }
 }

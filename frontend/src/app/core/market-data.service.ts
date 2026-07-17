@@ -18,6 +18,30 @@ export interface DailyCandles {
   o: number[];
 }
 
+export type CandleProviderId = 'twelve_data' | 'alpha_vantage' | 'finnhub';
+
+export interface HourlyCandles {
+  t: number[];
+  o: number[];
+  h: number[];
+  l: number[];
+  c: number[];
+  provider: CandleProviderId;
+}
+
+export function candleProviderLabel(provider: CandleProviderId | string | null | undefined): string {
+  switch (provider) {
+    case 'twelve_data':
+      return 'Twelve Data';
+    case 'alpha_vantage':
+      return 'Alpha Vantage';
+    case 'finnhub':
+      return 'Finnhub';
+    default:
+      return provider ? String(provider) : 'unknown';
+  }
+}
+
 /** Matches Nest `StockSnapshotDto` from `/api/market/snapshot`. */
 export interface StockSnapshot {
   symbol: string;
@@ -52,6 +76,8 @@ export class MarketDataService {
   private readonly QUOTE_TTL_MS = 5 * 60 * 1000;
   private readonly dailyCandlesCache = new Map<string, { ts: number; data: DailyCandles }>();
   private readonly DAILY_CANDLES_TTL_MS = 5 * 60 * 1000;
+  private readonly hourlyCandlesCache = new Map<string, { ts: number; data: HourlyCandles }>();
+  private readonly HOURLY_CANDLES_TTL_MS = 5 * 60 * 1000;
   private readonly snapshotCache = new Map<string, { ts: number; data: StockSnapshot }>();
   private readonly SNAPSHOT_TTL_MS = 10 * 60 * 1000;
   /** After candles API errors (e.g. Finnhub plan 403), skip HTTP until this time — avoids console/network spam. */
@@ -59,6 +85,7 @@ export class MarketDataService {
   private readonly CANDLES_HTTP_BACKOFF_MS = 30 * 60 * 1000;
   /** One candle HTTP at a time so parallel mini-charts do not spam `/api/market/candles` before backoff applies. */
   private candlesClientChain: Promise<unknown> = Promise.resolve();
+  private hourlyCandlesClientChain: Promise<unknown> = Promise.resolve();
 
   private get base(): string {
     return environment.apiBaseUrl;
@@ -171,6 +198,71 @@ export class MarketDataService {
       throw new Error('No chart data: empty series');
     }
     this.dailyCandlesCache.set(cacheKey, { ts: Date.now(), data });
+    return data;
+  }
+
+  async fetchHourlyCandles(ticker: string, fromSec: number, toSec: number): Promise<HourlyCandles> {
+    const sym = String(ticker || '')
+      .trim()
+      .toUpperCase();
+    if (!sym) throw new Error('Missing ticker');
+    if (!Number.isFinite(fromSec) || !Number.isFinite(toSec) || toSec <= fromSec) {
+      throw new Error('Invalid hourly candle window');
+    }
+
+    const cacheKey = `${sym}:${fromSec}:${toSec}`;
+    const cached = this.hourlyCandlesCache.get(cacheKey);
+    if (cached && Date.now() - cached.ts < this.HOURLY_CANDLES_TTL_MS) {
+      return cached.data;
+    }
+
+    const run = this.hourlyCandlesClientChain.then(() =>
+      this.fetchHourlyCandlesNetwork(sym, fromSec, toSec, cacheKey)
+    );
+    this.hourlyCandlesClientChain = run.then(
+      () => undefined,
+      () => undefined
+    );
+    return run as Promise<HourlyCandles>;
+  }
+
+  private async fetchHourlyCandlesNetwork(
+    sym: string,
+    fromSec: number,
+    toSec: number,
+    cacheKey: string
+  ): Promise<HourlyCandles> {
+    const now = Date.now();
+    if (now < this.candlesHttpBackoffUntil) {
+      throw new Error(
+        'Chart data temporarily unavailable (provider limit). Set TWELVE_DATA_API_KEY on the API server or wait.'
+      );
+    }
+
+    const url =
+      `${this.base}/api/market/candles?symbol=${encodeURIComponent(sym)}` +
+      `&interval=1h&from=${encodeURIComponent(String(Math.floor(fromSec)))}` +
+      `&to=${encodeURIComponent(String(Math.floor(toSec)))}`;
+    const res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) {
+      const detail = await this.readApiError(res);
+      if (res.status === 503 || res.status === 400) {
+        this.candlesHttpBackoffUntil = Date.now() + this.CANDLES_HTTP_BACKOFF_MS;
+      }
+      throw new Error(
+        'No hourly chart data: ' +
+          detail +
+          ' — on the API `.env`: TWELVE_DATA_API_KEY and/or ALPHA_VANTAGE_API_KEY for charts.'
+      );
+    }
+    const data = (await res.json()) as HourlyCandles;
+    if (!data.t?.length || !data.c?.length || data.c.length < 2) {
+      throw new Error('No hourly chart data: empty series');
+    }
+    if (!data.o?.length || !data.h?.length || !data.l?.length) {
+      throw new Error('No hourly chart data: missing OHLC');
+    }
+    this.hourlyCandlesCache.set(cacheKey, { ts: Date.now(), data });
     return data;
   }
 }

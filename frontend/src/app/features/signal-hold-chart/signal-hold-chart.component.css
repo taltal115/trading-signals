@@ -1,0 +1,73 @@
+.hold-chart-root {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 12rem;
+}
+
+.hold-chart-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  font-size: 0.75rem;
+  color: var(--muted, #8b949e);
+}
+
+.hold-chart-provider {
+  font-weight: 600;
+  color: var(--accent, #58a6ff);
+}
+
+.hold-chart-status,
+.hold-chart-err {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted, #8b949e);
+}
+
+.hold-chart-err {
+  color: var(--sell, #f85149);
+}
+
+.hold-chart-wrap {
+  position: relative;
+  width: 100%;
+  height: 220px;
+}
+
+.hold-chart-wrap.is-hidden {
+  display: none;
+}
+
+.hold-chart-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.hold-chart-tooltip {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  background: rgba(22, 27, 34, 0.95);
+  border: 1px solid var(--border, #30363d);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  max-width: 16rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.tip-time {
+  color: var(--muted, #8b949e);
+  margin-bottom: 0.15rem;
+}
+
+.tip-ohlc {
+  color: var(--text, #e6edf3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

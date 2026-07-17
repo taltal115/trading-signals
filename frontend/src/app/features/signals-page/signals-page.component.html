@@ -130,14 +130,25 @@
               </ng-container>
             </td>
             <td class="sig-details-toggle-cell">
-              <button
-                type="button"
-                class="btn-sig-stock-info"
-                [class.is-open]="stockDetailsOpen(row.instanceKey)"
-                (click)="toggleStockDetails(row.instanceKey, str(row.s['ticker']))"
-              >
-                {{ stockDetailsOpen(row.instanceKey) ? 'Hide' : 'Info' }}
-              </button>
+              <div class="sig-details-toggle-wrap">
+                <button
+                  type="button"
+                  class="btn-sig-stock-info"
+                  [class.is-open]="stockDetailsOpen(row.instanceKey)"
+                  (click)="toggleStockDetails(row.instanceKey, str(row.s['ticker']))"
+                >
+                  {{ stockDetailsOpen(row.instanceKey) ? 'Hide' : 'Info' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-sig-stock-info"
+                  [class.is-open]="holdChartOpen(row.instanceKey)"
+                  title="3 trading-day hourly hold chart"
+                  (click)="toggleHoldChart(row.instanceKey, $event)"
+                >
+                  {{ holdChartOpen(row.instanceKey) ? 'Hide chart' : 'Chart' }}
+                </button>
+              </div>
             </td>
             <td class="sig-ai-toggle-cell">
               <div class="sig-ai-toggle-wrap">
@@ -255,6 +266,19 @@
                   Data from Finnhub via your API server. Intraday volume is not included on this plan.
                 </p>
               </div>
+            </td>
+          </tr>
+          <tr
+            *ngIf="row.kind === 'sig' && holdChartOpen(row.instanceKey)"
+            class="sig-hold-chart-tr"
+            [class.sig-stock-details-for-older]="row.role === 'older'"
+          >
+            <td colspan="10" class="sig-hold-chart-cell">
+              <app-signal-hold-chart
+                [ticker]="str(row.s['ticker'])"
+                [asofDate]="row.asofDate"
+                [entryPrice]="entryPriceNum(row.s['close'])"
+              />
             </td>
           </tr>
           <tr

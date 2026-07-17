@@ -79,7 +79,7 @@ Set production configuration on the service (example — use Secret Manager for 
 | `ALLOWED_SIGN_IN_EMAILS` / `ALLOWED_AUTH_UIDS` | Same allowlists as the Angular env |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Full service account JSON (Secret Manager → env), **or** rely on the Cloud Run service account with IAM roles for Firestore (see below) |
 | `FINNHUB_API_KEY` | **Required** for `/api/market/quote` and `/api/market/stock-snapshot`. Same key as local `.env`. |
-| `TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY` | **Strongly recommended** for `/api/market/candles` (dashboard charts): Finnhub **free** plans usually return **403** on `stock/candle`, so the API uses Twelve Data / Alpha Vantage first when these are set. |
+| `TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY` | **Strongly recommended** for `/api/market/candles` (daily charts + Signals hourly hold charts): Finnhub **free** plans usually return **403** on `stock/candle`, so the API uses Twelve Data / Alpha Vantage first when these are set. |
 | `GITHUB_PERSONAL_TOKEN` | **Required** for `POST /api/github/workflows/position-monitor` (dashboard **Check**). Not bundled in the frontend. |
 
 ### Market data (`503` “FINNHUB_API_KEY is not set on the API server”)
@@ -97,9 +97,9 @@ gcloud run services update trading-signals-api --region us-central1 \
 
 If **`MARKET_DATA_ENABLED=false`**, all `/api/market/*` routes return 503 with a different message (feature off).
 
-### Daily candles (`503` Finnhub plan / “Configure TWELVE_DATA…”)
+### Daily / hourly candles (`503` Finnhub plan / “Configure TWELVE_DATA…”)
 
-**Quotes** use Finnhub; **daily OHLC candles** try **Twelve Data** first, then **Alpha Vantage**, then Finnhub. On many **free** Finnhub tiers, **`stock/candle` returns 403**; the service then opens a short cooldown and returns 503 unless Twelve Data or Alpha Vantage is configured.
+**Quotes** use Finnhub; **OHLC candles** (daily dashboard charts and Signals **3-day hourly hold** charts) try **Twelve Data** first, then **Alpha Vantage**, then Finnhub. On many **free** Finnhub tiers, **`stock/candle` returns 403**; the service then opens a short cooldown and returns 503 unless Twelve Data or Alpha Vantage is configured. Hourly charts require the same keys (`TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY`).
 
 Set at least one of these on **Cloud Run** (same values as local `.env`):
 

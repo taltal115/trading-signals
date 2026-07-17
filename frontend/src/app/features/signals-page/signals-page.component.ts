@@ -27,6 +27,7 @@ import {
 } from '../../core/market-data.service';
 import { environment } from '../../../environments/environment';
 import { normalizeSignalDocs, normalizeSignalsApiResponse, type SignalDoc, type SignalInstanceRow } from '../../core/signal-docs-normalize';
+import { SignalHoldChartComponent } from '../signal-hold-chart/signal-hold-chart.component';
 
 /** One flattened BUY line from any run document (for cross-doc grouping). */
 type FlatSigInst = {
@@ -352,7 +353,7 @@ function buildAiEvaluationView(rowSignal: Record<string, unknown>): AiEvaluation
 @Component({
   selector: 'app-signals-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, SignalHoldChartComponent],
   templateUrl: './signals-page.component.html',
   styleUrl: './signals-page.component.css',
 })
@@ -396,6 +397,9 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
 
   /** Per signal row: expanded Finnhub quote + company profile. */
   readonly stockDetailByRow = signal<Record<string, StockDetailEntry>>({});
+
+  /** Per signal row (instanceKey): 3-day hourly hold chart expand. */
+  readonly holdChartOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
 
   /** Per signal row (instanceKey): whether the inline AI summary panel is expanded. */
   readonly aiSummaryOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
@@ -677,6 +681,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   private applyPageRows(rows: SignalInstanceRow[]): void {
     this.instanceRows.set(rows);
     this.expandedSignalGroups.set(new Set<string>());
+    this.holdChartOpenByRow.set(new Set<string>());
     this.inlineKey.set(null);
     this.inlineExpanded.set(false);
     this.bracketPct.set(null);
@@ -869,6 +874,20 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   stockDetailsOpen(rowKey: string): boolean {
     const e = this.stockDetailByRow()[rowKey];
     return !!e?.expanded;
+  }
+
+  toggleHoldChart(instanceKey: string, ev?: Event): void {
+    ev?.stopPropagation();
+    this.holdChartOpenByRow.update((prev) => {
+      const next = new Set(prev);
+      if (next.has(instanceKey)) next.delete(instanceKey);
+      else next.add(instanceKey);
+      return next;
+    });
+  }
+
+  holdChartOpen(instanceKey: string): boolean {
+    return this.holdChartOpenByRow().has(instanceKey);
   }
 
   stockDetailsLoading(rowKey: string): boolean {
@@ -1376,5 +1395,10 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   /** Angular templates cannot call global `String`. */
   str(x: unknown): string {
     return String(x ?? '');
+  }
+
+  entryPriceNum(x: unknown): number {
+    const n = typeof x === 'number' ? x : Number(x);
+    return Number.isFinite(n) ? n : 0;
   }
 }

@@ -82,6 +82,8 @@ For real Google sign-in locally, set `AUTH_BYPASS_LOCAL=false`, provide `GOOGLE_
 - `GET /api/signals` — paginated signal run reads for the dashboard.
 - `GET /api/ai-evals` / `GET /api/ai-evals/recent` — read stored AI evaluation rows (`ai_evals`); no Nest route dispatches AI jobs.
 - `GET /api/market/quote` / `snapshot` / `candles` — Finnhub + Twelve Data / Alpha Vantage (server-side keys).
+  - Daily (default): `GET /api/market/candles?symbol=AAPL&days=20` → `{ t, o, c }`.
+  - Hourly hold window: `GET /api/market/candles?symbol=AAPL&interval=1h&from=<unix>&to=<unix>` → `{ t, o, h, l, c, provider }` where `provider` is `twelve_data` | `alpha_vantage` | `finnhub`. Max window ~10 calendar days. Provider order: Twelve Data → Alpha Vantage → Finnhub.
 - `GET|POST|PATCH /api/positions...`, `GET /api/monitor/checks` — session required (or bypass user).
 - `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**). Requires session + `GITHUB_PERSONAL_TOKEN` on the server. (Bot scan / AI eval are **not** exposed as Nest dispatch routes.)
 

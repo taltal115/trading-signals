@@ -1,0 +1,21 @@
+<div class="hold-chart-root">
+  <div class="hold-chart-meta">
+    <span class="hold-chart-caption" *ngIf="progressCaption() as cap">{{ cap }}</span>
+    <span class="hold-chart-provider" *ngIf="providerLabel() as p">Data: {{ p }}</span>
+  </div>
+  <p class="hold-chart-status" *ngIf="loading()">Loading hourly candles…</p>
+  <p class="hold-chart-err" *ngIf="!loading() && errorMsg() as err">{{ err }}</p>
+  <div class="hold-chart-wrap" [class.is-hidden]="!!errorMsg()">
+    <canvas #canvasEl class="hold-chart-canvas" aria-label="Hourly hold candlestick chart"></canvas>
+    <div
+      #tipEl
+      class="hold-chart-tooltip"
+      [hidden]="!tipVisible"
+      [style.left.px]="tipX"
+      [style.top.px]="tipY"
+    >
+      <div class="tip-time">{{ tipTime }}</div>
+      <div class="tip-ohlc">{{ tipOhlc }}</div>
+    </div>
+  </div>
+</div>

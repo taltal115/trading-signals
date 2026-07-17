@@ -231,3 +231,20 @@
   padding-top: 0.5rem;
   border-top: 1px dashed rgba(139, 148, 158, 0.3);
 }
+
+.sig-details-toggle-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.sig-hold-chart-cell {
+  padding: 0.65rem 1rem 0.85rem;
+  border-bottom: 1px solid var(--border, #30363d);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+tr.sig-hold-chart-tr.sig-stock-details-for-older .sig-hold-chart-cell {
+  opacity: 0.92;
+}
