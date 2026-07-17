@@ -309,29 +309,43 @@ python scripts/ibkr_scanner_test.py --config config.yaml
 python3 scripts/firebase_firestore_test.py --collection test --doc ping
 ```
 
-### Finviz signals scrape (optional)
+### Finviz scrape POC (optional, research only)
 
-Print rows from the Finviz Signals table (`tbody#js-signals_1`):
+Scrapes Finviz **homepage signal cards** (`.hp_home-signal-card-cell`: Ticker, Last, Change, Volume, Signal) or **screener** Overview tables via `requests` + BeautifulSoup.
+Quotes are delayed; output is for personal research, not the production universe pipeline.
 
 ```bash
-python scripts/finviz_signals_scrape.py --limit 25
+# Homepage signal widget (default) — prints a table like finviz.com
+python3 scripts/finviz_screener_poc.py
+
+# Filter by signal label (e.g. only "New High" rows)
+python3 scripts/finviz_screener_poc.py --signal-filter "New High"
+
+# Screener mode: named preset (top gainers, unusual volume, …)
+python3 scripts/finviz_screener_poc.py --mode screener --preset top-gainers --max-pages 2 --format csv --limit 40
+
+# Screener mode: copy a filter URL from the Finviz UI (most consistent)
+python3 scripts/finviz_screener_poc.py --mode screener \
+  --url "https://finviz.com/screener?v=111&f=geo_usa,sh_price_o2" \
+  --max-pages 3 --format csv \
+  --out docs/research/finviz_poc_sample.csv
 ```
 
 If your network does SSL interception, pass your CA bundle (recommended) or use `--insecure` as a last resort:
 
 ```bash
-python scripts/finviz_signals_scrape.py --limit 25 --ca-bundle /path/to/corp-ca.pem
-python scripts/finviz_signals_scrape.py --limit 25 --insecure
+python3 scripts/finviz_screener_poc.py --ca-bundle /path/to/corp-ca.pem
+python3 scripts/finviz_screener_poc.py --mode screener --preset top-gainers --insecure
 ```
 
-If Finviz returns HTTP 403/404 to requests-based scraping, the script will try a Playwright browser fallback. Install once:
+If Finviz returns HTTP 403/503 to requests-based scraping, the script tries a Playwright browser fallback. Install once:
 
 ```bash
 python -m pip install playwright
 playwright install chromium
 ```
 
-Or run directly:
+Or run the main bot directly:
 
 ```bash
 signals-bot --config config.yaml

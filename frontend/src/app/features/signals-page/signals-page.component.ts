@@ -92,12 +92,12 @@ function aiGateRank(s: Record<string, unknown>): number {
 }
 
 function compareInstances(a: FlatSigInst, b: FlatSigInst): number {
-  // Prefer AI-passed (actionable) over filtered WAIT when ranking the Signals table.
-  const ag = aiGateRank(a.s) - aiGateRank(b.s);
-  if (ag !== 0) return ag;
+  // Newest first (run timestamp, then per-signal time). AI gate is only a tiebreaker.
   if (b.docTsMs !== a.docTsMs) return b.docTsMs - a.docTsMs;
   const d = b.sigSortMs - a.sigSortMs;
   if (d !== 0) return d;
+  const ag = aiGateRank(a.s) - aiGateRank(b.s);
+  if (ag !== 0) return ag;
   if (b.index !== a.index) return b.index - a.index;
   return a.docId < b.docId ? -1 : a.docId > b.docId ? 1 : 0;
 }
