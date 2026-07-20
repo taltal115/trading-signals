@@ -204,16 +204,19 @@ def main() -> int:
                 pass
 
         if signal.action == "BUY":
-            signal.metrics = annotate_buy_quality_flags(
-                signal.metrics or {},
-                confidence=float(signal.confidence),
-                prefer_min_pct=cfg.strategy.ret_5d_prefer_min_pct,
-                prefer_max_pct=cfg.strategy.ret_5d_prefer_max_pct,
-                lottery_vol_ratio_min=cfg.strategy.lottery_vol_ratio_min,
-                lottery_ret_5d_min_pct=cfg.strategy.lottery_ret_5d_min_pct,
-                high_confidence_risk_threshold=cfg.strategy.high_confidence_risk_threshold,
-                prefer_confidence_min=cfg.strategy.prefer_confidence_min,
-                prefer_confidence_max=cfg.strategy.prefer_confidence_max,
+            signal = replace(
+                signal,
+                metrics=annotate_buy_quality_flags(
+                    signal.metrics or {},
+                    confidence=float(signal.confidence),
+                    prefer_min_pct=cfg.strategy.ret_5d_prefer_min_pct,
+                    prefer_max_pct=cfg.strategy.ret_5d_prefer_max_pct,
+                    lottery_vol_ratio_min=cfg.strategy.lottery_vol_ratio_min,
+                    lottery_ret_5d_min_pct=cfg.strategy.lottery_ret_5d_min_pct,
+                    high_confidence_risk_threshold=cfg.strategy.high_confidence_risk_threshold,
+                    prefer_confidence_min=cfg.strategy.prefer_confidence_min,
+                    prefer_confidence_max=cfg.strategy.prefer_confidence_max,
+                ),
             )
 
         signals.append(signal)
