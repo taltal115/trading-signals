@@ -390,10 +390,14 @@ def _firestore_buy_mrkdown(r: dict[str, Any]) -> str | None:
         except (TypeError, ValueError):
             total = None
     flags: list[str] = []
+    if r.get("high_confidence_risk_flag"):
+        flags.append("HIGH-RISK-CONF")
     if r.get("lottery_flag"):
         flags.append("lottery")
     if r.get("preferred_ret_5d_band"):
         flags.append("pref-band")
+    if r.get("preferred_confidence_band"):
+        flags.append("sweet-spot-conf")
     flag_s = f" ({', '.join(flags)})" if flags else ""
     ai_s = f" ai_total={total:.0f}" if total is not None else ""
     header = f":green_circle: *BUY* `{ticker}` conf={conf}{ai_s}{flag_s} • Price: {_fmt_money(close)}"

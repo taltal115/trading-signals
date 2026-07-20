@@ -124,6 +124,11 @@ class StrategyConfig:
     # Lottery flag: extreme vol or ret_5d — demote in ranking; require AI pass for Slack.
     lottery_vol_ratio_min: float = 5.0
     lottery_ret_5d_min_pct: float = 50.0
+    # Confidence band ranking (2026-07-20 research): conf=100 had worst performance,
+    # conf 90–94 had the only positive edge. Penalize high conf, prefer mid-tier.
+    high_confidence_risk_threshold: int = 98
+    prefer_confidence_min: int = 90
+    prefer_confidence_max: int = 94
     weights: StrategyWeights = StrategyWeights()
 
 
@@ -380,6 +385,9 @@ def load_config(config_path: Path) -> AppConfig:
         ret_5d_prefer_max_pct=float(strategy_raw.get("ret_5d_prefer_max_pct", 20.0)),
         lottery_vol_ratio_min=float(strategy_raw.get("lottery_vol_ratio_min", 5.0)),
         lottery_ret_5d_min_pct=float(strategy_raw.get("lottery_ret_5d_min_pct", 50.0)),
+        high_confidence_risk_threshold=int(strategy_raw.get("high_confidence_risk_threshold", 98)),
+        prefer_confidence_min=int(strategy_raw.get("prefer_confidence_min", 90)),
+        prefer_confidence_max=int(strategy_raw.get("prefer_confidence_max", 94)),
         weights=strategy_weights,
     )
 

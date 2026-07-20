@@ -447,7 +447,7 @@ def write_buy_signals(
         stop = s.suggested_stop
         target = s.suggested_target
         m = s.metrics or {}
-        # Persist entry features for dashboard / AI / research (2026-07 follow-up).
+        # Persist entry features for dashboard / AI / research (2026-07 follow-up #2).
         metrics_payload = {
             "ret_1d_pct": m.get("ret_1d_pct"),
             "ret_5d_pct": m.get("ret_5d_pct"),
@@ -457,6 +457,8 @@ def write_buy_signals(
             "breakout_dist_pct": m.get("breakout_dist_pct"),
             "lottery_flag": bool(m.get("lottery_flag")),
             "preferred_ret_5d_band": bool(m.get("preferred_ret_5d_band")),
+            "high_confidence_risk_flag": bool(m.get("high_confidence_risk_flag")),
+            "preferred_confidence_band": bool(m.get("preferred_confidence_band")),
         }
         payload_signals.append(
             {
@@ -481,6 +483,8 @@ def write_buy_signals(
                 "breakout_dist_pct": m.get("breakout_dist_pct"),
                 "lottery_flag": bool(m.get("lottery_flag")),
                 "preferred_ret_5d_band": bool(m.get("preferred_ret_5d_band")),
+                "high_confidence_risk_flag": bool(m.get("high_confidence_risk_flag")),
+                "preferred_confidence_band": bool(m.get("preferred_confidence_band")),
                 "pipeline_stage": "technical",
                 "ai_gate": "pending",
             }

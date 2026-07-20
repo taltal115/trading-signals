@@ -21,10 +21,12 @@ from signals_bot.strategy.signal_quality import annotate_buy_quality_flags, buy_
 
 
 def _signal_rank_key(signal: Signal, cfg: AppConfig) -> tuple:
-    """Sort key: BUY first, preferred ret_5d band, non-lottery, least overextended.
+    """Sort key: BUY first, non-high-risk conf, preferred conf band, preferred ret_5d band,
+    non-lottery, least overextended.
 
-    Research (2026-07 follow-up): confidence is not predictive; prefer ret_5d in ~8–20%
-    and demote lottery extremes (vol ≥ 5× or ret_5d ≥ 50%).
+    Research 2026-07-20 follow-up #2:
+    - Conf 100: 16.7% win rate, −18.38% avg (penalize)
+    - Conf 90–94: 60% win rate, +0.72% avg (prioritize)
     """
     metrics = signal.metrics if signal.action == "BUY" else {}
     return buy_rank_key(
@@ -36,6 +38,9 @@ def _signal_rank_key(signal: Signal, cfg: AppConfig) -> tuple:
         prefer_max_pct=cfg.strategy.ret_5d_prefer_max_pct,
         lottery_vol_ratio_min=cfg.strategy.lottery_vol_ratio_min,
         lottery_ret_5d_min_pct=cfg.strategy.lottery_ret_5d_min_pct,
+        high_confidence_risk_threshold=cfg.strategy.high_confidence_risk_threshold,
+        prefer_confidence_min=cfg.strategy.prefer_confidence_min,
+        prefer_confidence_max=cfg.strategy.prefer_confidence_max,
     )
 
 
@@ -201,10 +206,14 @@ def main() -> int:
         if signal.action == "BUY":
             signal.metrics = annotate_buy_quality_flags(
                 signal.metrics or {},
+                confidence=float(signal.confidence),
                 prefer_min_pct=cfg.strategy.ret_5d_prefer_min_pct,
                 prefer_max_pct=cfg.strategy.ret_5d_prefer_max_pct,
                 lottery_vol_ratio_min=cfg.strategy.lottery_vol_ratio_min,
                 lottery_ret_5d_min_pct=cfg.strategy.lottery_ret_5d_min_pct,
+                high_confidence_risk_threshold=cfg.strategy.high_confidence_risk_threshold,
+                prefer_confidence_min=cfg.strategy.prefer_confidence_min,
+                prefer_confidence_max=cfg.strategy.prefer_confidence_max,
             )
 
         signals.append(signal)
