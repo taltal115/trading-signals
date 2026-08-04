@@ -1,0 +1,16 @@
+---
+description: Core trading-signals conventions (signal-only, layout, secrets)
+alwaysApply: true
+---
+
+# Project core
+
+- Signal-only: never add broker execution or auto-trading.
+- Docs and research markdown → `docs/` (research under `docs/research/YYYY-MM/`).
+- Scripts and one-off tools → `scripts/`; bot library → `src/signals_bot/`.
+- Config via `config.yaml` + env; never commit `.env` or API keys.
+- Prefer typed dataclasses, f-strings, pathlib, explicit errors; keep deps minimal.
+- Outputs: logs, Slack, SQLite, and/or Firestore — not silent side effects.
+- Always log BUY/WAIT/SELL with confidence 0–100; store times in UTC with `asof_date`.
+- Treat market data as unreliable; degrade gracefully on provider failures.
+- Actionable stream: hard rule filters + `ai_gate=passed` only (paper/Slack/UI).

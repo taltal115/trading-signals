@@ -1,0 +1,12 @@
+---
+description: Angular dashboard conventions
+globs: frontend/**/*.{ts,html,scss},backend/**/*.ts
+alwaysApply: false
+---
+
+# Dashboard (Angular + Nest)
+
+- UI lives in `frontend/` (Angular); API in `backend/` (NestJS). Do not revive the old vanilla `web/` app patterns.
+- Default Signals ledger filter: Actionable (`ai_gate=passed`). Keep Pending / All available.
+- No broker trading UI. Read skill `.cursor/skills/trading-dashboard/SKILL.md` for page layout and hold-chart work.
+- Prefer existing component patterns, signals store, and chart services over new parallel stacks.

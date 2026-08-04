@@ -1,0 +1,14 @@
+---
+description: Python bot and strategy changes
+globs: src/signals_bot/**/*.py,scripts/**/*.py,config.yaml
+alwaysApply: false
+---
+
+# Python strategy / scripts
+
+- Keep modules small; avoid hidden side effects in imports.
+- Hard BUY filters live in strategy helpers + `config.yaml` (`hard_reject_*`, continuation bands); wire through `main.py` with `dataclasses.replace` for frozen `Signal` updates.
+- Do not open paper on technical BUY alone — paper opens when AI entry sets `ai_gate=passed`.
+- Prefer deterministic scoring; no ML in the default scan path.
+- Research cohort scripts should support `--actionable-only` when measuring post-filter edge.
+- After strategy/config changes that affect BUY quality, point to remeasure via `scripts/research_profit_hold_cohort.py` and note findings under `docs/research/`.
