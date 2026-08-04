@@ -5,6 +5,7 @@ Dated strategy research lives in month folders so each cohort stays self-contain
 | Folder | Topic |
 |--------|--------|
 | [`2026-07/`](./2026-07/) | Breakout cohort analysis + profit-at-hold follow-up (incl. AI layer) |
+| [`2026-08/`](./2026-08/) | Post-fix failure analysis: why recent 3d-hold BUYs lost money |
 
 For the next research cycle, create `docs/research/YYYY-MM/` and keep scripts, CSVs, and markdown together there.
 
