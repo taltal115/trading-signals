@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import random
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -13,11 +15,42 @@ import requests
 
 DEFAULT_MODEL = "gpt-5.4"
 DEFAULT_BASE = "https://api.openai.com/v1"
-DEFAULT_MAX_RETRIES = 3
-DEFAULT_RETRY_BASE_SECONDS = 5.0
-DEFAULT_RETRY_MAX_SECONDS = 60.0
+# Generous defaults: entry prompts are large; TPM 429s often need minutes, not seconds.
+DEFAULT_MAX_RETRIES = 6
+DEFAULT_RETRY_BASE_SECONDS = 15.0
+DEFAULT_RETRY_MAX_SECONDS = 180.0
 
 log = logging.getLogger(__name__)
+
+_RETRY_IN_SECONDS_RE = re.compile(r"try again in\s+([\d.]+)\s*s", re.IGNORECASE)
+
+
+class OpenAIHttpError(RuntimeError):
+    """HTTP failure from OpenAI after retries (or non-retryable error)."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None,
+        error_type: str | None,
+        body_snippet: str = "",
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.error_type = error_type
+        self.body_snippet = body_snippet
+
+    @property
+    def is_rate_limit(self) -> bool:
+        """Transient 429 (retry later); not billing/quota exhaustion."""
+        if self.status_code != 429:
+            return False
+        return self.error_type != "insufficient_quota"
+
+    @property
+    def is_insufficient_quota(self) -> bool:
+        return self.status_code == 429 and self.error_type == "insufficient_quota"
 
 
 @dataclass(frozen=True)
@@ -107,12 +140,35 @@ def _retry_settings() -> tuple[int, float, float]:
     return retries, base_seconds, max_seconds
 
 
+def _error_payload(resp: requests.Response) -> dict[str, Any]:
+    try:
+        data = resp.json()
+    except (ValueError, TypeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    err = data.get("error")
+    return err if isinstance(err, dict) else {}
+
+
+def _error_type(resp: requests.Response) -> str | None:
+    t = _error_payload(resp).get("type")
+    return str(t) if t else None
+
+
 def _retry_after_seconds(resp: requests.Response, *, attempt: int, base_seconds: float) -> float:
-    """Use the provider's numeric Retry-After when available, otherwise exponential backoff."""
+    """Prefer Retry-After header, then message 'try again in Xs', else exponential backoff."""
     retry_after = resp.headers.get("Retry-After")
     if retry_after:
         try:
             return max(0.0, float(retry_after))
+        except ValueError:
+            pass
+    msg = str(_error_payload(resp).get("message") or "")
+    match = _RETRY_IN_SECONDS_RE.search(msg)
+    if match:
+        try:
+            return max(0.0, float(match.group(1)))
         except ValueError:
             pass
     return base_seconds * (2**attempt)
@@ -122,13 +178,28 @@ def _is_retryable_response(resp: requests.Response) -> bool:
     if resp.status_code in {408, 429, 500, 502, 503, 504}:
         if resp.status_code != 429:
             return True
-        try:
-            error = resp.json().get("error", {})
-        except (ValueError, TypeError):
-            error = {}
         # Insufficient quota is a billing/configuration issue, not a transient rate limit.
-        return error.get("type") != "insufficient_quota"
+        return _error_type(resp) != "insufficient_quota"
     return False
+
+
+def _raise_http_error(resp: requests.Response) -> None:
+    err = _error_payload(resp)
+    err_type = str(err.get("type") or "") or None
+    msg = str(err.get("message") or "").strip()
+    snippet = (resp.text or "")[:400]
+    if not msg:
+        msg = f"{resp.status_code} Client Error for url: {resp.url}"
+    else:
+        msg = f"{resp.status_code} {msg}"
+    if err_type:
+        msg = f"{msg} (type={err_type})"
+    raise OpenAIHttpError(
+        msg,
+        status_code=int(resp.status_code),
+        error_type=err_type,
+        body_snippet=snippet,
+    )
 
 
 def call_openai_json(
@@ -179,16 +250,21 @@ def call_openai_json(
             _retry_after_seconds(resp, attempt=attempt, base_seconds=base_seconds),
             max_seconds,
         )
+        # Small jitter so stacked workflows do not align on the same wake time.
+        delay = delay + random.uniform(0.0, min(3.0, max(0.5, delay * 0.1)))
         log.warning(
-            "OpenAI request returned HTTP %s; retrying in %.1fs (%d/%d)",
+            "OpenAI HTTP %s type=%s; retrying in %.1fs (%d/%d) model=%s",
             resp.status_code,
+            _error_type(resp) or "unknown",
             delay,
             attempt + 1,
             max_retries,
+            m,
         )
         time.sleep(delay)
     assert resp is not None
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        _raise_http_error(resp)
     data = resp.json()
     content = data["choices"][0]["message"]["content"]
     parsed = json.loads(content)

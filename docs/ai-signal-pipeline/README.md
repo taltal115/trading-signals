@@ -55,9 +55,11 @@ slack:
 - Scan hard-filters toxic BUYs (conf≥98 / ret_5d≥50 / vol≥5 / outside continuation band) → WAIT before Firestore.
 - Paper `my_positions` opens **only** when entry AI sets `ai_gate=passed` (not on technical BUY).
 - Holding advisor runs **1×/weekday**, evaluates **passed-only** paper.
-- Entry LLM 429/exhaustion leaves `ai_gate=pending` (never stub-BUY).
+- Entry LLM 429/exhaustion leaves `ai_gate=pending` (never stub-BUY). Batch soft-exits 0 on rate limit, circuit-breaks remaining tickers, and paces calls (`OPENAI_INTER_REQUEST_SECONDS`).
 - Signals UI default ledger = Actionable (AI passed). Research: `--actionable-only`.
 
 Secrets: `OPENAI_API_KEY`, `FINNHUB_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `SLACK_BOT_TOKEN` (for AI-passed Slack). Optional: `NEWSAPI_API_KEY`, `FRED_API_KEY` (GDELT is free, no key).
+
+OpenAI retry env (set in entry/holding workflows): `OPENAI_MAX_RETRIES`, `OPENAI_RETRY_BASE_SECONDS`, `OPENAI_RETRY_MAX_SECONDS`, `OPENAI_INTER_REQUEST_SECONDS`.
 
 Research: [`docs/research/2026-08/`](../research/2026-08/), [`docs/research/2026-07/`](../research/2026-07/).

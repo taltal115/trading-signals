@@ -80,6 +80,10 @@ jobs:
           USE_NEWSAPI: ${{ vars.USE_NEWSAPI || 'true' }}
           USE_GDELT: ${{ vars.USE_GDELT || 'true' }}
           USE_FRED: ${{ vars.USE_FRED || 'true' }}
+          OPENAI_MAX_RETRIES: "8"
+          OPENAI_RETRY_BASE_SECONDS: "20"
+          OPENAI_RETRY_MAX_SECONDS: "180"
+          OPENAI_INTER_REQUEST_SECONDS: "20"
         run: |
           MODE="${{ github.event.inputs.mode || 'batch' }}"
           if [ "${{ github.event_name }}" = "schedule" ]; then

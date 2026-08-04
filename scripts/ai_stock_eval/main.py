@@ -7,12 +7,16 @@ import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 
 from signals_bot.config import load_config
+
+# Exit codes: 0 ok; 1 hard failure; 3 transient OpenAI rate limit (leave pending).
+EXIT_RATE_LIMITED = 3
 
 # scripts/ai_stock_eval/main.py → repo root
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,7 +41,7 @@ from .firestore_write import (
     write_entry_evaluation,
     write_entry_rank_skipped,
 )
-from .llm import call_openai_json, normalize_verdict
+from .llm import OpenAIHttpError, call_openai_json, normalize_verdict
 from .prompts import get_entry_prompts
 from .recommendation import build_recommendation, resolve_ai_gate
 from .score import compute_total_score
@@ -56,12 +60,28 @@ def _short_reason(recommendation: dict[str, Any]) -> str:
 
 def _setup_logging() -> logging.Logger:
     log = logging.getLogger("ai_stock_eval")
+    fmt = logging.Formatter("%(levelname)s %(message)s")
     if not log.handlers:
         h = logging.StreamHandler(sys.stdout)
-        h.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+        h.setFormatter(fmt)
         log.addHandler(h)
     log.setLevel(logging.INFO)
+    # Surface retry warnings from llm.py (different logger name) on stdout.
+    llm_log = logging.getLogger("scripts.ai_stock_eval.llm")
+    if not llm_log.handlers:
+        h2 = logging.StreamHandler(sys.stdout)
+        h2.setFormatter(fmt)
+        llm_log.addHandler(h2)
+    llm_log.setLevel(logging.INFO)
+    llm_log.propagate = False
     return log
+
+
+def _inter_request_seconds() -> float:
+    try:
+        return max(0.0, float(os.getenv("OPENAI_INTER_REQUEST_SECONDS", "15")))
+    except (TypeError, ValueError):
+        return 15.0
 
 
 def _ai_pricing(cfg: Any) -> dict[str, dict[str, float]] | None:
@@ -166,7 +186,29 @@ def evaluate_one(
             model=entry_model,
             pricing=_ai_pricing(cfg),
         )
-    except Exception as e:  # noqa: BLE001 — keep ai_gate=pending; never stub-BUY on rate limit
+    except OpenAIHttpError as e:
+        # Keep ai_gate=pending; never stub-BUY on rate limit / quota.
+        if e.is_insufficient_quota:
+            log.error(
+                "Entry LLM insufficient_quota for %s (leave pending): %s",
+                ticker,
+                e,
+            )
+            return 1
+        if e.is_rate_limit:
+            log.error(
+                "Entry LLM rate-limited for %s (leave pending for next run): %s",
+                ticker,
+                e,
+            )
+            return EXIT_RATE_LIMITED
+        log.error(
+            "Entry LLM HTTP failed for %s (leave ai_gate=pending, not passed): %s",
+            ticker,
+            e,
+        )
+        return 1
+    except Exception as e:  # noqa: BLE001 — keep ai_gate=pending; never stub-BUY on failures
         log.error(
             "Entry LLM failed for %s (leave ai_gate=pending, not passed): %s",
             ticker,
@@ -401,7 +443,19 @@ def main(argv: list[str] | None = None) -> int:
                     failures += 1
         elif for_skip:
             log.info("Dry-run/verify: would skip %s tickers below top %s", len(for_skip), top_n)
-        for ticker, _idx, cand in for_llm:
+        pace = _inter_request_seconds()
+        rate_limited = False
+        for i, (ticker, _idx, cand) in enumerate(for_llm):
+            if rate_limited:
+                log.warning(
+                    "Circuit-break: skip remaining entry LLM calls after rate limit "
+                    "(leave %s+ pending for next run)",
+                    ticker,
+                )
+                break
+            if i > 0 and pace > 0 and not args.verify_only:
+                log.info("Pacing %.1fs before next entry LLM call", pace)
+                time.sleep(pace)
             row = read_signal_row(db, signal_doc_id, ticker) or {}
             lottery = bool(row.get("lottery_flag"))
             rc = evaluate_one(
@@ -422,11 +476,20 @@ def main(argv: list[str] | None = None) -> int:
                 github_verify_annotations=bool(args.github_verify_annotations),
                 lottery_flag=lottery,
             )
-            if rc != 0:
+            if rc == EXIT_RATE_LIMITED:
+                rate_limited = True
+            elif rc != 0:
                 failures += 1
         if not args.verify_only:
             _maybe_slack_ai_passed(cfg, log, db, signal_doc_id, dry_run=bool(args.dry_run))
-        return 1 if failures else 0
+        # Rate-limit alone is soft: pending rows retry on the next cron / workflow_run.
+        if failures:
+            return 1
+        if rate_limited:
+            log.warning(
+                "Batch finished with OpenAI rate limit; ai_gate left pending (exit 0 soft)"
+            )
+        return 0
 
     ticker = str(args.ticker).strip().upper()
     if not ticker:
