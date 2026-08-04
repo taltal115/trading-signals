@@ -36,12 +36,12 @@ ai:
   enabled: true
   entry_min_total: 70
   entry_min_conviction: 0.7
-  max_entry_evals_per_run: 5   # LLM top-N by signal_quality rank; rest ai_gate=skipped
-  max_holding_evals_per_run: 10
-  holding_min_hours_between_evals: 12
+  max_entry_evals_per_run: 3   # LLM top-N by signal_quality rank; rest ai_gate=skipped
+  max_holding_evals_per_run: 3 # 2026-08: cut holding volume (429 relief)
+  holding_min_hours_between_evals: 24
   lottery_entry_min_total: 80
   lottery_entry_min_conviction: 0.8
-  lottery_force_pro_model: true
+  lottery_force_pro_model: false  # lottery hard-rejected by rules; avoid expensive pro
   entry_model: gpt-5.4
   holding_model: gpt-5.4-mini
   pro_model: gpt-5.4-pro
@@ -51,6 +51,13 @@ slack:
   require_ai_passed: true   # scan defers Slack; entry batch posts passed only
 ```
 
+**2026-08 flow notes**
+- Scan hard-filters toxic BUYs (conf≥98 / ret_5d≥50 / vol≥5 / outside continuation band) → WAIT before Firestore.
+- Paper `my_positions` opens **only** when entry AI sets `ai_gate=passed` (not on technical BUY).
+- Holding advisor runs **1×/weekday**, evaluates **passed-only** paper.
+- Entry LLM 429/exhaustion leaves `ai_gate=pending` (never stub-BUY).
+- Signals UI default ledger = Actionable (AI passed). Research: `--actionable-only`.
+
 Secrets: `OPENAI_API_KEY`, `FINNHUB_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `SLACK_BOT_TOKEN` (for AI-passed Slack). Optional: `NEWSAPI_API_KEY`, `FRED_API_KEY` (GDELT is free, no key).
 
-Research: [`docs/research/2026-07/`](../research/2026-07/) (profit-at-hold follow-up drove ranking + AI gate changes).
+Research: [`docs/research/2026-08/`](../research/2026-08/), [`docs/research/2026-07/`](../research/2026-07/).

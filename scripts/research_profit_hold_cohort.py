@@ -288,6 +288,11 @@ def main() -> int:
         action="store_true",
         help="Include signals that have not completed hold_days yet (hold_ret may be null).",
     )
+    p.add_argument(
+        "--actionable-only",
+        action="store_true",
+        help="Only score rows with ai_gate=passed (matches Slack actionable ledger).",
+    )
     args = p.parse_args()
 
     since = date.fromisoformat(args.since)
@@ -311,6 +316,14 @@ def main() -> int:
 
     buys = _fetch_buys(since=since, until=until, limit_runs=args.limit_runs)
     print(f"Loaded {len(buys)} unique BUY rows since {since.isoformat()}")
+    if args.actionable_only:
+        before = len(buys)
+        buys = [
+            b
+            for b in buys
+            if str(b.get("ai_gate") or "").strip().lower() == "passed"
+        ]
+        print(f"Actionable-only (ai_gate=passed): {len(buys)} / {before}")
     if not buys:
         return 0
 
@@ -445,6 +458,7 @@ def main() -> int:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "since": since.isoformat(),
         "until": until.isoformat() if until else None,
+        "actionable_only": bool(args.actionable_only),
         "default_max_hold_days": default_hold,
         "n_unique_buys_loaded": len(buys),
         "n_rows_evaluated": len(rows),

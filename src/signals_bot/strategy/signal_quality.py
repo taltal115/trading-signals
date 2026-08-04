@@ -80,6 +80,54 @@ def in_preferred_ret_5d_band(
     return prefer_min_pct <= ret_5d <= prefer_max_pct
 
 
+def hard_reject_reasons(
+    *,
+    confidence: float,
+    metrics: dict[str, Any],
+    hard_reject_confidence_min: int,
+    hard_reject_ret_5d_min_pct: float,
+    hard_reject_vol_ratio_min: float,
+    require_continuation_band: bool,
+    continuation_ret_5d_min_pct: float,
+    continuation_ret_5d_max_pct: float,
+    continuation_vol_ratio_min: float,
+    continuation_vol_ratio_max: float,
+) -> list[str]:
+    """Reasons a BUY should be downgraded to WAIT (2026-08 research hard filters)."""
+    reasons: list[str] = []
+    if hard_reject_confidence_min > 0 and confidence >= hard_reject_confidence_min:
+        reasons.append(f"conf>={hard_reject_confidence_min}")
+    ret_5d = _f(metrics, "ret_5d_pct")
+    vol_ratio = _f(metrics, "vol_ratio")
+    if (
+        hard_reject_ret_5d_min_pct > 0
+        and ret_5d is not None
+        and ret_5d >= hard_reject_ret_5d_min_pct
+    ):
+        reasons.append(f"ret_5d>={hard_reject_ret_5d_min_pct:g}%")
+    if (
+        hard_reject_vol_ratio_min > 0
+        and vol_ratio is not None
+        and vol_ratio >= hard_reject_vol_ratio_min
+    ):
+        reasons.append(f"vol>={hard_reject_vol_ratio_min:g}x")
+    if require_continuation_band:
+        if ret_5d is None or not (
+            continuation_ret_5d_min_pct <= ret_5d <= continuation_ret_5d_max_pct
+        ):
+            reasons.append(
+                f"ret_5d not in [{continuation_ret_5d_min_pct:g},{continuation_ret_5d_max_pct:g}]"
+            )
+        # vol in [min, max) — exclusive upper bound
+        if vol_ratio is None or not (
+            continuation_vol_ratio_min <= vol_ratio < continuation_vol_ratio_max
+        ):
+            reasons.append(
+                f"vol not in [{continuation_vol_ratio_min:g},{continuation_vol_ratio_max:g})"
+            )
+    return reasons
+
+
 def buy_rank_key(
     *,
     action: str,

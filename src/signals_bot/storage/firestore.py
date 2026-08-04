@@ -501,34 +501,8 @@ def write_buy_signals(
     new_id = signals_run_document_id(asof_date=asof_date, ts_utc=str(doc["ts_utc"]), run_id=run_id)
     db.collection(SIGNALS_COLLECTION).document(new_id).set(doc)
 
-    # Treat every BUY as an open paper position so holding/monitor AI flows apply.
-    paper_ids: list[str] = []
-    for row in payload_signals:
-        pid = upsert_signal_paper_position(
-            db=db,
-            signal_doc_id=new_id,
-            signal_row=row,
-            asof_date=asof_date,
-        )
-        paper_ids.append(pid)
-    if paper_ids:
-        # Stamp paper_position_id back onto each signal row for the UI.
-        snap = db.collection(SIGNALS_COLLECTION).document(new_id).get()
-        data = snap.to_dict() or {}
-        sigs = list(data.get("signals") or [])
-        by_ticker = {str(r.get("ticker", "")).upper(): pid for r, pid in zip(payload_signals, paper_ids)}
-        new_sigs = []
-        for r in sigs:
-            if not isinstance(r, dict):
-                new_sigs.append(r)
-                continue
-            nr = dict(r)
-            t = str(nr.get("ticker", "")).upper()
-            if t in by_ticker:
-                nr["paper_position_id"] = by_ticker[t]
-                nr["paper_status"] = "open"
-            new_sigs.append(nr)
-        db.collection(SIGNALS_COLLECTION).document(new_id).update({"signals": new_sigs})
+    # 2026-08: do NOT open paper on technical BUY. Paper opens only when entry AI
+    # sets ai_gate=passed (see write_entry_evaluation).
 
 
 def paper_position_doc_id(*, signal_doc_id: str, ticker: str) -> str:
@@ -581,7 +555,7 @@ def upsert_signal_paper_position(
         "owner_uid": SIGNAL_PAPER_OWNER_UID,
         "owner_email": "signal-paper@bot.local",
         "owner_display_name": "Signal paper",
-        "notes": "Auto-opened from bot BUY signal (paper).",
+        "notes": "Auto-opened after AI entry pass (paper).",
         "updated_at_utc": now,
         "ai_gate": signal_row.get("ai_gate") or "pending",
         "asof_date": asof_date or "",
@@ -602,6 +576,41 @@ def upsert_signal_paper_position(
     else:
         base["created_at_utc"] = now
         ref.set(base)
+    return pos_id
+
+
+def close_signal_paper_position(
+    *,
+    db: firestore.Client | None = None,
+    signal_doc_id: str,
+    ticker: str,
+    reason: str = "ai_gate non-actionable",
+) -> str | None:
+    """Close paper position if it exists (filtered/skipped entry). Returns pos id or None."""
+    client = db or _build_client()
+    sym = ticker.strip().upper()
+    if not sym or not signal_doc_id.strip():
+        return None
+    pos_id = paper_position_doc_id(signal_doc_id=signal_doc_id, ticker=sym)
+    ref = client.collection(MY_POSITIONS_COLLECTION).document(pos_id)
+    snap = ref.get()
+    if not snap.exists:
+        return None
+    prev = snap.to_dict() or {}
+    if str(prev.get("status") or "").lower() == "closed":
+        return pos_id
+    now = datetime.now(timezone.utc).isoformat()
+    ref.set(
+        {
+            "status": "closed",
+            "updated_at_utc": now,
+            "closed_at_utc": now,
+            "exit_origin": "ai_gate",
+            "notes": f"Closed: {reason}",
+            "ai_gate": str(prev.get("ai_gate") or reason),
+        },
+        merge=True,
+    )
     return pos_id
 
 

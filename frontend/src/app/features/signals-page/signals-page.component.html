@@ -6,6 +6,18 @@
   >
     <div class="signals-pagination" role="navigation" aria-label="Signals pages">
       <label class="signals-page-size universe-page-meta">
+        Ledger
+        <select
+          [value]="ledgerFilter()"
+          (change)="onLedgerFilterChange($any($event.target).value)"
+          title="Actionable = AI-passed only (default)"
+        >
+          <option value="actionable">Actionable (AI passed)</option>
+          <option value="pending">Pending AI</option>
+          <option value="all">All technical BUYs</option>
+        </select>
+      </label>
+      <label class="signals-page-size universe-page-meta">
         Per page
         <select
           [value]="str(pageSize())"
@@ -51,8 +63,13 @@
     class="empty-state"
     *ngIf="!loading() && !loadError() && instanceRows().length > 0 && displayRows().length === 0"
   >
-    These runs have no BUY rows in <code>signals[]</code> (only WAIT/SELL or an older document shape).
-    Run the bot with BUY output or check Firestore <code>signals</code> run documents (legacy archive: <code>signals_old</code>).
+    <span *ngIf="ledgerFilter() === 'actionable'"
+      >No AI-passed actionable BUYs on this page. Switch ledger to Pending or All technical, or wait for entry AI.</span
+    >
+    <span *ngIf="ledgerFilter() === 'pending'">No pending AI evaluations on this page.</span>
+    <span *ngIf="ledgerFilter() === 'all'"
+      >These runs have no BUY rows in <code>signals[]</code> (only WAIT/SELL or an older document shape).</span
+    >
   </p>
   <div class="table-wrap" *ngIf="!loadError() && instanceRows().length > 0 && displayRows().length > 0">
     <table class="signals-main-table">

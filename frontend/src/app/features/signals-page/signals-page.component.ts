@@ -401,6 +401,12 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   /** Per signal row (instanceKey): 3-day hourly hold chart expand. */
   readonly holdChartOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
 
+  /**
+   * Ledger filter (2026-08 research): default actionable = ai_gate=passed only.
+   * pending = awaiting entry AI; all = full technical BUY stream.
+   */
+  readonly ledgerFilter = signal<'actionable' | 'pending' | 'all'>('actionable');
+
   /** Per signal row (instanceKey): whether the inline AI summary panel is expanded. */
   readonly aiSummaryOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
   /** Lazy-loaded ai_evals history per instanceKey. */
@@ -451,12 +457,18 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
       }
     };
 
+    const ledger = this.ledgerFilter();
     const flat: FlatSigInst[] = [];
     for (const r of this.instanceRows()) {
       const tickerU = String(r.signal['ticker'] || '')
         .trim()
         .toUpperCase();
       if (!tickerU) continue;
+      const gate = String(r.signal['ai_gate'] || '')
+        .trim()
+        .toLowerCase();
+      if (ledger === 'actionable' && gate !== 'passed') continue;
+      if (ledger === 'pending' && gate !== 'pending') continue;
       flat.push({
         docId: r.docId,
         asofDate: r.asofDate,
@@ -698,6 +710,13 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     this.signalsPageIndex.set(0);
     this.instanceRows.set([]);
     this.fetchSignalsPage(undefined);
+  }
+
+  onLedgerFilterChange(raw: string): void {
+    const v = String(raw || '').trim().toLowerCase();
+    if (v === 'actionable' || v === 'pending' || v === 'all') {
+      this.ledgerFilter.set(v);
+    }
   }
 
   nextPage(): void {

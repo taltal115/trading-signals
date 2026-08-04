@@ -195,9 +195,9 @@ def main(argv: list[str] | None = None) -> int:
         if ticker_filter and ticker != ticker_filter:
             continue
 
-        # Non-actionable entry outcomes — do not burn holding budget.
+        # Actionable paper only (2026-08): skip filtered/skipped/pending — entry AI must pass.
         gate = str(data.get("ai_gate") or "").strip().lower()
-        if gate in ("filtered", "skipped"):
+        if gate != "passed":
             skipped_filtered += 1
             continue
 

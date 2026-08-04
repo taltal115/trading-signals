@@ -146,8 +146,9 @@ def evaluate_one(
         print("========== END DEBUG PROMPTS ==========", flush=True)
 
     ai_cfg = getattr(cfg, "ai", None)
+    # Lottery names are hard-rejected by rules (2026-08); pro forced only if still flagged + config.
     force_pro = bool(
-        lottery_flag and ai_cfg is not None and getattr(ai_cfg, "lottery_force_pro_model", True)
+        lottery_flag and ai_cfg is not None and getattr(ai_cfg, "lottery_force_pro_model", False)
     )
     technical_for_routing = float(feats.get("technical_score") or candidate_score or 0.0)
     entry_model = _ai_model(cfg, technical_score=technical_for_routing, force_pro=force_pro)
@@ -158,12 +159,20 @@ def evaluate_one(
         technical_for_routing,
         lottery_flag,
     )
-    raw_verdict, usage, raw_response_text = call_openai_json(
-        system=system_prompt,
-        user=user_msg,
-        model=entry_model,
-        pricing=_ai_pricing(cfg),
-    )
+    try:
+        raw_verdict, usage, raw_response_text = call_openai_json(
+            system=system_prompt,
+            user=user_msg,
+            model=entry_model,
+            pricing=_ai_pricing(cfg),
+        )
+    except Exception as e:  # noqa: BLE001 — keep ai_gate=pending; never stub-BUY on rate limit
+        log.error(
+            "Entry LLM failed for %s (leave ai_gate=pending, not passed): %s",
+            ticker,
+            e,
+        )
+        return 1
     verdict = normalize_verdict(raw_verdict)
     conviction = float(verdict["conviction"])
 

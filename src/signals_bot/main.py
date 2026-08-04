@@ -17,7 +17,11 @@ from signals_bot.providers.ibkr_holdings import load_holdings_for_scan
 from signals_bot.storage.firestore import write_buy_signals
 from signals_bot.storage.sqlite import SqliteStore
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy, Signal
-from signals_bot.strategy.signal_quality import annotate_buy_quality_flags, buy_rank_key
+from signals_bot.strategy.signal_quality import (
+    annotate_buy_quality_flags,
+    buy_rank_key,
+    hard_reject_reasons,
+)
 
 
 def _signal_rank_key(signal: Signal, cfg: AppConfig) -> tuple:
@@ -55,6 +59,39 @@ def _apply_min_buy_confidence(signal: Signal, min_conf: int) -> Signal:
         suggested_entry=None,
         suggested_stop=None,
         suggested_target=None,
+    )
+
+
+def _apply_hard_buy_filters(signal: Signal, cfg: AppConfig) -> Signal:
+    """Downgrade toxic / non-continuation BUYs to WAIT (2026-08 research)."""
+    if signal.action != "BUY":
+        return signal
+    reasons = hard_reject_reasons(
+        confidence=float(signal.confidence),
+        metrics=signal.metrics or {},
+        hard_reject_confidence_min=cfg.strategy.hard_reject_confidence_min,
+        hard_reject_ret_5d_min_pct=cfg.strategy.hard_reject_ret_5d_min_pct,
+        hard_reject_vol_ratio_min=cfg.strategy.hard_reject_vol_ratio_min,
+        require_continuation_band=cfg.strategy.require_continuation_band,
+        continuation_ret_5d_min_pct=cfg.strategy.continuation_ret_5d_min_pct,
+        continuation_ret_5d_max_pct=cfg.strategy.continuation_ret_5d_max_pct,
+        continuation_vol_ratio_min=cfg.strategy.continuation_vol_ratio_min,
+        continuation_vol_ratio_max=cfg.strategy.continuation_vol_ratio_max,
+    )
+    if not reasons:
+        return signal
+    reason_s = ", ".join(reasons)
+    return replace(
+        signal,
+        action="WAIT",
+        notes=f"hard filter: {reason_s}",
+        suggested_entry=None,
+        suggested_stop=None,
+        suggested_target=None,
+        metrics={
+            **(signal.metrics or {}),
+            "hard_filtered": 1.0,
+        },
     )
 
 
@@ -193,13 +230,16 @@ def main() -> int:
             continue
 
         signal = _apply_min_buy_confidence(signal, cfg.strategy.min_buy_confidence)
+        signal = _apply_hard_buy_filters(signal, cfg)
 
         yahoo_prov = providers.get("yahoo")
         if signal.action == "BUY" and isinstance(yahoo_prov, YahooProvider):
             try:
                 info = yahoo_prov.get_ticker_info(ticker)
-                signal.metrics["sector"] = info.get("sector", "")
-                signal.metrics["industry"] = info.get("industry", "")
+                m = dict(signal.metrics or {})
+                m["sector"] = info.get("sector", "")
+                m["industry"] = info.get("industry", "")
+                signal = replace(signal, metrics=m)
             except Exception:
                 pass
 

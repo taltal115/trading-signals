@@ -129,6 +129,15 @@ class StrategyConfig:
     high_confidence_risk_threshold: int = 98
     prefer_confidence_min: int = 90
     prefer_confidence_max: int = 94
+    # Hard rejects (2026-08 research): BUY→WAIT before Firestore. 0 disables each gate.
+    hard_reject_confidence_min: int = 98
+    hard_reject_ret_5d_min_pct: float = 50.0
+    hard_reject_vol_ratio_min: float = 5.0
+    require_continuation_band: bool = True
+    continuation_ret_5d_min_pct: float = 10.0
+    continuation_ret_5d_max_pct: float = 20.0
+    continuation_vol_ratio_min: float = 2.0
+    continuation_vol_ratio_max: float = 3.0
     weights: StrategyWeights = StrategyWeights()
 
 
@@ -159,14 +168,14 @@ class AiConfig:
     entry_min_total: float = 70.0
     entry_min_conviction: float = 0.7
     # Max entry LLM calls per batch — only top-N by signal_quality rank; rest rule-skipped.
-    max_entry_evals_per_run: int = 5
-    max_holding_evals_per_run: int = 10
+    max_entry_evals_per_run: int = 3
+    max_holding_evals_per_run: int = 3
     # Skip holding re-eval when last holding_advice is newer than this (0 = no cooldown).
-    holding_min_hours_between_evals: float = 12.0
-    # Stricter gate + pro model for lottery_flag BUYs.
+    holding_min_hours_between_evals: float = 24.0
+    # Stricter gate for lottery_flag BUYs (pro forced only when lottery_force_pro_model).
     lottery_entry_min_total: float = 80.0
     lottery_entry_min_conviction: float = 0.8
-    lottery_force_pro_model: bool = True
+    lottery_force_pro_model: bool = False
     # Default / legacy single model (overridden by entry/holding/pro when set).
     model: str = "gpt-5.4"
     entry_model: str = "gpt-5.4"
@@ -342,12 +351,12 @@ def load_config(config_path: Path) -> AppConfig:
         enabled=bool(ai_raw.get("enabled", True)),
         entry_min_total=float(ai_raw.get("entry_min_total", 70.0)),
         entry_min_conviction=float(ai_raw.get("entry_min_conviction", 0.7)),
-        max_entry_evals_per_run=int(ai_raw.get("max_entry_evals_per_run", 5)),
-        max_holding_evals_per_run=int(ai_raw.get("max_holding_evals_per_run", 40)),
-        holding_min_hours_between_evals=float(ai_raw.get("holding_min_hours_between_evals", 12.0)),
+        max_entry_evals_per_run=int(ai_raw.get("max_entry_evals_per_run", 3)),
+        max_holding_evals_per_run=int(ai_raw.get("max_holding_evals_per_run", 3)),
+        holding_min_hours_between_evals=float(ai_raw.get("holding_min_hours_between_evals", 24.0)),
         lottery_entry_min_total=float(ai_raw.get("lottery_entry_min_total", 80.0)),
         lottery_entry_min_conviction=float(ai_raw.get("lottery_entry_min_conviction", 0.8)),
-        lottery_force_pro_model=bool(ai_raw.get("lottery_force_pro_model", True)),
+        lottery_force_pro_model=bool(ai_raw.get("lottery_force_pro_model", False)),
         model=str(ai_raw.get("model", "gpt-5.4")),
         entry_model=str(ai_raw.get("entry_model", ai_raw.get("model", "gpt-5.4"))),
         holding_model=str(ai_raw.get("holding_model", "gpt-5.4-mini")),
@@ -388,6 +397,14 @@ def load_config(config_path: Path) -> AppConfig:
         high_confidence_risk_threshold=int(strategy_raw.get("high_confidence_risk_threshold", 98)),
         prefer_confidence_min=int(strategy_raw.get("prefer_confidence_min", 90)),
         prefer_confidence_max=int(strategy_raw.get("prefer_confidence_max", 94)),
+        hard_reject_confidence_min=int(strategy_raw.get("hard_reject_confidence_min", 98)),
+        hard_reject_ret_5d_min_pct=float(strategy_raw.get("hard_reject_ret_5d_min_pct", 50.0)),
+        hard_reject_vol_ratio_min=float(strategy_raw.get("hard_reject_vol_ratio_min", 5.0)),
+        require_continuation_band=bool(strategy_raw.get("require_continuation_band", True)),
+        continuation_ret_5d_min_pct=float(strategy_raw.get("continuation_ret_5d_min_pct", 10.0)),
+        continuation_ret_5d_max_pct=float(strategy_raw.get("continuation_ret_5d_max_pct", 20.0)),
+        continuation_vol_ratio_min=float(strategy_raw.get("continuation_vol_ratio_min", 2.0)),
+        continuation_vol_ratio_max=float(strategy_raw.get("continuation_vol_ratio_max", 3.0)),
         weights=strategy_weights,
     )
 

@@ -826,6 +826,13 @@ def main() -> int:
         if not ticker:
             continue
 
+        # 2026-08: signal paper without AI pass is non-actionable — skip monitor noise.
+        origin = str(data.get("origin") or "").strip().lower()
+        if origin == "signal_paper":
+            gate = str(data.get("ai_gate") or "").strip().lower()
+            if gate != "passed":
+                continue
+
         last_close, session_high, session_low, atr14, prior_low = _last_close_and_session_range(
             ticker=ticker,
             providers=providers,

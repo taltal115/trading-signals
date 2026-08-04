@@ -234,12 +234,34 @@ Stops cut the catastrophic raw tails (LHSW −49% raw → −15% managed). That 
 
 ```bash
 PYTHONPATH=./src:. python scripts/research_profit_hold_cohort.py \
-  --since 2026-07-20 \
-  --out-csv docs/research/2026-08/profit_hold_cohort_post_fix_2026-07-20.csv \
-  --out-json docs/research/2026-08/profit_hold_cohort_post_fix_2026-07-20_summary.json
+  --since 2026-08-04 \
+  --actionable-only \
+  --out-csv docs/research/2026-08/profit_hold_cohort_actionable_since_2026-08-04.csv \
+  --out-json docs/research/2026-08/profit_hold_cohort_actionable_since_2026-08-04_summary.json
 ```
 
-Re-run weekly. Next note should report **AI-passed-only** mature PnL with n≫1.
+Re-run weekly after ~2–3 weeks of mature holds. Score **AI-passed-only** separately from the full technical book.
+
+---
+
+## 5b. Implementation log (2026-08-04)
+
+Course of action from this research + OpenAI 429 pressure:
+
+| Change | Where |
+|--------|--------|
+| Hard-reject conf≥98 / ret_5d≥50 / vol≥5; require continuation band ret_5d∈[10,20] & vol∈[2,3) | `config.yaml`, `signal_quality.hard_reject_reasons`, `main._apply_hard_buy_filters` |
+| Disable overextension bypass + volume ignition for live BUYs | `config.yaml` (`overextension_bypass_vol_ratio: 0`, `ignite_vol_ratio_min: 0`) |
+| Paper opens only on `ai_gate=passed`; close on filtered/skipped | `firestore.write_buy_signals`, `write_entry_evaluation`, `close_signal_paper_position` |
+| Holding AI: 1×/day cron, cap 3, 24h cooldown, **passed-only** | `ai-holding-advisor.yml`, `config.yaml`, `ai_holding_advisor` |
+| Entry AI: max 3/run, no lottery pro force; LLM failure leaves `pending` | `config.yaml`, `ai_stock_eval/main.py`, entry batch env retries |
+| Monitor skips non-passed signal paper | `monitor_open_positions.py` |
+| UI default ledger = Actionable (AI passed) | Signals page toolbar |
+| Research `--actionable-only` | `research_profit_hold_cohort.py` |
+
+**Still open (P2):** market-breadth / day circuit breaker.
+
+**Remeasure:** after 2026-08-04+ mature actionable sample accumulates, compare win% / PF vs technical book (24% / 0.30).
 
 ---
 

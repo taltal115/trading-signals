@@ -1,4 +1,4 @@
-# Batch AI entry eval for pending BUY rows (opens/refreshes paper positions).
+# Batch AI entry eval for pending BUY rows (opens paper only when ai_gate=passed).
 name: AI entry batch
 
 on:
@@ -69,6 +69,8 @@ jobs:
           USE_NEWSAPI: ${{ vars.USE_NEWSAPI || 'true' }}
           USE_GDELT: ${{ vars.USE_GDELT || 'true' }}
           USE_FRED: ${{ vars.USE_FRED || 'true' }}
+          OPENAI_MAX_RETRIES: "4"
+          OPENAI_RETRY_MAX_SECONDS: "90"
         run: |
           DOC_ARG=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.signal_doc_id }}" ]; then

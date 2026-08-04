@@ -10,6 +10,7 @@ from google.cloud import firestore
 from signals_bot.storage.firestore import (
     MY_POSITIONS_COLLECTION,
     SIGNALS_COLLECTION,
+    close_signal_paper_position,
     get_firestore_client,
     mirror_holding_advice_to_signal,
     upsert_signal_paper_position,
@@ -303,12 +304,26 @@ def write_entry_evaluation(
     _merge(txn, run_ref)
 
     paper_id: str | None = None
-    if merged_row is not None:
+    paper_status = "none"
+    gate_l = str(ai_gate or "").strip().lower()
+    if merged_row is not None and gate_l == "passed":
+        # 2026-08: open paper only after AI pass.
         paper_id = upsert_signal_paper_position(
             db=db,
             signal_doc_id=signal_doc_id.strip(),
             signal_row=merged_row,
         )
+        paper_status = "open"
+    elif merged_row is not None and gate_l in ("filtered", "skipped"):
+        paper_id = close_signal_paper_position(
+            db=db,
+            signal_doc_id=signal_doc_id.strip(),
+            ticker=sym,
+            reason=f"ai_gate={gate_l}",
+        )
+        paper_status = "closed" if paper_id else "none"
+
+    if merged_row is not None and (paper_id or gate_l in ("filtered", "skipped", "passed")):
 
         @firestore.transactional
         def _stamp(transaction, ref):  # type: ignore[no-untyped-def]
@@ -326,8 +341,9 @@ def write_entry_evaluation(
                     continue
                 r = dict(row)
                 if str(r.get("ticker", "")).strip().upper() == sym:
-                    r["paper_position_id"] = paper_id
-                    r["paper_status"] = r.get("paper_status") or "open"
+                    if paper_id:
+                        r["paper_position_id"] = paper_id
+                    r["paper_status"] = paper_status
                 new_sigs.append(r)
             transaction.update(ref, {"signals": new_sigs})
 
