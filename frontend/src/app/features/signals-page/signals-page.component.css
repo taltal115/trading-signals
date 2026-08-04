@@ -65,6 +65,10 @@
   color: var(--text, #e6edf3);
 }
 
+.signals-ledger-filter select {
+  min-width: 8.5rem;
+}
+
 .universe-page-btn {
   font: inherit;
   font-size: 0.85rem;
@@ -112,23 +116,23 @@
 }
 
 .ai-action-buy {
-  color: #1a7f37;
-  background: rgba(63, 185, 80, 0.18);
+  color: #3fb950;
+  background: rgba(63, 185, 80, 0.2);
 }
 
 .ai-action-sell {
-  color: #cf222e;
-  background: rgba(248, 81, 73, 0.15);
+  color: #f85149;
+  background: rgba(248, 81, 73, 0.18);
 }
 
 .ai-action-wait {
-  color: #9a6700;
-  background: rgba(210, 153, 34, 0.15);
+  color: #e3b341;
+  background: rgba(210, 153, 34, 0.22);
 }
 
 .ai-action-other {
-  color: #656d76;
-  background: rgba(139, 148, 158, 0.12);
+  color: #c9d1d9;
+  background: rgba(139, 148, 158, 0.18);
 }
 
 .sig-ai-tokens-teaser {
@@ -193,32 +197,93 @@
   padding-top: 0.5rem;
 }
 
+.sig-ai-history-title {
+  display: block;
+  color: var(--text, #e6edf3);
+  font-size: 0.9rem;
+  margin-bottom: 0.35rem;
+}
+
 .sig-ai-history-list {
   list-style: none;
   padding: 0;
   margin: 0.35rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .sig-ai-history-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.75rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
   width: 100%;
   text-align: left;
-  background: transparent;
-  border: none;
-  border-bottom: 1px solid rgba(139, 148, 158, 0.15);
-  padding: 0.35rem 0;
+  /* Buttons do not inherit body color in many browsers — set explicitly. */
+  color: var(--text, #e6edf3);
+  background: rgba(139, 148, 158, 0.08);
+  border: 1px solid rgba(139, 148, 158, 0.22);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
   cursor: pointer;
+  font: inherit;
   font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.sig-ai-history-item:hover {
+  background: rgba(139, 148, 158, 0.14);
+  border-color: rgba(88, 166, 255, 0.45);
+}
+
+.sig-ai-history-item:focus-visible {
+  outline: 2px solid var(--accent, #58a6ff);
+  outline-offset: 2px;
+}
+
+.sig-ai-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.65rem;
+  color: var(--muted, #8b949e);
+}
+
+.sig-ai-history-ts {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  color: var(--muted, #8b949e);
+}
+
+.sig-ai-history-stage {
+  text-transform: lowercase;
+  color: var(--text, #e6edf3);
+  opacity: 0.9;
+}
+
+.sig-ai-history-model,
+.sig-ai-history-usage {
+  color: var(--muted, #8b949e);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+}
+
+.sig-ai-history-headline {
+  color: var(--text, #e6edf3);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .sig-ai-history-detail {
   font-size: 0.75rem;
   overflow: auto;
   max-height: 14rem;
-  background: rgba(139, 148, 158, 0.08);
-  padding: 0.5rem;
+  margin: 0.35rem 0 0;
+  color: var(--text, #e6edf3);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(139, 148, 158, 0.25);
+  border-radius: 6px;
+  padding: 0.55rem 0.65rem;
 }
 
 .sig-ai-empty {

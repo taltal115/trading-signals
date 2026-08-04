@@ -5,16 +5,16 @@
     *ngIf="!loadError() && instanceRows().length > 0"
   >
     <div class="signals-pagination" role="navigation" aria-label="Signals pages">
-      <label class="signals-page-size universe-page-meta">
+      <label class="signals-page-size signals-ledger-filter universe-page-meta">
         Ledger
         <select
           [value]="ledgerFilter()"
           (change)="onLedgerFilterChange($any($event.target).value)"
-          title="Actionable = AI-passed only (default)"
+          title="Actionable = AI-passed only. Pending = awaiting AI. All = every technical BUY."
         >
-          <option value="actionable">Actionable (AI passed)</option>
-          <option value="pending">Pending AI</option>
-          <option value="all">All technical BUYs</option>
+          <option value="actionable">Actionable</option>
+          <option value="pending">Pending</option>
+          <option value="all">All</option>
         </select>
       </label>
       <label class="signals-page-size universe-page-meta">
@@ -64,7 +64,7 @@
     *ngIf="!loading() && !loadError() && instanceRows().length > 0 && displayRows().length === 0"
   >
     <span *ngIf="ledgerFilter() === 'actionable'"
-      >No AI-passed actionable BUYs on this page. Switch ledger to Pending or All technical, or wait for entry AI.</span
+      >No AI-passed actionable BUYs on this page. Switch ledger to Pending or All, or wait for entry AI.</span
     >
     <span *ngIf="ledgerFilter() === 'pending'">No pending AI evaluations on this page.</span>
     <span *ngIf="ledgerFilter() === 'all'"
@@ -369,7 +369,7 @@
                   </div>
 
                   <div class="sig-ai-history-block">
-                    <strong>AI history</strong>
+                    <strong class="sig-ai-history-title">AI history</strong>
                     <p *ngIf="aiHistoryState(row.instanceKey)?.status === 'loading'" class="sig-ai-empty">
                       Loading history…
                     </p>
@@ -385,16 +385,25 @@
                           type="button"
                           class="sig-ai-history-item"
                           (click)="toggleHistoryDetail(h.id)"
+                          [attr.aria-expanded]="aiHistoryExpandedId() === h.id"
                         >
-                          <span class="code">{{ fmtAiTimestamp(h.tsUtc) }}</span>
-                          <span>{{ h.stage }}</span>
-                          <span [ngClass]="aiActionClassOfPublic(h.decision)">{{ h.decision }}</span>
-                          <span>{{ h.model }}</span>
-                          <span *ngIf="h.totalTokens != null">{{ h.totalTokens }} tok</span>
-                          <span *ngIf="h.estimatedCostUsd != null"
-                            >${{ fmtAiNumber(h.estimatedCostUsd, 4) }}</span
-                          >
-                          <span *ngIf="h.headline">{{ h.headline }}</span>
+                          <span class="sig-ai-history-meta">
+                            <span class="sig-ai-history-ts">{{ fmtAiTimestamp(h.tsUtc) }}</span>
+                            <span class="sig-ai-history-stage">{{ h.stage }}</span>
+                            <span
+                              class="sig-ai-action-chip"
+                              [ngClass]="aiActionClassOfPublic(h.decision)"
+                              >{{ h.decision }}</span
+                            >
+                            <span class="sig-ai-history-model" *ngIf="h.model">{{ h.model }}</span>
+                            <span class="sig-ai-history-usage" *ngIf="h.totalTokens != null"
+                              >{{ h.totalTokens }} tok</span
+                            >
+                            <span class="sig-ai-history-usage" *ngIf="h.estimatedCostUsd != null"
+                              >${{ fmtAiNumber(h.estimatedCostUsd, 4) }}</span
+                            >
+                          </span>
+                          <span class="sig-ai-history-headline" *ngIf="h.headline">{{ h.headline }}</span>
                         </button>
                         <pre
                           *ngIf="aiHistoryExpandedId() === h.id && h.recommendation"
