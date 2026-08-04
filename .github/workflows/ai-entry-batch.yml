@@ -20,6 +20,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ai-openai-workflows
+  cancel-in-progress: false
+
 jobs:
   entry-batch:
     if: >
