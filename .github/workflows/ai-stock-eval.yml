@@ -36,6 +36,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ai-openai-workflows
+  cancel-in-progress: false
+
 jobs:
   evaluate:
     runs-on: ubuntu-latest
