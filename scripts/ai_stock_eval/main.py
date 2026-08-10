@@ -144,6 +144,7 @@ def evaluate_one(
     verify_only: bool,
     github_verify_annotations: bool,
     lottery_flag: bool = False,
+    skip_paper: bool = False,
 ) -> int:
     system_prompt, user_template = get_entry_prompts()
     ctx = build_context(ticker=ticker, cfg=cfg, candidate_score=candidate_score)
@@ -361,6 +362,7 @@ def evaluate_one(
             "provider_status": provider_status,
         },
         apply_plan_overrides=True,
+        skip_paper=bool(skip_paper),
     )
     return 0
 
@@ -388,6 +390,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--theme", default="", help="Theme label for the prompt")
     p.add_argument("--source-process", default="ai_stock_eval", help="Source label for the prompt")
     p.add_argument("--dry-run", action="store_true", help="Compute only; do not write Firestore")
+    p.add_argument(
+        "--skip-paper",
+        action="store_true",
+        help="Write ai_gate/recommendation but do not open/close my_positions (research backfill).",
+    )
     p.add_argument("--stdout-json", action="store_true", help="Print result JSON to stdout")
     p.add_argument(
         "--candidate-score",
@@ -523,12 +530,13 @@ def main(argv: list[str] | None = None) -> int:
                 verify_only=bool(args.verify_only),
                 github_verify_annotations=bool(args.github_verify_annotations),
                 lottery_flag=lottery,
+                skip_paper=bool(args.skip_paper),
             )
             if rc == EXIT_RATE_LIMITED:
                 rate_limited = True
             elif rc != 0:
                 failures += 1
-        if not args.verify_only:
+        if not args.verify_only and not args.skip_paper:
             _maybe_slack_ai_passed(cfg, log, db, signal_doc_id, dry_run=bool(args.dry_run))
         # Rate-limit alone is soft: pending rows retry on the next cron / workflow_run.
         if failures:
@@ -570,6 +578,7 @@ def main(argv: list[str] | None = None) -> int:
         verify_only=bool(args.verify_only),
         github_verify_annotations=bool(args.github_verify_annotations),
         lottery_flag=_lottery_single,
+        skip_paper=bool(args.skip_paper),
     )
 
 

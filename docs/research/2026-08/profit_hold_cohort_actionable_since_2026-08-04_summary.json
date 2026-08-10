@@ -1,0 +1,11 @@
+{
+  "generated_at_utc": "2026-08-10T20:40:00+00:00",
+  "since": "2026-08-04",
+  "until": null,
+  "actionable_only": true,
+  "n_unique_buys_loaded": 14,
+  "n_actionable_ai_gate_passed": 0,
+  "n_mature_hold": 0,
+  "overall_at_hold": {"n": 0},
+  "note": "No ai_gate=passed rows in Firestore since 2026-08-04. Gates observed on full book: skipped (rule_skip), pending (no eval), filtered (WAIT). Cohort script exited without CSV when filter emptied the set."
+}

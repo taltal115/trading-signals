@@ -206,8 +206,13 @@ def write_entry_evaluation(
     usage: Any,
     detail: dict[str, Any] | None = None,
     apply_plan_overrides: bool = True,
+    skip_paper: bool = False,
 ) -> str:
-    """Dual-write latest on signal row + append ai_evals. Returns eval_id."""
+    """Dual-write latest on signal row + append ai_evals. Returns eval_id.
+
+    ``skip_paper=True`` updates ``ai_gate`` / recommendation for research backfill
+    without opening or closing ``my_positions`` (do not rewrite historical paper).
+    """
     db = get_firestore_client()
     run_ref = resolve_signals_run_ref(db, signal_doc_id)
     sym = ticker.strip().upper()
@@ -306,24 +311,33 @@ def write_entry_evaluation(
     paper_id: str | None = None
     paper_status = "none"
     gate_l = str(ai_gate or "").strip().lower()
-    if merged_row is not None and gate_l == "passed":
-        # 2026-08: open paper only after AI pass.
-        paper_id = upsert_signal_paper_position(
-            db=db,
-            signal_doc_id=signal_doc_id.strip(),
-            signal_row=merged_row,
-        )
-        paper_status = "open"
-    elif merged_row is not None and gate_l in ("filtered", "skipped"):
-        paper_id = close_signal_paper_position(
-            db=db,
-            signal_doc_id=signal_doc_id.strip(),
-            ticker=sym,
-            reason=f"ai_gate={gate_l}",
-        )
-        paper_status = "closed" if paper_id else "none"
+    if not skip_paper:
+        if merged_row is not None and gate_l == "passed":
+            # 2026-08: open paper only after AI pass.
+            paper_id = upsert_signal_paper_position(
+                db=db,
+                signal_doc_id=signal_doc_id.strip(),
+                signal_row=merged_row,
+            )
+            paper_status = "open"
+        elif merged_row is not None and gate_l in ("filtered", "skipped"):
+            paper_id = close_signal_paper_position(
+                db=db,
+                signal_doc_id=signal_doc_id.strip(),
+                ticker=sym,
+                reason=f"ai_gate={gate_l}",
+            )
+            paper_status = "closed" if paper_id else "none"
+    elif merged_row is not None:
+        # Preserve any existing paper stamp; research backfill must not invent opens.
+        paper_status = str(merged_row.get("paper_status") or "none")
+        prev_pid = merged_row.get("paper_position_id")
+        if prev_pid:
+            paper_id = str(prev_pid)
 
-    if merged_row is not None and (paper_id or gate_l in ("filtered", "skipped", "passed")):
+    if merged_row is not None and (
+        skip_paper or paper_id or gate_l in ("filtered", "skipped", "passed")
+    ):
 
         @firestore.transactional
         def _stamp(transaction, ref):  # type: ignore[no-untyped-def]

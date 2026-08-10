@@ -263,6 +263,8 @@ Course of action from this research + OpenAI 429 pressure:
 
 **Remeasure:** after 2026-08-04+ mature actionable sample accumulates, compare win% / PF vs technical book (24% / 0.30).
 
+**Follow-up (2026-08-10):** [`signal-strategy-research-2026-08-followup-post-0804.md`](./signal-strategy-research-2026-08-followup-post-0804.md) — technical mature n=9 at **88.9% / +5.0% / PF 2.76**; **actionable `ai_gate=passed` still n=0** (AI pending/skipped/filtered; model 404s + budget). Do not treat technical PF as product edge yet.
+
 ---
 
 ## 6. Compact mature book

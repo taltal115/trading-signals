@@ -90,11 +90,14 @@ strategy:
   vol_ratio_min: 2.0            # was 3.0; volume / avg20 volume
 
   # Hard rejects (2026-08): downgrade BUY→WAIT before Firestore / AI / Slack.
+  # 2026-08-10 follow-up: KEEP — HYFM (−25.6%) confirms lottery channel still toxic.
+  # Do not loosen for one-off winners like LIFE (+38%, conf 100 / vol 3.6×).
   # 0 disables each gate.
   hard_reject_confidence_min: 98      # reject if conf >= this
   hard_reject_ret_5d_min_pct: 50.0    # reject if ret_5d >= this
   hard_reject_vol_ratio_min: 5.0      # reject if vol_ratio >= this
   # Continuation lane required for actionable BUY (ret_5d 10–20%, vol [2, 3)).
+  # 2026-08-10 follow-up: KEEP — 5/5 mature winners in-band (+3.9% avg).
   require_continuation_band: true
   continuation_ret_5d_min_pct: 10.0
   continuation_ret_5d_max_pct: 20.0
@@ -169,12 +172,14 @@ ai:
   lottery_entry_min_conviction: 0.8
   lottery_force_pro_model: false
   # Legacy alias; entry_model wins for the entry gate.
+  # 2026-08-10 follow-up: stay on chat/completions-compatible ids only.
   model: gpt-5.4
   entry_model: gpt-5.4
   holding_model: gpt-5.4-mini
   # Optional upgrade when technical_score >= threshold.
   # NOTE: gpt-5.4-pro is Responses-API-only and breaks our chat/completions client
-  # (404 "not a chat model"). Leave empty / use gpt-5.4 until Responses is wired.
+  # (404 "not a chat model" → left ai_gate=pending). Leave empty until Responses is wired.
+  # Do not treat pending as actionable (paper/Slack/UI); pending ≠ passed.
   pro_model: ""
   pro_min_technical_score: 75
   # Optional USD per 1M tokens for estimated_cost_usd on ai_evals
