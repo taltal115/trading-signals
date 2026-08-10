@@ -181,7 +181,9 @@ class AiConfig:
     entry_model: str = "gpt-5.4"
     holding_model: str = "gpt-5.4-mini"
     # Used for entry when technical_score >= pro_min_technical_score.
-    pro_model: str = "gpt-5.4-pro"
+    # Empty = disabled. Do not set gpt-5.4-pro until Responses API is supported
+    # (chat/completions returns 404 "not a chat model").
+    pro_model: str = ""
     pro_min_technical_score: float = 75.0
     # model -> {prompt_per_1m, completion_per_1m} USD
     pricing: dict[str, dict[str, float]] | None = None
@@ -360,7 +362,7 @@ def load_config(config_path: Path) -> AppConfig:
         model=str(ai_raw.get("model", "gpt-5.4")),
         entry_model=str(ai_raw.get("entry_model", ai_raw.get("model", "gpt-5.4"))),
         holding_model=str(ai_raw.get("holding_model", "gpt-5.4-mini")),
-        pro_model=str(ai_raw.get("pro_model", "gpt-5.4-pro")),
+        pro_model=str(ai_raw.get("pro_model", "") or ""),
         pro_min_technical_score=float(ai_raw.get("pro_min_technical_score", 75.0)),
         pricing=pricing,
     )

@@ -172,8 +172,10 @@ ai:
   model: gpt-5.4
   entry_model: gpt-5.4
   holding_model: gpt-5.4-mini
-  # When blended technical_score (features) >= this, entry uses pro_model instead.
-  pro_model: gpt-5.4-pro
+  # Optional upgrade when technical_score >= threshold.
+  # NOTE: gpt-5.4-pro is Responses-API-only and breaks our chat/completions client
+  # (404 "not a chat model"). Leave empty / use gpt-5.4 until Responses is wired.
+  pro_model: ""
   pro_min_technical_score: 75
   # Optional USD per 1M tokens for estimated_cost_usd on ai_evals
   pricing:

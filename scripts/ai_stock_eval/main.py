@@ -91,19 +91,39 @@ def _ai_pricing(cfg: Any) -> dict[str, dict[str, float]] | None:
     return getattr(ai, "pricing", None)
 
 
+# Models that reject v1/chat/completions (Responses API only as of 2026-03).
+_CHAT_UNSUPPORTED_MODELS = frozenset(
+    {
+        "gpt-5.4-pro",
+        "gpt-5.4-pro-2026-03-05",
+        "gpt-5.2-pro",
+        "gpt-5.2-pro-2025-12-11",
+    }
+)
+
+
 def _ai_model(cfg: Any, *, technical_score: float, force_pro: bool = False) -> str:
-    """Entry gate model: gpt-5.4 by default; gpt-5.4-pro when technical score is high."""
+    """Entry gate model: gpt-5.4 by default; optional pro_model when score is high."""
     ai = getattr(cfg, "ai", None)
     if ai is None:
         return "gpt-5.4"
     entry = str(getattr(ai, "entry_model", None) or getattr(ai, "model", None) or "gpt-5.4")
-    pro = str(getattr(ai, "pro_model", None) or "gpt-5.4-pro")
+    pro = str(getattr(ai, "pro_model", None) or "").strip()
     threshold = float(getattr(ai, "pro_min_technical_score", 75.0) or 75.0)
-    if force_pro and pro:
-        return pro
-    if technical_score >= threshold and pro:
-        return pro
-    return entry
+    chosen = entry
+    if pro and (force_pro or technical_score >= threshold):
+        chosen = pro
+    # Never send Responses-only ids to chat/completions.
+    if chosen in _CHAT_UNSUPPORTED_MODELS or chosen.split("/")[-1] in _CHAT_UNSUPPORTED_MODELS:
+        return entry
+    return chosen
+
+
+def _is_not_a_chat_model_error(exc: OpenAIHttpError) -> bool:
+    blob = f"{exc} {exc.body_snippet}".lower()
+    return "not a chat model" in blob or (
+        exc.status_code == 404 and "chat/completions" in blob
+    )
 
 
 def evaluate_one(
@@ -172,6 +192,12 @@ def evaluate_one(
     )
     technical_for_routing = float(feats.get("technical_score") or candidate_score or 0.0)
     entry_model = _ai_model(cfg, technical_score=technical_for_routing, force_pro=force_pro)
+    if ai_cfg is not None:
+        fallback_model = str(
+            getattr(ai_cfg, "entry_model", None) or getattr(ai_cfg, "model", None) or "gpt-5.4"
+        )
+    else:
+        fallback_model = "gpt-5.4"
     log.info(
         "Entry model for %s: %s (technical_score=%.1f lottery=%s)",
         ticker,
@@ -180,12 +206,34 @@ def evaluate_one(
         lottery_flag,
     )
     try:
-        raw_verdict, usage, raw_response_text = call_openai_json(
-            system=system_prompt,
-            user=user_msg,
-            model=entry_model,
-            pricing=_ai_pricing(cfg),
-        )
+        try:
+            raw_verdict, usage, raw_response_text = call_openai_json(
+                system=system_prompt,
+                user=user_msg,
+                model=entry_model,
+                pricing=_ai_pricing(cfg),
+            )
+        except OpenAIHttpError as e:
+            if (
+                _is_not_a_chat_model_error(e)
+                and fallback_model
+                and fallback_model != entry_model
+            ):
+                log.warning(
+                    "Entry model %s rejected by chat/completions for %s; falling back to %s (%s)",
+                    entry_model,
+                    ticker,
+                    fallback_model,
+                    e,
+                )
+                raw_verdict, usage, raw_response_text = call_openai_json(
+                    system=system_prompt,
+                    user=user_msg,
+                    model=fallback_model,
+                    pricing=_ai_pricing(cfg),
+                )
+            else:
+                raise
     except OpenAIHttpError as e:
         # Keep ai_gate=pending; never stub-BUY on rate limit / quota.
         if e.is_insufficient_quota:

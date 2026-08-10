@@ -44,7 +44,7 @@ ai:
   lottery_force_pro_model: false  # lottery hard-rejected by rules; avoid expensive pro
   entry_model: gpt-5.4
   holding_model: gpt-5.4-mini
-  pro_model: gpt-5.4-pro
+  pro_model: ""   # gpt-5.4-pro is Responses-API-only; leave empty for chat/completions
   pro_min_technical_score: 75
 
 slack:
@@ -61,5 +61,7 @@ slack:
 Secrets: `OPENAI_API_KEY`, `FINNHUB_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`, `SLACK_BOT_TOKEN` (for AI-passed Slack). Optional: `NEWSAPI_API_KEY`, `FRED_API_KEY` (GDELT is free, no key).
 
 OpenAI retry env (set in entry/holding workflows): `OPENAI_MAX_RETRIES`, `OPENAI_RETRY_BASE_SECONDS`, `OPENAI_RETRY_MAX_SECONDS`, `OPENAI_INTER_REQUEST_SECONDS`.
+
+GDELT pacing (public API ≈1 req / 5s): `GDELT_MIN_INTERVAL_SECONDS`, `GDELT_MAX_RETRIES`, `GDELT_RETRY_SECONDS`, `GDELT_COOLDOWN_SECONDS`, `GDELT_SKIP_IF_HEADLINES_GE`. Entry AI continues without GDELT on 429.
 
 Research: [`docs/research/2026-08/`](../research/2026-08/), [`docs/research/2026-07/`](../research/2026-07/).

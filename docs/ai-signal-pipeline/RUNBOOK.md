@@ -73,5 +73,5 @@ GDELT needs no secret (`USE_GDELT=true` by default). Toggle providers with repo 
 | Role | Default | When |
 |------|---------|------|
 | Entry gate | `gpt-5.4` (`entry_model`) | Every pending BUY eval |
-| Entry (optional) | `gpt-5.4-pro` (`pro_model`) | When blended `technical_score` ≥ `pro_min_technical_score` (default 75) |
+| Entry (optional) | `pro_model` (disabled by default) | Only if set to a **chat/completions** model and score ≥ `pro_min_technical_score`. Do not use `gpt-5.4-pro` here — it is Responses-API-only and returns 404 on chat/completions. |
 | Holding advisor | `gpt-5.4-mini` (`holding_model`) | Session holding runs |
