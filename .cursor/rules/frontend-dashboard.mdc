@@ -8,5 +8,6 @@ alwaysApply: false
 
 - UI lives in `frontend/` (Angular); API in `backend/` (NestJS). Do not revive the old vanilla `web/` app patterns.
 - Default Signals ledger filter: Actionable (`ai_gate=passed`). Keep Pending / All available.
+- Research page (`/research`) triggers GHA profit-hold runs and reads Firestore `research_runs` — do not invent a Nest long-running worker.
 - No broker trading UI. Read skill `.cursor/skills/trading-dashboard/SKILL.md` for page layout and hold-chart work.
 - Prefer existing component patterns, signals store, and chart services over new parallel stacks.

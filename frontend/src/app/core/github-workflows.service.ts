@@ -22,4 +22,21 @@ export class GithubWorkflowsService {
       }),
     );
   }
+
+  async triggerProfitHoldResearch(body: {
+    since: string;
+    until?: string;
+    actionable_only?: boolean;
+    include_immature?: boolean;
+    limit_runs?: number;
+    notify_slack?: boolean;
+  }): Promise<{ ok: boolean; run_id: string }> {
+    return firstValueFrom(
+      this.http.post<{ ok: boolean; run_id: string }>(
+        this.url('/workflows/profit-hold-research'),
+        body,
+        { withCredentials: true },
+      ),
+    );
+  }
 }

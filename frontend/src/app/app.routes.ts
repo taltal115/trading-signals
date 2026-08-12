@@ -52,6 +52,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'research',
+        loadComponent: () =>
+          import('./features/research-page/research-page.component').then(
+            (m) => m.ResearchPageComponent
+          ),
+      },
+      {
         path: 'about',
         loadComponent: () =>
           import('./features/about-index/about-index.component').then((m) => m.AboutIndexComponent),

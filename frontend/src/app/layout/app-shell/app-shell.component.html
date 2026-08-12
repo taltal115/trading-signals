@@ -99,6 +99,19 @@
           <span class="sidebar-nav-text">AI analytics</span>
         </a>
         <a
+          routerLink="/research"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link nav-link-research"
+          data-abbr="Re"
+          title="Research"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">Research</span>
+          @if (researchDue.overdue()) {
+            <span class="nav-signals-badge" aria-label="Research iteration due">!</span>
+          }
+        </a>
+        <a
           routerLink="/about"
           routerLinkActive="active"
           [routerLinkActiveOptions]="{ exact: false }"

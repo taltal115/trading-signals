@@ -66,4 +66,6 @@ GDELT pacing (public API ≈1 req / 5s): `GDELT_MIN_INTERVAL_SECONDS`, `GDELT_MA
 
 Research backfill (pending continuation-band, no paper): `scripts/research_backfill_pending_entry_ai.py` (uses entry `--skip-paper`).
 
+Dashboard **Research** page: Nest `POST /api/github/workflows/profit-hold-research` → GHA → Firestore `research_runs` (see [`docs/research/README.md`](../research/README.md)).
+
 Research: [`docs/research/2026-08/`](../research/2026-08/), [`docs/research/2026-07/`](../research/2026-07/).

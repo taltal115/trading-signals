@@ -12,6 +12,8 @@ import { formatApiErr } from '../../core/api-errors';
 import { environment } from '../../../environments/environment';
 import { ExitDialogService, type ExitDialogPayload } from '../../core/exit-dialog.service';
 import { SignalsNewBadgeService } from '../../core/signals-new-badge.service';
+import { ResearchDueBadgeService } from '../../core/research-due-badge.service';
+import { ResearchApiService } from '../../core/research-api.service';
 import {
   effectiveQuantity,
   fmtSignedUsd,
@@ -44,6 +46,8 @@ export class AppShellComponent implements OnInit, OnDestroy {
   private readonly monitorStore = inject(MonitorStoreService);
   private readonly exitDialogSvc = inject(ExitDialogService);
   readonly signalsNewBadge = inject(SignalsNewBadgeService);
+  readonly researchDue = inject(ResearchDueBadgeService);
+  private readonly researchApi = inject(ResearchApiService);
   private exitSub?: Subscription;
   private authStoreSub?: Subscription;
   readonly devPersonas = signal<Array<{ uid: string; email: string; displayName: string }>>([]);
@@ -115,6 +119,19 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
     if (environment.devAuthBypass) {
       void this.loadDevPersonas();
+    }
+    void this.refreshResearchDueBadge();
+  }
+
+  private async refreshResearchDueBadge(): Promise<void> {
+    try {
+      const rows = await this.researchApi.listRuns(5);
+      const succeeded = rows.find((r) => String(r.data['status'] || '') === 'succeeded');
+      const due =
+        (succeeded?.data['next_research'] as { due_date?: string } | undefined)?.due_date || null;
+      this.researchDue.refreshFromDue(due);
+    } catch {
+      /* ignore — Research page will refresh */
     }
   }
 

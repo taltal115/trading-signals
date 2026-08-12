@@ -13,6 +13,7 @@ import { SignalsModule } from './signals/signals.module';
 import { UniverseModule } from './universe/universe.module';
 import { MarketModule } from './market/market.module';
 import { GithubWorkflowModule } from './github-workflow/github-workflow.module';
+import { ResearchModule } from './research/research.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { GithubWorkflowModule } from './github-workflow/github-workflow.module';
     PositionsModule,
     MonitorModule,
     GithubWorkflowModule,
+    ResearchModule,
   ],
   controllers: [AppController],
   providers: [

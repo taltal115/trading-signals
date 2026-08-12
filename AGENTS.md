@@ -53,6 +53,7 @@ cd backend && npm ci && npm run start:dev
 | Scan entrypoint | `src/signals_bot/main.py` |
 | AI entry + holding | `scripts/ai_stock_eval/`, `scripts/ai_holding_advisor/`, `docs/ai-signal-pipeline/` |
 | Research notes | `docs/research/YYYY-MM/` |
+| Research UI (cohort runs) | `frontend/.../research-page/`, `scripts/run_ui_profit_hold_research.py`, Firestore `research_runs` |
 | Bot strategy docs | `docs/bot-logic-and-strategy.md` |
 
 ## Cursor primitives in this repo

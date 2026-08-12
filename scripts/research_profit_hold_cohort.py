@@ -267,37 +267,18 @@ def _group_stats(rows: list[TradeRow], key_fn) -> list[dict[str, Any]]:
     return out
 
 
-def main() -> int:
-    p = argparse.ArgumentParser(description="Profit-at-default-hold cohort research.")
-    p.add_argument("--config", default="config.yaml")
-    p.add_argument("--since", default="2026-06-29", help="asof_date >= this")
-    p.add_argument("--until", default=None, help="asof_date <= this (optional)")
-    p.add_argument("--limit-runs", type=int, default=120)
-    p.add_argument(
-        "--out-csv",
-        default=str(ROOT_DIR / "docs" / "research" / "2026-07" / "profit_hold_cohort_2026-07.csv"),
-    )
-    p.add_argument(
-        "--out-json",
-        default=str(
-            ROOT_DIR / "docs" / "research" / "2026-07" / "profit_hold_cohort_2026-07_summary.json"
-        ),
-    )
-    p.add_argument(
-        "--include-immature",
-        action="store_true",
-        help="Include signals that have not completed hold_days yet (hold_ret may be null).",
-    )
-    p.add_argument(
-        "--actionable-only",
-        action="store_true",
-        help="Only score rows with ai_gate=passed (matches Slack actionable ledger).",
-    )
-    args = p.parse_args()
-
-    since = date.fromisoformat(args.since)
-    until = date.fromisoformat(args.until) if args.until else None
-    cfg = load_config(Path(args.config).expanduser().resolve())
+def run_cohort(
+    *,
+    config_path: Path,
+    since: date,
+    until: date | None = None,
+    limit_runs: int = 120,
+    include_immature: bool = False,
+    actionable_only: bool = False,
+    quiet: bool = False,
+) -> tuple[dict[str, Any], list[TradeRow]]:
+    """Compute cohort summary + detail rows. Always returns a summary (even if empty)."""
+    cfg = load_config(Path(config_path).expanduser().resolve())
     default_hold = int(cfg.strategy.max_hold_days)
 
     providers = [
@@ -314,18 +295,50 @@ def main() -> int:
         ),
     ]
 
-    buys = _fetch_buys(since=since, until=until, limit_runs=args.limit_runs)
-    print(f"Loaded {len(buys)} unique BUY rows since {since.isoformat()}")
-    if args.actionable_only:
+    buys = _fetch_buys(since=since, until=until, limit_runs=limit_runs)
+    if not quiet:
+        print(f"Loaded {len(buys)} unique BUY rows since {since.isoformat()}")
+    if actionable_only:
         before = len(buys)
         buys = [
             b
             for b in buys
             if str(b.get("ai_gate") or "").strip().lower() == "passed"
         ]
-        print(f"Actionable-only (ai_gate=passed): {len(buys)} / {before}")
+        if not quiet:
+            print(f"Actionable-only (ai_gate=passed): {len(buys)} / {before}")
+
+    empty_summary = {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "since": since.isoformat(),
+        "until": until.isoformat() if until else None,
+        "actionable_only": bool(actionable_only),
+        "default_max_hold_days": default_hold,
+        "n_unique_buys_loaded": len(buys),
+        "n_rows_evaluated": 0,
+        "n_mature_hold": 0,
+        "primary_metric": "raw_close_return_at_signal_hold_days",
+        "overall_at_hold": {"n": 0},
+        "raw_at_3_sessions": {"n": 0},
+        "raw_at_5_sessions": {"n": 0},
+        "by_asof_date": [],
+        "by_confidence": [],
+        "by_ret_5d_at_entry": [],
+        "by_atr_pct": [],
+        "by_vol_ratio": [],
+        "by_hold_days": [],
+        "by_ai_gate": [],
+        "by_ai_decision": [],
+        "by_has_ai": [],
+        "by_ai_total": [],
+        "top_winners": [],
+        "top_losers": [],
+        "all_winners": [],
+        "all_losers": [],
+        "note": "empty_cohort" if not buys else None,
+    }
     if not buys:
-        return 0
+        return empty_summary, []
 
     today = date.today()
     rows: list[TradeRow] = []
@@ -335,7 +348,7 @@ def main() -> int:
         metrics = sig.get("metrics") if isinstance(sig.get("metrics"), dict) else {}
         entry = float(sig.get("close") or 0.0)
 
-        if not args.include_immature and (today - asof).days < hold_days + 1:
+        if not include_immature and (today - asof).days < hold_days + 1:
             continue
 
         hist = None
@@ -387,13 +400,13 @@ def main() -> int:
                 finalized_outcome=str(sig.get("outcome") or ""),
             )
         )
-        if i % 25 == 0:
+        if not quiet and i % 25 == 0:
             print(f"  ...{i}/{len(buys)}")
 
     mature = [r for r in rows if r.hold_ret_pct is not None]
-    print(f"\nMature trades (hold completed): {len(mature)} / {len(rows)}")
+    if not quiet:
+        print(f"\nMature trades (hold completed): {len(mature)} / {len(rows)}")
 
-    # Summaries
     overall = _stats([r.hold_ret_pct for r in mature if r.hold_ret_pct is not None])
     at3 = _stats([r.ret_3d_pct for r in rows if r.ret_3d_pct is not None])
     at5 = _stats([r.ret_5d_fwd_pct for r in rows if r.ret_5d_fwd_pct is not None])
@@ -408,17 +421,6 @@ def main() -> int:
         key=lambda r: r.hold_ret_pct or 0,
     )
 
-    by_day = _group_stats(mature, lambda r: r.asof_date)
-    by_conf = _group_stats(mature, lambda r: _bucket_conf(r.confidence))
-    by_ret5 = _group_stats(mature, lambda r: _bucket_ret5(r.ret_5d_pct))
-    by_atr = _group_stats(mature, lambda r: _bucket_atr(r.atr_pct))
-    by_vol = _group_stats(mature, lambda r: _bucket_vol(r.vol_ratio))
-    by_hold = _group_stats(mature, lambda r: f"{r.hold_days}d")
-    by_ai_gate = _group_stats(mature, lambda r: r.ai_gate)
-    by_ai_decision = _group_stats(mature, lambda r: r.ai_decision)
-    by_has_ai = _group_stats(mature, lambda r: "has_ai" if r.has_ai else "no_ai")
-
-    # AI total buckets among those with scores
     def ai_total_bucket(r: TradeRow) -> str:
         if r.ai_total is None:
             return "no_score"
@@ -430,35 +432,11 @@ def main() -> int:
             return "ai_total_60-69"
         return "ai_total<60"
 
-    by_ai_total = _group_stats(mature, ai_total_bucket)
-
-    print("\n=== PRIMARY: raw profit at signal hold_days (ignores stop/target) ===")
-    print(json.dumps(overall, indent=2))
-    print("\n=== +3 sessions raw ===")
-    print(json.dumps(at3, indent=2))
-    print("\n=== +5 sessions raw ===")
-    print(json.dumps(at5, indent=2))
-
-    print("\n=== Top 15 winners (hold) ===")
-    for r in winners[:15]:
-        print(
-            f"  {r.asof_date} {r.ticker:<6} hold={r.hold_days}d "
-            f"ret={r.hold_ret_pct:+6.2f}% conf={r.confidence} "
-            f"ai_gate={r.ai_gate} ai_dec={r.ai_decision} ai_tot={r.ai_total}"
-        )
-    print("\n=== Top 15 losers (hold) ===")
-    for r in losers[:15]:
-        print(
-            f"  {r.asof_date} {r.ticker:<6} hold={r.hold_days}d "
-            f"ret={r.hold_ret_pct:+6.2f}% conf={r.confidence} "
-            f"ai_gate={r.ai_gate} ai_dec={r.ai_decision} ai_tot={r.ai_total}"
-        )
-
     summary = {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "since": since.isoformat(),
         "until": until.isoformat() if until else None,
-        "actionable_only": bool(args.actionable_only),
+        "actionable_only": bool(actionable_only),
         "default_max_hold_days": default_hold,
         "n_unique_buys_loaded": len(buys),
         "n_rows_evaluated": len(rows),
@@ -467,21 +445,66 @@ def main() -> int:
         "overall_at_hold": overall,
         "raw_at_3_sessions": at3,
         "raw_at_5_sessions": at5,
-        "by_asof_date": by_day,
-        "by_confidence": by_conf,
-        "by_ret_5d_at_entry": by_ret5,
-        "by_atr_pct": by_atr,
-        "by_vol_ratio": by_vol,
-        "by_hold_days": by_hold,
-        "by_ai_gate": by_ai_gate,
-        "by_ai_decision": by_ai_decision,
-        "by_has_ai": by_has_ai,
-        "by_ai_total": by_ai_total,
+        "by_asof_date": _group_stats(mature, lambda r: r.asof_date),
+        "by_confidence": _group_stats(mature, lambda r: _bucket_conf(r.confidence)),
+        "by_ret_5d_at_entry": _group_stats(mature, lambda r: _bucket_ret5(r.ret_5d_pct)),
+        "by_atr_pct": _group_stats(mature, lambda r: _bucket_atr(r.atr_pct)),
+        "by_vol_ratio": _group_stats(mature, lambda r: _bucket_vol(r.vol_ratio)),
+        "by_hold_days": _group_stats(mature, lambda r: f"{r.hold_days}d"),
+        "by_ai_gate": _group_stats(mature, lambda r: r.ai_gate),
+        "by_ai_decision": _group_stats(mature, lambda r: r.ai_decision),
+        "by_has_ai": _group_stats(mature, lambda r: "has_ai" if r.has_ai else "no_ai"),
+        "by_ai_total": _group_stats(mature, ai_total_bucket),
         "top_winners": [asdict(r) for r in winners[:25]],
         "top_losers": [asdict(r) for r in losers[:25]],
         "all_winners": [asdict(r) for r in winners],
         "all_losers": [asdict(r) for r in losers],
     }
+    return summary, rows
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description="Profit-at-default-hold cohort research.")
+    p.add_argument("--config", default="config.yaml")
+    p.add_argument("--since", default="2026-06-29", help="asof_date >= this")
+    p.add_argument("--until", default=None, help="asof_date <= this (optional)")
+    p.add_argument("--limit-runs", type=int, default=120)
+    p.add_argument(
+        "--out-csv",
+        default=str(ROOT_DIR / "docs" / "research" / "2026-07" / "profit_hold_cohort_2026-07.csv"),
+    )
+    p.add_argument(
+        "--out-json",
+        default=str(
+            ROOT_DIR / "docs" / "research" / "2026-07" / "profit_hold_cohort_2026-07_summary.json"
+        ),
+    )
+    p.add_argument(
+        "--include-immature",
+        action="store_true",
+        help="Include signals that have not completed hold_days yet (hold_ret may be null).",
+    )
+    p.add_argument(
+        "--actionable-only",
+        action="store_true",
+        help="Only score rows with ai_gate=passed (matches Slack actionable ledger).",
+    )
+    args = p.parse_args()
+
+    since = date.fromisoformat(args.since)
+    until = date.fromisoformat(args.until) if args.until else None
+    summary, rows = run_cohort(
+        config_path=Path(args.config),
+        since=since,
+        until=until,
+        limit_runs=args.limit_runs,
+        include_immature=bool(args.include_immature),
+        actionable_only=bool(args.actionable_only),
+    )
+
+    overall = summary.get("overall_at_hold") or {}
+    print("\n=== PRIMARY: raw profit at signal hold_days (ignores stop/target) ===")
+    print(json.dumps(overall, indent=2, default=str))
 
     out_csv = Path(args.out_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
