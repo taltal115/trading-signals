@@ -161,9 +161,10 @@ ai:
   enabled: true
   entry_min_total: 70
   entry_min_conviction: 0.7
-  # Entry LLM only on top-N BUYs by signal_quality rank; rest get ai_gate=skipped (no tokens).
-  # 2026-08: hard filters shrink the pool — keep entry budget small.
-  max_entry_evals_per_run: 3
+  # Entry LLM on top-N BUYs by signal_quality rank; out-of-band rest may be skipped.
+  # Continuation-band pending are never rule_skipped (stay pending or always LLM).
+  # 2026-08-30: raised 3→8 — top winners (LIFE/LBRX) were starved as rule_skip; passed=0.
+  max_entry_evals_per_run: 8
   max_holding_evals_per_run: 3
   # Holding AI is low-edge / high-429; eval at most once per day per name.
   holding_min_hours_between_evals: 24

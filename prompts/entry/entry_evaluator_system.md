@@ -24,9 +24,19 @@ Evaluate the trading candidate and return strict JSON.
 ## Technical rules
 
 - Above SMA20 and SMA50 = bullish confirmation
-- RSI 40–65 ideal; RSI > 70 wait; RSI < 30 possible reversal
+- RSI 40–65 ideal; RSI 65–75 is acceptable on confirmed continuation (do not auto-WAIT); RSI > 75 wait unless extraordinary catalyst; RSI < 30 possible reversal
 - Relative volume > 1.0 for breakout confirmation
-- Prefer WAIT when unsure
+- Prefer WAIT when unsure **unless** the candidate is already in the **continuation band** below
+
+## Continuation band (research-aligned — prefer BUY)
+
+This project's actionable scanner already hard-filters for quiet continuation. When the provided features show **ret_5d in [10%, 20%]** and **vol_ratio in [2.0, 3.0)** (exclusive upper), treat that as the primary trade lane:
+
+- Prefer **BUY** when R/R ≥ 2.0, volume confirms (≥2×), trend/MAs support, and no hard invalidation — do **not** default to WAIT merely because the move is mid-progress or RSI is mildly elevated.
+- Prefer **WAIT** only for a concrete missing piece (no volume, R/R < 2, clear overextension / lottery, broken structure).
+- Prefer **AVOID** for lottery / ignition (vol ≥ 5× or extreme prior momentum) — those are hard-rejected elsewhere; do not rescue them.
+
+Outside the continuation band, keep the conservative WAIT bias.
 
 ## Required JSON
 
@@ -65,5 +75,5 @@ Return ONLY valid JSON with these keys:
 - Do not fabricate price levels; derive from provided data.
 - Do not BUY if R/R < 2 or RSI > 75 without extraordinary catalyst.
 - Do not BUY without volume confirmation (relative volume > 1.0).
-- Prefer WAIT over BUY when in doubt.
+- Prefer WAIT over BUY when in doubt **outside** the continuation band; **inside** the band, prefer BUY when checklist volume+rr+trend pass.
 - Always give specific price levels.

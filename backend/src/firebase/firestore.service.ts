@@ -937,4 +937,66 @@ export class FirestoreService implements OnModuleInit {
       this.handleFirestoreListError('listAiEvalsRecent', e);
     }
   }
+
+  /** Recent profit-hold research runs (newest first). */
+  async listResearchRuns(limitN = 30): Promise<{ id: string; data: DocumentData }[]> {
+    try {
+      const snap = await this.db
+        .collection('research_runs')
+        .orderBy('created_at_utc', 'desc')
+        .limit(Math.min(Math.max(limitN, 1), 100))
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    } catch (e) {
+      this.log.warn(`listResearchRuns orderBy failed, falling back: ${String(e)}`);
+      try {
+        const snap = await this.db.collection('research_runs').limit(Math.min(Math.max(limitN, 1), 100)).get();
+        const rows = snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+        rows.sort((a, b) => {
+          const ta = String(a.data['created_at_utc'] || a.data['researched_at_utc'] || '');
+          const tb = String(b.data['created_at_utc'] || b.data['researched_at_utc'] || '');
+          return tb.localeCompare(ta);
+        });
+        return rows.slice(0, Math.min(Math.max(limitN, 1), 100));
+      } catch (e2) {
+        this.handleFirestoreListError('listResearchRuns', e2);
+      }
+    }
+  }
+
+  async getResearchRun(runId: string): Promise<{ id: string; data: DocumentData } | null> {
+    const id = String(runId || '').trim();
+    if (!id) return null;
+    try {
+      const snap = await this.db.collection('research_runs').doc(id).get();
+      if (!snap.exists) return null;
+      return { id: snap.id, data: toPlainDoc(snap.data()) };
+    } catch (e) {
+      this.handleFirestoreListError('getResearchRun', e);
+    }
+  }
+
+  async createResearchRunQueued(runId: string, data: DocumentData): Promise<void> {
+    const id = String(runId || '').trim();
+    if (!id) {
+      throw new InternalServerErrorException('research run id required');
+    }
+    try {
+      await this.db
+        .collection('research_runs')
+        .doc(id)
+        .set(
+          {
+            ...data,
+            id,
+            status: data['status'] || 'queued',
+            created_at_utc: data['created_at_utc'] || new Date().toISOString(),
+            updated_at_utc: new Date().toISOString(),
+          },
+          { merge: true },
+        );
+    } catch (e) {
+      this.handleFirestoreListError('createResearchRunQueued', e);
+    }
+  }
 }

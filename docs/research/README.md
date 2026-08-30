@@ -9,6 +9,20 @@ Dated strategy research lives in month folders so each cohort stays self-contain
 
 For the next research cycle, create `docs/research/YYYY-MM/` and keep scripts, CSVs, and markdown together there.
 
+## Dashboard Research UI
+
+The Angular **Research** page (`/research`) triggers profit-hold cohort runs via Nest → GitHub Action [`profit-hold-research.yml`](../../.github/workflows/profit-hold-research.yml).
+
+- **Canonical storage:** Firestore collection `research_runs` (summary, course of action, `researched_at_utc`, `next_research.due_date`).
+- **Runner:** [`scripts/run_ui_profit_hold_research.py`](../../scripts/run_ui_profit_hold_research.py) (+ COA in [`scripts/research_coa.py`](../../scripts/research_coa.py)).
+- **Schedule:** weekday due-check; full cohort when `next_research.due_date` ≤ today; Slack on due/complete.
+- Local markdown/CSV under this folder remains useful for git notes; the UI reads Firestore.
+
+```bash
+PYTHONPATH=./src:. python scripts/run_ui_profit_hold_research.py \
+  --since 2026-08-04 --notify-slack --write-local
+```
+
 Optional Finviz screener POC (research only, not production universe):
 
 ```bash

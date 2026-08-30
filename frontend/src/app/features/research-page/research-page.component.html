@@ -1,0 +1,217 @@
+<section class="panel active research-page" aria-label="Profit-hold research">
+  <h2>Research</h2>
+  <p class="research-lead">
+    Profit-at-hold cohort on Firestore BUY signals. Results + course of action are stored in
+    <code>research_runs</code> with a research timestamp.
+  </p>
+
+  <div class="research-due-banner" *ngIf="dueBadge.overdue()">
+    <span
+      >Next research iteration is due ({{ dueBadge.dueDate() }}). Run a cohort or ack after
+      reviewing.</span
+    >
+    <button type="button" class="universe-page-btn" (click)="ackDue()">Dismiss</button>
+  </div>
+
+  <div class="research-run-panel">
+    <h3>Run cohort</h3>
+    <div class="research-form">
+      <label>
+        Since
+        <input type="date" [(ngModel)]="since" name="since" />
+      </label>
+      <label>
+        Until (optional)
+        <input type="date" [(ngModel)]="until" name="until" />
+      </label>
+      <label>
+        Limit runs
+        <input type="number" min="20" max="500" [(ngModel)]="limitRuns" name="limitRuns" />
+      </label>
+      <label class="research-check">
+        <input type="checkbox" [(ngModel)]="actionableOnly" name="actionableOnly" />
+        Actionable only (ai_gate=passed)
+      </label>
+      <label class="research-check">
+        <input type="checkbox" [(ngModel)]="includeImmature" name="includeImmature" />
+        Include immature
+      </label>
+      <label class="research-check">
+        <input type="checkbox" [(ngModel)]="notifySlack" name="notifySlack" />
+        Notify Slack
+      </label>
+      <button
+        type="button"
+        class="universe-page-btn research-run-btn"
+        [disabled]="running() || loading()"
+        (click)="runResearch()"
+      >
+        {{ running() ? 'Starting…' : 'Run research' }}
+      </button>
+    </div>
+  </div>
+
+  <p class="empty-state" *ngIf="loading()">Loading research runs…</p>
+  <p class="empty-state" *ngIf="!loading() && error()">{{ error() }}</p>
+  <p class="empty-state" *ngIf="!loading() && !error() && runs().length === 0">
+    No research runs yet. Start one above.
+  </p>
+
+  <div class="research-layout" *ngIf="!loading() && runs().length > 0">
+    <aside class="research-history" aria-label="Research history">
+      <h3>History</h3>
+      <ul>
+        <li *ngFor="let r of runs()">
+          <button
+            type="button"
+            class="research-history-item"
+            [class.active]="selectedId() === r.id"
+            (click)="selectRun(r.id)"
+          >
+            <span class="research-history-ts">{{
+              r.data['researched_at_utc'] || r.data['created_at_utc'] || r.id
+            }}</span>
+            <span class="research-history-status">{{ r.data['status'] }}</span>
+            <span class="research-history-meta">{{ runParamsLabel(r) }}</span>
+          </button>
+        </li>
+      </ul>
+    </aside>
+
+    <div class="research-detail" *ngIf="selected() as sel">
+      <header class="research-detail-head">
+        <h3>Run {{ sel.id }}</h3>
+        <p class="research-detail-meta">
+          Status: <strong>{{ sel.data['status'] }}</strong>
+          <span *ngIf="sel.data['researched_at_utc']">
+            · Researched {{ sel.data['researched_at_utc'] }}</span
+          >
+          <span *ngIf="sel.data['created_at_utc']"> · Created {{ sel.data['created_at_utc'] }}</span>
+        </p>
+        <p class="empty-state" *ngIf="sel.data['error']">{{ sel.data['error'] }}</p>
+      </header>
+
+      <section class="research-metrics" *ngIf="overall() as ov">
+        <h4>Headline (raw profit at hold)</h4>
+        <div class="research-metric-grid">
+          <div><span class="label">n mature</span><strong>{{ ov['n'] ?? 0 }}</strong></div>
+          <div><span class="label">win %</span><strong>{{ fmt(ov['win_rate_pct'], 1) }}</strong></div>
+          <div><span class="label">avg %</span><strong>{{ fmt(ov['avg_ret_pct']) }}</strong></div>
+          <div><span class="label">median %</span><strong>{{ fmt(ov['median_ret_pct']) }}</strong></div>
+          <div><span class="label">PF</span><strong>{{ fmt(ov['profit_factor']) }}</strong></div>
+          <div>
+            <span class="label">loaded</span
+            ><strong>{{ summary()?.['n_unique_buys_loaded'] ?? '—' }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="research-next" *ngIf="nextResearch() as nr">
+        <h4>Next research iteration</h4>
+        <p>
+          <strong>Due {{ nr['due_date'] }}</strong> — {{ nr['reason'] }}
+        </p>
+        <p class="research-detail-meta">
+          Mature passed now: {{ nr['passed_mature_now'] }} · Immature passed:
+          {{ nr['passed_immature_now'] }} · Target: {{ nr['min_mature_passed_target'] }}
+        </p>
+      </section>
+
+      <section class="research-coa" *ngIf="coa() as c">
+        <h4>Course of action</h4>
+        <p class="research-verdict">{{ c['verdict'] }}</p>
+        <p class="research-narrative" *ngIf="c['llm_narrative']">{{ c['llm_narrative'] }}</p>
+        <ol class="research-coa-list">
+          <li *ngFor="let item of coaItems()" [attr.data-priority]="item.priority">
+            <div class="coa-title">
+              <span class="coa-priority">{{ item.priority }}</span>
+              {{ item.title }}
+            </div>
+            <p>{{ item.rationale }}</p>
+            <ul class="coa-changes" *ngIf="item.suggested_changes?.length">
+              <li *ngFor="let ch of item.suggested_changes">
+                <code>{{ ch.path }}</code>
+                <span *ngIf="ch.knob"> · {{ ch.knob }}</span>
+                <span *ngIf="ch.to != null"> → {{ ch.to }}</span>
+                <span *ngIf="ch.note"> — {{ ch.note }}</span>
+              </li>
+            </ul>
+          </li>
+        </ol>
+        <pre class="research-remeasure" *ngIf="c['remeasure_command']">{{ c['remeasure_command'] }}</pre>
+      </section>
+
+      <section *ngIf="gateSlices().length">
+        <h4>By AI gate</h4>
+        <table class="research-table">
+          <thead>
+            <tr>
+              <th>gate</th>
+              <th>n</th>
+              <th>win%</th>
+              <th>avg%</th>
+              <th>PF</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let g of gateSlices()">
+              <td>{{ g['bucket'] }}</td>
+              <td>{{ g['n'] }}</td>
+              <td>{{ fmt(g['win_rate_pct'], 1) }}</td>
+              <td>{{ fmt(g['avg_ret_pct']) }}</td>
+              <td>{{ fmt(g['profit_factor']) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section *ngIf="winners().length">
+        <h4>Top winners</h4>
+        <table class="research-table">
+          <thead>
+            <tr>
+              <th>date</th>
+              <th>ticker</th>
+              <th>hold%</th>
+              <th>conf</th>
+              <th>gate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let w of winners().slice(0, 10)">
+              <td>{{ w['asof_date'] }}</td>
+              <td>{{ w['ticker'] }}</td>
+              <td>{{ fmt(w['hold_ret_pct']) }}</td>
+              <td>{{ w['confidence'] }}</td>
+              <td>{{ w['ai_gate'] }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section *ngIf="losers().length">
+        <h4>Top losers</h4>
+        <table class="research-table">
+          <thead>
+            <tr>
+              <th>date</th>
+              <th>ticker</th>
+              <th>hold%</th>
+              <th>conf</th>
+              <th>gate</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let w of losers().slice(0, 10)">
+              <td>{{ w['asof_date'] }}</td>
+              <td>{{ w['ticker'] }}</td>
+              <td>{{ fmt(w['hold_ret_pct']) }}</td>
+              <td>{{ w['confidence'] }}</td>
+              <td>{{ w['ai_gate'] }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+    </div>
+  </div>
+</section>

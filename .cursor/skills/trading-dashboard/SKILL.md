@@ -15,9 +15,9 @@ description: Build and modify the Angular trading signals dashboard and Nest API
 
 | Area | Path |
 |------|------|
-| Feature pages | `frontend/src/app/features/*-page/` |
+| Feature pages | `frontend/src/app/features/*-page/` (incl. `research-page/`) |
 | Layout / auth | `frontend/src/app/layout/` |
-| Nest API | `backend/src/` |
+| Nest API | `backend/src/` (`research/`, github workflow dispatch) |
 | Project UI rule | `.cursor/rules/frontend-dashboard.mdc` |
 
 Do **not** extend the legacy vanilla `web/` app.

@@ -1,0 +1,136 @@
+# Profit-hold cohort research for the dashboard Research page.
+# Persists summary + course_of_action to Firestore `research_runs`.
+name: Profit-hold research
+
+on:
+  workflow_dispatch:
+    inputs:
+      since:
+        description: "asof_date >= YYYY-MM-DD"
+        required: false
+        default: "2026-08-04"
+      until:
+        description: "asof_date <= YYYY-MM-DD (optional)"
+        required: false
+        default: ""
+      actionable_only:
+        description: "Only ai_gate=passed"
+        required: false
+        default: "false"
+        type: boolean
+      include_immature:
+        description: "Include immature holds"
+        required: false
+        default: "false"
+        type: boolean
+      limit_runs:
+        description: "Max Firestore signal run docs"
+        required: false
+        default: "200"
+      run_id:
+        description: "Firestore research_runs doc id (empty = generate)"
+        required: false
+        default: ""
+      trigger_source:
+        description: "ui | schedule | workflow_dispatch | due_check"
+        required: false
+        default: "workflow_dispatch"
+      notify_slack:
+        description: "Post Slack summary"
+        required: false
+        default: "true"
+        type: boolean
+  # Weekdays ~13:30 UTC — after daily signal finalize (~12:00 UTC)
+  schedule:
+    - cron: "30 13 * * 1-5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: profit-hold-research
+  cancel-in-progress: false
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Check secrets
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+        run: |
+          if [ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]; then
+            echo "::error::Set GOOGLE_APPLICATION_CREDENTIALS"
+            exit 1
+          fi
+
+      - name: Run profit-hold research
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL }}
+        run: |
+          set -euo pipefail
+          EXTRA=""
+          NOTIFY="--notify-slack"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Scheduled: due-check; full cohort only when next_research is due.
+            PYTHONPATH=./src:. python scripts/run_ui_profit_hold_research.py \
+              --config config.yaml \
+              --since 2026-08-04 \
+              --limit-runs 200 \
+              --due-check \
+              --trigger-source schedule \
+              $NOTIFY
+            exit 0
+          fi
+
+          SINCE="${{ github.event.inputs.since }}"
+          SINCE="${SINCE:-2026-08-04}"
+          UNTIL="${{ github.event.inputs.until }}"
+          LIMIT="${{ github.event.inputs.limit_runs }}"
+          LIMIT="${LIMIT:-200}"
+          RUN_ID="${{ github.event.inputs.run_id }}"
+          SRC="${{ github.event.inputs.trigger_source }}"
+          SRC="${SRC:-workflow_dispatch}"
+
+          if [ "${{ github.event.inputs.actionable_only }}" = "true" ]; then
+            EXTRA="$EXTRA --actionable-only"
+          fi
+          if [ "${{ github.event.inputs.include_immature }}" = "true" ]; then
+            EXTRA="$EXTRA --include-immature"
+          fi
+          if [ "${{ github.event.inputs.notify_slack }}" = "false" ]; then
+            NOTIFY=""
+          fi
+          RUN_ARG=""
+          if [ -n "$RUN_ID" ]; then
+            RUN_ARG="--run-id $RUN_ID"
+          fi
+          UNTIL_ARG=""
+          if [ -n "$UNTIL" ]; then
+            UNTIL_ARG="--until $UNTIL"
+          fi
+
+          PYTHONPATH=./src:. python scripts/run_ui_profit_hold_research.py \
+            --config config.yaml \
+            --since "$SINCE" \
+            --limit-runs "$LIMIT" \
+            --trigger-source "$SRC" \
+            $UNTIL_ARG \
+            $RUN_ARG \
+            $EXTRA \
+            $NOTIFY

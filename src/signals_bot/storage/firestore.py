@@ -15,6 +15,8 @@ from signals_bot.strategy.breakout import Signal
 
 # Canonical bot/dashboard collection (deterministic run document ids).
 SIGNALS_COLLECTION = "signals"
+# UI / GHA profit-hold research runs (summary + course of action).
+RESEARCH_RUNS_COLLECTION = "research_runs"
 # Archived legacy auto-id runs (Firestore ``signals`` renamed to ``signals_old``).
 SIGNALS_COLLECTION_LEGACY_ARCHIVE = "signals_old"
 # Canonical open positions collection (Firestore; deterministic doc ids).

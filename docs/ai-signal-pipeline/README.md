@@ -36,7 +36,7 @@ ai:
   enabled: true
   entry_min_total: 70
   entry_min_conviction: 0.7
-  max_entry_evals_per_run: 3   # LLM top-N by signal_quality rank; rest ai_gate=skipped
+  max_entry_evals_per_run: 8   # LLM top-N; continuation-band never rule_skipped (2026-08-30)
   max_holding_evals_per_run: 3 # 2026-08: cut holding volume (429 relief)
   holding_min_hours_between_evals: 24
   lottery_entry_min_total: 80
@@ -65,5 +65,7 @@ OpenAI retry env (set in entry/holding workflows): `OPENAI_MAX_RETRIES`, `OPENAI
 GDELT pacing (public API ≈1 req / 5s): `GDELT_MIN_INTERVAL_SECONDS`, `GDELT_MAX_RETRIES`, `GDELT_RETRY_SECONDS`, `GDELT_COOLDOWN_SECONDS`, `GDELT_SKIP_IF_HEADLINES_GE`. Entry AI continues without GDELT on 429.
 
 Research backfill (pending continuation-band, no paper): `scripts/research_backfill_pending_entry_ai.py` (uses entry `--skip-paper`).
+
+Dashboard **Research** page: Nest `POST /api/github/workflows/profit-hold-research` → GHA → Firestore `research_runs` (see [`docs/research/README.md`](../research/README.md)).
 
 Research: [`docs/research/2026-08/`](../research/2026-08/), [`docs/research/2026-07/`](../research/2026-07/).

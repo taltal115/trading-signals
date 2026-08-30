@@ -67,6 +67,32 @@ def _candidate_score_from_row(item: dict[str, Any]) -> float:
         return 0.0
 
 
+def _num(v: Any) -> float | None:
+    if v is None or v == "":
+        return None
+    try:
+        n = float(v)
+        return n if n == n else None
+    except (TypeError, ValueError):
+        return None
+
+
+def in_continuation_band(
+    row: dict[str, Any],
+    *,
+    ret_min: float,
+    ret_max: float,
+    vol_min: float,
+    vol_max: float,
+) -> bool:
+    """True when ret_5d / vol_ratio sit in the research continuation lane."""
+    ret5 = _num(row.get("ret_5d_pct"))
+    vol = _num(row.get("vol_ratio"))
+    if ret5 is None or vol is None:
+        return False
+    return ret_min <= ret5 <= ret_max and vol_min <= vol < vol_max
+
+
 def list_pending_tickers(
     db: firestore.Client,
     signal_doc_id: str,
@@ -82,7 +108,8 @@ def list_pending_tickers(
     """Return pending BUYs sorted by signal_quality rank (best first).
 
     Each entry is ``(ticker, index, candidate_score_0_100)``. Caller takes top N for LLM;
-    the rest should be rule-skipped without an OpenAI call.
+    out-of-band leftovers may be rule-skipped. Continuation-band pending should not be
+    rule-skipped (see ``partition_entry_eval_queue``).
     """
     snap = db.collection(SIGNALS_COLLECTION).document(signal_doc_id.strip()).get()
     if not snap.exists:
@@ -115,6 +142,107 @@ def list_pending_tickers(
         ranked.append((rank, ticker, i, _candidate_score_from_row(row)))
     ranked.sort(key=lambda t: t[0])
     return [(ticker, idx, cand) for _rank, ticker, idx, cand in ranked]
+
+
+def list_recent_pending_entry_targets(
+    db: firestore.Client,
+    *,
+    limit_runs: int = 20,
+    prefer_min_pct: float = 8.0,
+    prefer_max_pct: float = 20.0,
+    lottery_vol_ratio_min: float = 5.0,
+    lottery_ret_5d_min_pct: float = 50.0,
+    cont_ret_min: float = 10.0,
+    cont_ret_max: float = 20.0,
+    cont_vol_min: float = 2.0,
+    cont_vol_max: float = 3.0,
+) -> list[dict[str, Any]]:
+    """Pending entry targets across recent signal runs (newest first).
+
+    Each dict: signal_doc_id, ticker, candidate_score, in_band, lottery_flag, rank_key.
+    Sorted continuation-band first, then by signal_quality rank.
+    """
+    query = (
+        db.collection(SIGNALS_COLLECTION)
+        .order_by("ts_utc", direction=firestore.Query.DESCENDING)
+        .limit(max(1, int(limit_runs)))
+    )
+    out: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for doc in query.stream():
+        data = doc.to_dict() or {}
+        arr = data.get("signals")
+        if not isinstance(arr, list):
+            continue
+        for item in arr:
+            if not isinstance(item, dict):
+                continue
+            row = dict(item)
+            ticker = str(row.get("ticker") or "").strip().upper()
+            if not ticker:
+                continue
+            gate = str(row.get("ai_gate") or "pending").strip().lower()
+            if gate not in ("pending", ""):
+                continue
+            key = (doc.id, ticker)
+            if key in seen:
+                continue
+            seen.add(key)
+            rank = buy_rank_key_from_row(
+                row,
+                prefer_min_pct=prefer_min_pct,
+                prefer_max_pct=prefer_max_pct,
+                lottery_vol_ratio_min=lottery_vol_ratio_min,
+                lottery_ret_5d_min_pct=lottery_ret_5d_min_pct,
+            )
+            out.append(
+                {
+                    "signal_doc_id": doc.id,
+                    "ticker": ticker,
+                    "candidate_score": _candidate_score_from_row(row),
+                    "in_band": in_continuation_band(
+                        row,
+                        ret_min=cont_ret_min,
+                        ret_max=cont_ret_max,
+                        vol_min=cont_vol_min,
+                        vol_max=cont_vol_max,
+                    ),
+                    "lottery_flag": bool(row.get("lottery_flag")),
+                    "rank_key": rank,
+                }
+            )
+    out.sort(key=lambda r: (0 if r["in_band"] else 1, r["rank_key"]))
+    return out
+
+
+def partition_entry_eval_queue(
+    targets: list[dict[str, Any]],
+    *,
+    top_n: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split into (for_llm, for_skip, leave_pending).
+
+    Continuation-band names are never rule-skipped: they go to LLM first (up to top_n)
+    and any overflow stays pending for the next batch.
+    """
+    n = max(0, int(top_n))
+    in_band = [t for t in targets if t.get("in_band")]
+    out_band = [t for t in targets if not t.get("in_band")]
+    for_llm: list[dict[str, Any]] = []
+    leave_pending: list[dict[str, Any]] = []
+    for t in in_band:
+        if len(for_llm) < n:
+            for_llm.append(t)
+        else:
+            leave_pending.append(t)
+    for t in out_band:
+        if len(for_llm) < n:
+            for_llm.append(t)
+    llm_keys = {(t["signal_doc_id"], t["ticker"]) for t in for_llm}
+    for_skip = [
+        t for t in out_band if (t["signal_doc_id"], t["ticker"]) not in llm_keys
+    ]
+    return for_llm, for_skip, leave_pending
 
 
 def read_signal_row(db: firestore.Client, signal_doc_id: str, ticker: str) -> dict[str, Any] | None:
