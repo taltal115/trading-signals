@@ -101,6 +101,9 @@ def list_pending_tickers(
     prefer_max_pct: float = 20.0,
     lottery_vol_ratio_min: float = 5.0,
     lottery_ret_5d_min_pct: float = 50.0,
+    high_confidence_risk_threshold: int = 98,
+    prefer_confidence_min: int = 90,
+    prefer_confidence_max: int = 94,
 ) -> list[tuple[str, int, float]]:
     """Return pending BUYs sorted by signal_quality rank (best first).
 
@@ -132,6 +135,9 @@ def list_pending_tickers(
             prefer_max_pct=prefer_max_pct,
             lottery_vol_ratio_min=lottery_vol_ratio_min,
             lottery_ret_5d_min_pct=lottery_ret_5d_min_pct,
+            high_confidence_risk_threshold=high_confidence_risk_threshold,
+            prefer_confidence_min=prefer_confidence_min,
+            prefer_confidence_max=prefer_confidence_max,
         )
         ranked.append((rank, ticker, i, _candidate_score_from_row(row)))
     ranked.sort(key=lambda t: t[0])
@@ -283,6 +289,40 @@ def latest_signal_doc_id(db: firestore.Client) -> str | None:
     return None
 
 
+def _set_signal_gate(
+    db: firestore.Client,
+    run_ref: firestore.DocumentReference,
+    ticker: str,
+    gate: str,
+) -> None:
+    """Best-effort: set ai_gate for one ticker row on the run document."""
+    sym = ticker.strip().upper()
+
+    @firestore.transactional
+    def _do(transaction, ref):  # type: ignore[no-untyped-def]
+        snap = ref.get(transaction=transaction)
+        if not snap.exists:
+            return
+        data = snap.to_dict() or {}
+        sigs = data.get("signals")
+        if not isinstance(sigs, list):
+            return
+        new_sigs: list[Any] = []
+        for row in sigs:
+            if isinstance(row, dict) and str(row.get("ticker", "")).strip().upper() == sym:
+                r = dict(row)
+                r["ai_gate"] = gate
+                new_sigs.append(r)
+            else:
+                new_sigs.append(row)
+        transaction.update(ref, {"signals": new_sigs})
+
+    try:
+        _do(db.transaction(), run_ref)
+    except Exception:  # noqa: BLE001 — rollback is best-effort
+        pass
+
+
 def _utc_compact(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
@@ -358,14 +398,16 @@ def write_entry_evaluation(
 
     signal_index = -1
     merged_row: dict[str, Any] | None = None
+    run_asof_date = ""
 
     @firestore.transactional
     def _merge(transaction, ref):  # type: ignore[no-untyped-def]
-        nonlocal signal_index, merged_row
+        nonlocal signal_index, merged_row, run_asof_date
         snap = ref.get(transaction=transaction)
         if not snap.exists:
             raise RuntimeError(f"Signals run document missing: {ref.id}")
         data = snap.to_dict() or {}
+        run_asof_date = str(data.get("asof_date") or "")
         sigs = data.get("signals")
         if not isinstance(sigs, list):
             raise RuntimeError("Run document has no signals[] array")
@@ -412,11 +454,21 @@ def write_entry_evaluation(
                 target = plan.get("target")
                 hold_days = plan.get("hold_days")
                 close = float(r.get("close") or 0.0)
-                if stop is not None and float(stop) > 0:
+                # Sanity for a long book: stop must sit below entry, target above.
+                # An inverted LLM stop/target would otherwise become the paper plan.
+                if (
+                    stop is not None
+                    and float(stop) > 0
+                    and (close <= 0 or float(stop) < close)
+                ):
                     r["stop"] = float(stop)
                     if close > 0:
                         r["stop_pct"] = round((float(stop) - close) / close * 100.0, 4)
-                if target is not None and float(target) > 0:
+                if (
+                    target is not None
+                    and float(target) > 0
+                    and (close <= 0 or float(target) > close)
+                ):
                     r["target"] = float(target)
                     if close > 0:
                         r["target_pct"] = round((float(target) - close) / close * 100.0, 4)
@@ -442,11 +494,19 @@ def write_entry_evaluation(
     if not skip_paper:
         if merged_row is not None and gate_l == "passed":
             # 2026-08: open paper only after AI pass.
-            paper_id = upsert_signal_paper_position(
-                db=db,
-                signal_doc_id=signal_doc_id.strip(),
-                signal_row=merged_row,
-            )
+            try:
+                paper_id = upsert_signal_paper_position(
+                    db=db,
+                    signal_doc_id=signal_doc_id.strip(),
+                    signal_row=merged_row,
+                    asof_date=run_asof_date,
+                )
+            except Exception:
+                # The gate was already committed as passed. Roll it back to
+                # pending so the next entry batch retries; otherwise the signal
+                # looks actionable with no paper position behind it.
+                _set_signal_gate(db, run_ref, sym, "pending")
+                raise
             paper_status = "open"
         elif merged_row is not None and gate_l in ("filtered", "skipped"):
             paper_id = close_signal_paper_position(
@@ -454,6 +514,7 @@ def write_entry_evaluation(
                 signal_doc_id=signal_doc_id.strip(),
                 ticker=sym,
                 reason=f"ai_gate={gate_l}",
+                gate=gate_l,
             )
             paper_status = "closed" if paper_id else "none"
     elif merged_row is not None:

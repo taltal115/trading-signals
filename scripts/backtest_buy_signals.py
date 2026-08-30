@@ -116,6 +116,12 @@ def _simulate(buy: dict[str, Any], hist: pd.DataFrame) -> TradeResult:
             return TradeResult(outcome="target", exit_price=target, ret_pct=ret,
                                hold_sessions=i, **base)
 
+    if len(sessions) < max_hold:
+        # Fewer forward bars than the hold window (recent signal, halt, or missing
+        # data): booking a "time" exit on a short window skews results — usually
+        # optimistically, because losers delist/halt more often.
+        return TradeResult(outcome="no_data", exit_price=None, ret_pct=None,
+                           hold_sessions=None, **base)
     last_close = float(sessions.iloc[-1]["close"])
     ret = (last_close - entry) / entry * 100.0
     return TradeResult(outcome="time", exit_price=last_close, ret_pct=ret,
@@ -170,12 +176,20 @@ def main() -> int:
         buys = buys[-args.limit:]
     print(f"Loaded {len(buys)} BUY signals from {args.db}")
 
-    today = date.today()
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from signals_bot.trading_calendar import nyse_session_dates_between_exclusive_start
+
+    # Market date + NYSE sessions, not UTC calendar days: hold windows are sessions,
+    # and date.today() in CI is UTC (off-by-one vs New York overnight).
+    today = datetime.now(ZoneInfo(cfg.run.timezone)).date()
     results: list[TradeResult] = []
     for n, buy in enumerate(buys, start=1):
         asof = date.fromisoformat(buy["asof_date"])
-        # Skip trades too recent to have completed their hold window.
-        if (today - asof).days < int(buy["max_hold_days"] or 5) + 1:
+        # Skip trades too recent to have completed their hold window (in sessions).
+        max_hold_i = int(buy["max_hold_days"] or 5)
+        if nyse_session_dates_between_exclusive_start(asof, today) < max_hold_i + 1:
             continue
         hist = None
         for prov in providers:

@@ -78,24 +78,25 @@ def build_recommendation(
     conviction = float(verdict.get("conviction") or 0.0)
     ez = verdict.get("entry_zone") if isinstance(verdict.get("entry_zone"), dict) else {}
     targets = verdict.get("targets") if isinstance(verdict.get("targets"), list) else []
-    t1 = 0.0
+    # Primary target: explicit T1 wins; otherwise the first positive-price target.
+    # (Bug fix: the old loop could latch onto T2 when the model listed it first.)
+    explicit_t1 = 0.0
+    first_positive = 0.0
     for t in targets:
-        if isinstance(t, dict) and str(t.get("label", "")).upper() in ("T1", "T2", ""):
-            try:
-                t1 = float(t.get("price") or 0.0)
-            except (TypeError, ValueError):
-                t1 = 0.0
-            if str(t.get("label", "")).upper() == "T2" and t1 > 0:
-                break
-            if str(t.get("label", "")).upper() == "T1":
-                break
-    if t1 <= 0 and targets:
-        t0 = targets[0]
-        if isinstance(t0, dict):
-            try:
-                t1 = float(t0.get("price") or 0.0)
-            except (TypeError, ValueError):
-                t1 = 0.0
+        if not isinstance(t, dict):
+            continue
+        try:
+            price = float(t.get("price") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if price <= 0:
+            continue
+        if first_positive <= 0:
+            first_positive = price
+        if str(t.get("label", "")).upper() == "T1":
+            explicit_t1 = price
+            break
+    t1 = explicit_t1 if explicit_t1 > 0 else first_positive
 
     headline = str(verdict.get("headline") or "").strip()
     if not headline:
@@ -157,6 +158,11 @@ def resolve_ai_gate(
 ) -> str:
     decision = str(recommendation.get("decision") or "WAIT").upper()
     total = float((recommendation.get("scores") or {}).get("total") or 0.0)
+    detail = recommendation.get("detail") if isinstance(recommendation.get("detail"), dict) else {}
+    direction = str(detail.get("direction") or "long").strip().lower()
+    if direction.startswith("short"):
+        # Long-only book: a short-thesis verdict must never open a long paper position.
+        return "filtered"
     if (
         decision == "BUY"
         and total >= float(entry_min_total)

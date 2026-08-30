@@ -29,7 +29,7 @@ from signals_bot.trading_calendar import xnys_sessions_between
 from scripts.ai_stock_eval.context import finnhub_quote_and_news
 from scripts.ai_stock_eval.extra_providers import build_macro_events_text, merge_headline_titles
 from scripts.ai_stock_eval.firestore_write import write_holding_evaluation
-from scripts.ai_stock_eval.llm import call_openai_json
+from scripts.ai_stock_eval.llm import OpenAIHttpError, call_openai_json
 from scripts.ai_stock_eval.prompts import get_holding_prompts
 
 
@@ -222,13 +222,19 @@ def main(argv: list[str] | None = None) -> int:
                     pass
 
         entry = float(data.get("entry_price") or 0.0)
-        stop = float(data.get("stop_price") or data.get("ai_revised_stop") or 0.0)
+        # AI-revised stop wins over the original plan stop (same precedence as the
+        # monitor and as ai_revised_hold_days below); the old order meant a
+        # TIGHTEN advice never reached later prompts.
+        stop = float(data.get("ai_revised_stop") or data.get("stop_price") or 0.0)
         target = float(data.get("target_price") or 0.0)
         plan_hold = int(data.get("ai_revised_hold_days") or data.get("hold_days_from_signal") or 0)
         quote, fh_items = finnhub_quote_and_news(ticker)
         current = float(quote.price or 0.0)
-        if current <= 0 and entry > 0:
-            current = entry
+        if current <= 0:
+            # No live quote: pretending PnL is 0% biases the model toward HOLD.
+            # Skip; the next scheduled run re-evaluates with real data.
+            log.warning("No quote for %s — skipping holding eval this run", ticker)
+            continue
         pnl_pct = ((current - entry) / entry * 100.0) if entry > 0 else 0.0
         created_s = data.get("created_at_utc")
         days_held = 0
@@ -271,12 +277,30 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
 
-        raw, usage, _raw_text = call_openai_json(
-            system=system_prompt,
-            user=user_msg,
-            model=model,
-            pricing=pricing,
-        )
+        try:
+            raw, usage, _raw_text = call_openai_json(
+                system=system_prompt,
+                user=user_msg,
+                model=model,
+                pricing=pricing,
+            )
+        except OpenAIHttpError as e:
+            if e.is_rate_limit or e.is_insufficient_quota:
+                log.warning(
+                    "OpenAI rate limit/quota on %s — stopping batch; remaining "
+                    "positions retry next cron: %s",
+                    ticker,
+                    e,
+                )
+                break
+            log.error("Holding LLM failed for %s (continuing batch): %s", ticker, e)
+            continue
+        except Exception as e:  # noqa: BLE001 — one position must not abort the batch
+            log.error("Holding eval crashed for %s (continuing batch): %s", ticker, e)
+            continue
+        if getattr(usage, "source", "") == "stub" and not args.dry_run:
+            log.error("OPENAI_API_KEY unset — stub advice for %s; not persisting", ticker)
+            continue
         advice = _normalize_advice(raw if isinstance(raw, dict) else {})
         log.info(
             "Holding %s advice=%s tokens=%d | %s",
@@ -293,15 +317,19 @@ def main(argv: list[str] | None = None) -> int:
             evaluated += 1
             continue
 
-        write_holding_evaluation(
-            ticker=ticker,
-            position_id=snap.id,
-            owner_uid=str(data.get("owner_uid") or "") or None,
-            advice=advice,
-            usage=usage,
-            signal_doc_id=str(data.get("signal_doc_id") or ""),
-            detail={"raw": raw},
-        )
+        try:
+            write_holding_evaluation(
+                ticker=ticker,
+                position_id=snap.id,
+                owner_uid=str(data.get("owner_uid") or "") or None,
+                advice=advice,
+                usage=usage,
+                signal_doc_id=str(data.get("signal_doc_id") or ""),
+                detail={"raw": raw},
+            )
+        except Exception as e:  # noqa: BLE001 — keep evaluating the rest of the book
+            log.error("Holding write failed for %s (continuing batch): %s", ticker, e)
+            continue
         evaluated += 1
 
     log.info(

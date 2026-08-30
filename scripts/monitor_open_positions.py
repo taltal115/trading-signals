@@ -320,12 +320,10 @@ def _eval_position(
     trailing_extended = False
     if trailing_enabled and age_days is not None and age_days >= max_hold_days:
         original_due = True
-    elif (
-        trailing_enabled
-        and original_due_raw
-        and age_days is not None
-        and age_days >= trailing_min_hold_days
-    ):
+    elif trailing_enabled and original_due_raw:
+        # Plan-hold reached: apply the live trailing test even when the ATR plan is
+        # shorter than trailing_min_hold_days (live strategy never time-exits before
+        # the max_hold ceiling; only a trail break / below-entry ends the ride early).
         in_profit = entry_f is not None and last_close > entry_f
         trail_broken = prior_session_low is not None and last_close < prior_session_low
         if in_profit and not trail_broken:

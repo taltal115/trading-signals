@@ -312,7 +312,12 @@ def normalize_verdict(raw: dict[str, Any]) -> dict[str, Any]:
     while len(norm_t) < 3:
         norm_t.append({"price": 0.0, "label": f"T{len(norm_t) + 1}"})
     out["targets"] = norm_t[:3]
-    out["conviction"] = max(0.0, min(1.0, float(out.get("conviction", 0.0) or 0.0)))
+    conv = float(out.get("conviction", 0.0) or 0.0)
+    if conv > 1.5:
+        # Model answered on a 0-100 scale; silently clamping to 1.0 would make any
+        # such verdict auto-pass the entry_min_conviction gate.
+        conv = conv / 100.0
+    out["conviction"] = max(0.0, min(1.0, conv))
     out["action"] = str(out.get("action", "WAIT")).upper()
     out["direction"] = str(out.get("direction", "long")).lower()
     out["summary"] = str(out.get("summary", ""))

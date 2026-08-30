@@ -113,6 +113,14 @@ def _simulate_outcome(
             return {"outcome": "target", "exit_price": target, "exit_date": ts.date()}
 
     last_ts = fwd.index[-1]
+    if last_ts.date() < deadline:
+        # The deadline session's bar is not in the window yet. This run executes
+        # pre-open, so when deadline == today the final bar simply doesn't exist —
+        # finalizing now would lock a permanent "time" exit one session early.
+        # Only finalize early when the provider already has bars *after* the
+        # deadline (a data gap mid-hold, e.g. halt/delist), otherwise retry later.
+        if hist.index.max().date() <= deadline:
+            return None
     last_close = float(fwd.iloc[-1]["close"])
     return {"outcome": "time", "exit_price": last_close, "exit_date": last_ts.date()}
 

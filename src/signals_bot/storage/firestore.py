@@ -587,6 +587,7 @@ def close_signal_paper_position(
     signal_doc_id: str,
     ticker: str,
     reason: str = "ai_gate non-actionable",
+    gate: str | None = None,
 ) -> str | None:
     """Close paper position if it exists (filtered/skipped entry). Returns pos id or None."""
     client = db or _build_client()
@@ -602,6 +603,9 @@ def close_signal_paper_position(
     if str(prev.get("status") or "").lower() == "closed":
         return pos_id
     now = datetime.now(timezone.utc).isoformat()
+    # ai_gate must stay a gate value (passed/filtered/skipped/pending), never a
+    # free-form reason string like "ai_gate=filtered".
+    gate_value = (gate or "").strip().lower() or str(prev.get("ai_gate") or "filtered")
     ref.set(
         {
             "status": "closed",
@@ -609,7 +613,7 @@ def close_signal_paper_position(
             "closed_at_utc": now,
             "exit_origin": "ai_gate",
             "notes": f"Closed: {reason}",
-            "ai_gate": str(prev.get("ai_gate") or reason),
+            "ai_gate": gate_value,
         },
         merge=True,
     )
