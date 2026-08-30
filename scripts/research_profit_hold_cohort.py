@@ -22,6 +22,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -32,6 +33,7 @@ from signals_bot.config import load_config
 from signals_bot.providers.stooq import StooqProvider
 from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.storage.firestore import SIGNALS_COLLECTION, get_firestore_client
+from signals_bot.trading_calendar import nyse_session_dates_between_exclusive_start
 
 
 @dataclass
@@ -156,7 +158,11 @@ def _fetch_buys(*, since: date, until: date | None, limit_runs: int) -> list[dic
             if not ticker:
                 continue
             key = (run_asof, ticker)
-            if key in seen and run_ts.get(key, "") <= ts_utc:
+            # Keep the LATEST run per (asof_date, ticker): the AI entry batch
+            # writes ai_gate/recommendation onto the latest run doc, so keeping
+            # the earliest left rows stuck at ai_gate=pending and undercounted
+            # the --actionable-only cohort. Query is ts_utc DESC → first seen wins.
+            if key in seen and run_ts.get(key, "") >= ts_utc:
                 continue
             row = dict(sig)
             row["asof_date"] = run_asof
@@ -327,15 +333,19 @@ def main() -> int:
     if not buys:
         return 0
 
-    today = date.today()
+    # Market date + NYSE sessions (hold windows are sessions; date.today() is UTC in CI).
+    today = datetime.now(ZoneInfo(cfg.run.timezone)).date()
     rows: list[TradeRow] = []
+    n_data_error = 0
     for i, sig in enumerate(buys, start=1):
         asof = date.fromisoformat(sig["asof_date"])
         hold_days = int(sig.get("hold_days") or default_hold)
         metrics = sig.get("metrics") if isinstance(sig.get("metrics"), dict) else {}
         entry = float(sig.get("close") or 0.0)
 
-        if not args.include_immature and (today - asof).days < hold_days + 1:
+        if not args.include_immature and nyse_session_dates_between_exclusive_start(
+            asof, today
+        ) < hold_days + 1:
             continue
 
         hist = None
@@ -347,6 +357,12 @@ def main() -> int:
                     break
             except Exception:
                 continue
+        if hist is None:
+            # Track explicitly: names whose data fetch fails (delisted / halted
+            # losers fail more often) silently vanishing from the cohort inflates
+            # measured win rate (survivorship bias).
+            n_data_error += 1
+            print(f"  DATA_ERROR {sig['asof_date']} {sig['ticker']}: no price history from any provider")
 
         hold_ret = ret3 = ret5 = None
         n_avail = 0
@@ -392,6 +408,11 @@ def main() -> int:
 
     mature = [r for r in rows if r.hold_ret_pct is not None]
     print(f"\nMature trades (hold completed): {len(mature)} / {len(rows)}")
+    if n_data_error:
+        print(
+            f"WARNING: {n_data_error} row(s) had no price history (excluded from stats) — "
+            "possible survivorship bias; delisted losers fail fetches more often."
+        )
 
     # Summaries
     overall = _stats([r.hold_ret_pct for r in mature if r.hold_ret_pct is not None])
@@ -463,6 +484,7 @@ def main() -> int:
         "n_unique_buys_loaded": len(buys),
         "n_rows_evaluated": len(rows),
         "n_mature_hold": len(mature),
+        "n_data_error": n_data_error,
         "primary_metric": "raw_close_return_at_signal_hold_days",
         "overall_at_hold": overall,
         "raw_at_3_sessions": at3,

@@ -125,6 +125,10 @@ def _simulate_managed(
         if target is not None and high >= target:
             return "target", (target - entry) / entry * 100.0, i
 
+    if len(fwd) < hold_days:
+        # Incomplete forward window (recent signal, halt, missing bars): do not
+        # book a premature "time" exit — it biases the managed stats.
+        return None, None, None
     last_close = float(fwd.iloc[-1]["close"])
     return "time", (last_close - entry) / entry * 100.0, len(fwd)
 
@@ -191,7 +195,12 @@ def main() -> int:
         print("Nothing to evaluate — check --since/--asof and that runs have been written.")
         return 0
 
-    today = date.today()
+    from zoneinfo import ZoneInfo
+
+    from signals_bot.trading_calendar import nyse_session_dates_between_exclusive_start
+
+    # Market date + NYSE sessions (hold windows are sessions; date.today() is UTC in CI).
+    today = datetime.now(ZoneInfo(cfg.run.timezone)).date()
     max_session = max(session_counts) if session_counts else 5
     results: list[CohortRow] = []
     for n, row in enumerate(rows, start=1):
@@ -199,7 +208,7 @@ def main() -> int:
         hold_days = int(row.get("hold_days") or cfg.strategy.max_hold_days)
         needed_sessions = max(max_session, hold_days)
         # Skip cohorts too recent to have completed the requested session window.
-        if (today - asof).days < needed_sessions + 1:
+        if nyse_session_dates_between_exclusive_start(asof, today) < needed_sessions + 1:
             continue
 
         ticker = row["ticker"]
