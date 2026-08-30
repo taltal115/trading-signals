@@ -26,7 +26,7 @@ def verify_eval_context(
     if hist is None or len(hist) < MIN_HISTORY_ROWS:
         errors.append(
             f"Price history too short ({len(hist) if hist is not None else 0} rows; need >= {MIN_HISTORY_ROWS}). "
-            "Check Yahoo/Stooq in config.yaml provider_order and network."
+            "Check Yahoo/Stooq/Polygon in config.yaml provider_order and network."
         )
 
     if hist is not None and "close" not in hist.columns:

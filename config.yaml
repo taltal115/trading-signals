@@ -28,9 +28,8 @@ universe:
 
 data:
   lookback_days: 180
-  # Yahoo first: Stooq daily CSV requests now require registering an API key (?apikey=).
-  # Prefer Yahoo for reliability unless you set `stooq_api_key` below or STOOQ_API_KEY in `.env`.
-  provider_order: ["yahoo", "stooq"]
+  # Massive/Polygon first when POLYGON_API_KEY (or MASSIVE_API_KEY) is set; Yahoo/Stooq are fallbacks.
+  provider_order: ["polygon", "yahoo", "stooq"]
   # Optional — only if `stooq` is in provider_order (see https://stooq.com/q/d/).
   # stooq_api_key:
   request_timeout_sec: 20

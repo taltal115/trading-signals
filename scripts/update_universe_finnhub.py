@@ -17,8 +17,7 @@ sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from signals_bot.config import AppConfig, load_config
 from signals_bot.logging import get_logger
-from signals_bot.providers.stooq import StooqProvider
-from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.providers import build_history_providers
 from signals_bot.storage.firestore import (
     read_latest_universe_snapshot,
     read_latest_universe_snapshot_doc,
@@ -369,22 +368,10 @@ def main() -> int:
     if args.verbose and batch:
         log.debug("Batch symbols: %s", ", ".join(batch[:50]) + (" …" if len(batch) > 50 else ""))
 
-    providers = {
-        "yahoo": YahooProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
-        ),
-        "stooq": StooqProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
-            api_key=cfg.data.stooq_api_key,
-        ),
-    }
+    providers = build_history_providers(cfg)
     provider_order = [p for p in cfg.data.provider_order if p in providers]
     if not provider_order:
-        provider_order = ["yahoo", "stooq"]
+        provider_order = [p for p in ("polygon", "yahoo", "stooq") if p in providers]
     log.info(
         "Strategy scan lookback_days=%d provider_order=%s asof_date=%s",
         cfg.data.lookback_days,

@@ -11,7 +11,7 @@ from signals_bot.config import AppConfig, load_config
 from signals_bot.logging import get_logger, log_run_header, log_signal, print_action_table
 from signals_bot.notifiers.slack import SlackNotifier
 from signals_bot.providers.ibkr_scanner import IbkrScannerClient, IbkrScannerRequest
-from signals_bot.providers.stooq import StooqProvider
+from signals_bot.providers import build_history_providers
 from signals_bot.providers.yahoo import YahooProvider
 from signals_bot.providers.ibkr_holdings import load_holdings_for_scan
 from signals_bot.storage.firestore import write_buy_signals
@@ -126,19 +126,7 @@ def main() -> int:
 
     # SSL notes: on corporate networks with SSL interception, set data.ca_bundle_path in YAML
     # (preferred) or temporarily set data.ssl_verify=false.
-    providers = {
-        "yahoo": YahooProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
-        ),
-        "stooq": StooqProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
-            api_key=cfg.data.stooq_api_key,
-        ),
-    }
+    providers = build_history_providers(cfg)
 
     strategy = BreakoutMomentumStrategy(cfg.strategy)
 

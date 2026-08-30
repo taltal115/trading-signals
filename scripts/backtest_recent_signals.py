@@ -37,8 +37,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from signals_bot.config import load_config
-from signals_bot.providers.stooq import StooqProvider
-from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.providers import ordered_history_providers
 from signals_bot.storage.firestore import SIGNALS_COLLECTION, get_firestore_client
 
 DEFAULT_CSV = ROOT_DIR / "docs" / "research" / "2026-07" / "cohort_tracking.csv"
@@ -182,12 +181,7 @@ def main() -> int:
     session_counts = sorted({int(x) for x in args.sessions.split(",") if x.strip()})
 
     cfg = load_config(Path(args.config).expanduser().resolve())
-    providers = [
-        YahooProvider(timeout_sec=cfg.data.request_timeout_sec, ssl_verify=cfg.data.ssl_verify,
-                      ca_bundle_path=None),
-        StooqProvider(timeout_sec=cfg.data.request_timeout_sec, ssl_verify=cfg.data.ssl_verify,
-                      ca_bundle_path=None, api_key=cfg.data.stooq_api_key),
-    ]
+    providers = ordered_history_providers(cfg)
 
     rows = _fetch_recent_buy_rows(since=since, asof=asof_only, limit_runs=args.limit_runs)
     print(f"Loaded {len(rows)} unique (asof_date, ticker) BUY rows from Firestore")

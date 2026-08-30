@@ -18,7 +18,7 @@ export interface DailyCandles {
   o: number[];
 }
 
-export type CandleProviderId = 'twelve_data' | 'alpha_vantage' | 'finnhub';
+export type CandleProviderId = 'polygon' | 'twelve_data' | 'alpha_vantage' | 'finnhub';
 
 export interface HourlyCandles {
   t: number[];
@@ -31,6 +31,8 @@ export interface HourlyCandles {
 
 export function candleProviderLabel(provider: CandleProviderId | string | null | undefined): string {
   switch (provider) {
+    case 'polygon':
+      return 'Massive';
     case 'twelve_data':
       return 'Twelve Data';
     case 'alpha_vantage':
@@ -67,8 +69,8 @@ export interface StockSnapshot {
 }
 
 /**
- * Market data via Nest `/api/market/*` (Finnhub + optional Twelve Data on the server).
- * Keys live in `FINNHUB_API_KEY` / `TWELVE_DATA_API_KEY` — not in the browser.
+ * Market data via Nest `/api/market/*` (Massive/Polygon primary; Finnhub / Twelve / Alpha fallbacks).
+ * Keys live server-side (`POLYGON_API_KEY`, etc.) — not in the browser.
  */
 @Injectable({ providedIn: 'root' })
 export class MarketDataService {

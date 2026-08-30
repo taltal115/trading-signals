@@ -49,8 +49,7 @@ sys.path.insert(0, str(ROOT_DIR / "src"))
 from google.cloud.firestore_v1.base_query import FieldFilter
 
 from signals_bot.config import AppConfig, load_config
-from signals_bot.providers.stooq import StooqProvider
-from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.providers import ordered_history_providers
 from signals_bot.storage.firestore import SIGNALS_COLLECTION, get_firestore_client
 from signals_bot.trading_calendar import add_ny_sessions
 
@@ -222,19 +221,7 @@ def main() -> int:
     market_tz = cfg.tz()
     today = datetime.now(market_tz).date()
 
-    providers: list[Any] = [
-        YahooProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
-        ),
-        StooqProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
-            api_key=cfg.data.stooq_api_key,
-        ),
-    ]
+    providers: list[Any] = ordered_history_providers(cfg)
 
     db = get_firestore_client()
     cutoff = (today - timedelta(days=args.lookback_days)).isoformat()

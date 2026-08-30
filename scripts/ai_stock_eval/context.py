@@ -12,8 +12,7 @@ import numpy as np
 import pandas as pd
 
 from signals_bot.config import AppConfig
-from signals_bot.providers.stooq import StooqProvider
-from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.providers import build_history_providers
 
 MIN_HISTORY_ROWS = 20
 
@@ -46,23 +45,7 @@ class EvalContext:
 
 
 def _build_providers(cfg: AppConfig) -> dict[str, Any]:
-    return {
-        "yahoo": YahooProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix()
-            if cfg.data.ca_bundle_path
-            else None,
-        ),
-        "stooq": StooqProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix()
-            if cfg.data.ca_bundle_path
-            else None,
-            api_key=cfg.data.stooq_api_key,
-        ),
-    }
+    return build_history_providers(cfg)
 
 
 def fetch_history_with_provider_flags(

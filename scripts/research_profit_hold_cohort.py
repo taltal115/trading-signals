@@ -30,8 +30,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from signals_bot.config import load_config
-from signals_bot.providers.stooq import StooqProvider
-from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.providers import ordered_history_providers
 from signals_bot.storage.firestore import SIGNALS_COLLECTION, get_firestore_client
 from signals_bot.trading_calendar import nyse_session_dates_between_exclusive_start
 
@@ -287,19 +286,7 @@ def run_cohort(
     cfg = load_config(Path(config_path).expanduser().resolve())
     default_hold = int(cfg.strategy.max_hold_days)
 
-    providers = [
-        YahooProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=None,
-        ),
-        StooqProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=None,
-            api_key=cfg.data.stooq_api_key,
-        ),
-    ]
+    providers = ordered_history_providers(cfg)
 
     buys = _fetch_buys(since=since, until=until, limit_runs=limit_runs)
     if not quiet:

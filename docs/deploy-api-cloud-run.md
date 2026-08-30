@@ -78,37 +78,36 @@ Set production configuration on the service (example — use Secret Manager for 
 | `GOOGLE_CALLBACK_URL` | **`{FRONTEND_URL}/api/auth/google/callback`** when using Hosting `/api` rewrite |
 | `ALLOWED_SIGN_IN_EMAILS` / `ALLOWED_AUTH_UIDS` | Same allowlists as the Angular env |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Full service account JSON (Secret Manager → env), **or** rely on the Cloud Run service account with IAM roles for Firestore (see below) |
-| `FINNHUB_API_KEY` | **Required** for `/api/market/quote` and `/api/market/stock-snapshot`. Same key as local `.env`. |
-| `TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY` | **Strongly recommended** for `/api/market/candles` (daily charts + Signals hourly hold charts): Finnhub **free** plans usually return **403** on `stock/candle`, so the API uses Twelve Data / Alpha Vantage first when these are set. |
+| `POLYGON_API_KEY` | **Strongly recommended** (Massive Stocks Starter). Primary for `/api/market/quote`, `/snapshot`, and `/candles` (daily + hourly). Same key as `api.polygon.io` / also accepted as `MASSIVE_API_KEY`. |
+| `FINNHUB_API_KEY` | Fallback for quotes/snapshot when Polygon fails or is unset. |
+| `TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY` | Fallback for `/api/market/candles` when Polygon fails (Finnhub free often **403** on `stock/candle`). |
 | `GITHUB_PERSONAL_TOKEN` | **Required** for `POST /api/github/workflows/position-monitor` (dashboard **Check**). Not bundled in the frontend. |
 
-### Market data (`503` “FINNHUB_API_KEY is not set on the API server”)
+### Market data (`503` missing keys)
 
-The Nest **Market** module reads **`FINNHUB_API_KEY`** from the environment (see [`.env.example`](../.env.example)). **Local `.env` is not used on Cloud Run** unless you copy those variables onto the service.
+The Nest **Market** module prefers **`POLYGON_API_KEY`** (Massive), then Finnhub / Twelve / Alpha. **Local `.env` is not used on Cloud Run** unless you copy those variables onto the service.
 
 1. Cloud Run → **trading-signals-api** (or your `CLOUD_RUN_SERVICE`) → **Edit & deploy new revision** → **Variables & secrets**.
-2. Add **`FINNHUB_API_KEY`** with your Finnhub token (or use Secret Manager and reference it).
+2. Add **`POLYGON_API_KEY`** with your Massive token (or use Secret Manager and reference it). Optionally keep `FINNHUB_API_KEY` as fallback.
 3. Prefer **`--update-env-vars`** so you do not remove existing OAuth/session vars:
 
 ```bash
 gcloud run services update trading-signals-api --region us-central1 \
-  --update-env-vars "FINNHUB_API_KEY=your_token_here"
+  --update-env-vars "POLYGON_API_KEY=your_token_here"
 ```
 
 If **`MARKET_DATA_ENABLED=false`**, all `/api/market/*` routes return 503 with a different message (feature off).
 
-### Daily / hourly candles (`503` Finnhub plan / “Configure TWELVE_DATA…”)
+### Daily / hourly candles
 
-**Quotes** use Finnhub; **OHLC candles** (daily dashboard charts and Signals **3-day hourly hold** charts) try **Twelve Data** first, then **Alpha Vantage**, then Finnhub. On many **free** Finnhub tiers, **`stock/candle` returns 403**; the service then opens a short cooldown and returns 503 unless Twelve Data or Alpha Vantage is configured. Hourly charts require the same keys (`TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY`).
-
-Set at least one of these on **Cloud Run** (same values as local `.env`):
+**Order:** Massive/Polygon → Twelve Data → Alpha Vantage → Finnhub. With **`POLYGON_API_KEY`** set, charts should not need Twelve/Alpha. Keep Finnhub only as a quote/profile fallback if desired.
 
 ```bash
 gcloud run services update trading-signals-api --region us-central1 \
-  --update-env-vars "TWELVE_DATA_API_KEY=your_key"
-# and/or
-gcloud run services update trading-signals-api --region us-central1 \
-  --update-env-vars "ALPHA_VANTAGE_API_KEY=your_key"
+  --update-env-vars "POLYGON_API_KEY=your_key"
+# optional fallbacks:
+# --update-env-vars "TWELVE_DATA_API_KEY=your_key"
+# --update-env-vars "ALPHA_VANTAGE_API_KEY=your_key"
 ```
 
 Nest also accepts `ALPHAVANTAGE_API_KEY` (no underscore) for compatibility with Python env files.

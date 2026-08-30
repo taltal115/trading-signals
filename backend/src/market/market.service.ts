@@ -13,7 +13,7 @@ export interface DailyCandlesDto {
   o: number[];
 }
 
-export type CandleProviderId = 'twelve_data' | 'alpha_vantage' | 'finnhub';
+export type CandleProviderId = 'polygon' | 'twelve_data' | 'alpha_vantage' | 'finnhub';
 
 /** Hourly OHLC candles with which upstream provider succeeded. */
 export interface HourlyCandlesDto {
@@ -25,7 +25,7 @@ export interface HourlyCandlesDto {
   provider: CandleProviderId;
 }
 
-/** Combined Finnhub quote + company profile for UI “stock details”. */
+/** Combined quote + company profile for UI “stock details”. */
 export interface StockSnapshotDto {
   symbol: string;
   name: string | null;
@@ -35,7 +35,7 @@ export interface StockSnapshotDto {
   industry: string | null;
   ipo: string | null;
   weburl: string | null;
-  /** Finnhub reports market cap in millions of listing currency. */
+  /** Market cap in millions of listing currency (Finnhub units; Polygon absolute → /1e6). */
   marketCapitalizationMillions: number | null;
   shareOutstanding: number | null;
   quote: {
@@ -62,11 +62,14 @@ type FinnhubQuoteJson = {
   t?: number;
 };
 
+const MARKET_KEY_MISSING_MSG =
+  'No market data key configured. Set POLYGON_API_KEY (Massive) and/or FINNHUB_API_KEY on the API server. See docs/deploy-api-cloud-run.md.';
+
 const FINNHUB_KEY_MISSING_MSG =
-  'FINNHUB_API_KEY is not set on the API server. Set it on Cloud Run (service → Variables & secrets), e.g. gcloud run services update … --update-env-vars=FINNHUB_API_KEY=…. See docs/deploy-api-cloud-run.md.';
+  'FINNHUB_API_KEY is not set on the API server. Set POLYGON_API_KEY (preferred) or FINNHUB_API_KEY on Cloud Run. See docs/deploy-api-cloud-run.md.';
 
 const FINNHUB_CANDLES_BLOCKED_MSG =
-  'Daily candles: Finnhub free tier blocks stock/candle (403). Set TWELVE_DATA_API_KEY and/or ALPHA_VANTAGE_API_KEY on Cloud Run (same as local .env). Charts use those providers first. See docs/deploy-api-cloud-run.md.';
+  'Daily candles: Finnhub free tier blocks stock/candle (403). Set POLYGON_API_KEY (Massive) — preferred — or TWELVE_DATA_API_KEY / ALPHA_VANTAGE_API_KEY. See docs/deploy-api-cloud-run.md.';
 
 @Injectable()
 export class MarketService implements OnModuleInit {
@@ -89,7 +92,8 @@ export class MarketService implements OnModuleInit {
       return;
     }
     this.logger.log(
-      `Candle/quote keys loaded: finnhub=${this.maskConfigured(this.finnhubKey)} ` +
+      `Candle/quote keys loaded: polygon=${this.maskConfigured(this.polygonKey)} ` +
+        `finnhub=${this.maskConfigured(this.finnhubKey)} ` +
         `twelveData=${this.maskConfigured(this.twelveKey)} ` +
         `alphaVantage=${this.maskConfigured(this.alphaKey)}`
     );
@@ -107,6 +111,10 @@ export class MarketService implements OnModuleInit {
 
   private maskConfigured(key: string): string {
     return key ? 'yes' : 'no';
+  }
+
+  private get polygonKey(): string {
+    return (this.config.get<string>('polygonApiKey') || '').trim();
   }
 
   private get finnhubKey(): string {
@@ -176,10 +184,24 @@ export class MarketService implements OnModuleInit {
       .trim()
       .toUpperCase();
     if (!sym) throw new BadRequestException('Missing symbol');
+    if (!this.polygonKey && !this.finnhubKey) {
+      throw new ServiceUnavailableException(MARKET_KEY_MISSING_MSG);
+    }
+
+    if (this.polygonKey) {
+      try {
+        const snap = await this.polygonStockSnapshot(sym);
+        const price = snap.quote.current;
+        if (price != null && price > 0) return price;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`Polygon quote failed for ${sym}: ${msg}`);
+      }
+    }
+
     if (!this.finnhubKey) {
       throw new ServiceUnavailableException(FINNHUB_KEY_MISSING_MSG);
     }
-
     return this.runFinnhubExclusive(async () => {
       const data = await this.finnhubFetchQuoteJson(sym);
       if (data.c == null || data.c === 0) {
@@ -195,6 +217,19 @@ export class MarketService implements OnModuleInit {
       .trim()
       .toUpperCase();
     if (!sym) throw new BadRequestException('Missing symbol');
+    if (!this.polygonKey && !this.finnhubKey) {
+      throw new ServiceUnavailableException(MARKET_KEY_MISSING_MSG);
+    }
+
+    if (this.polygonKey) {
+      try {
+        return await this.polygonStockSnapshot(sym);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`Polygon snapshot failed for ${sym}: ${msg}`);
+      }
+    }
+
     if (!this.finnhubKey) {
       throw new ServiceUnavailableException(FINNHUB_KEY_MISSING_MSG);
     }
@@ -258,6 +293,210 @@ export class MarketService implements OnModuleInit {
         },
       };
     });
+  }
+
+  private async polygonStockSnapshot(sym: string): Promise<StockSnapshotDto> {
+    const key = this.polygonKey;
+    if (!key) throw new Error('no polygon key');
+    const snapUrl =
+      `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/${encodeURIComponent(sym)}` +
+      `?apiKey=${encodeURIComponent(key)}`;
+    const snapRes = await fetch(snapUrl);
+    if (!snapRes.ok) {
+      const body = await snapRes.text().catch(() => '');
+      throw new Error(`Polygon snapshot HTTP ${snapRes.status}: ${body.slice(0, 120)}`);
+    }
+    const snapJson = (await snapRes.json()) as {
+      status?: string;
+      ticker?: {
+        ticker?: string;
+        todaysChange?: number;
+        todaysChangePerc?: number;
+        updated?: number;
+        day?: { o?: number; h?: number; l?: number; c?: number };
+        prevDay?: { o?: number; h?: number; l?: number; c?: number };
+        min?: { o?: number; h?: number; l?: number; c?: number; t?: number };
+      };
+    };
+    const t = snapJson.ticker;
+    if (!t) throw new Error('Polygon snapshot: no ticker payload');
+    const day = t.day || {};
+    const prev = t.prevDay || {};
+    const min = t.min || {};
+    const current =
+      (min.c != null && Number.isFinite(Number(min.c)) ? Number(min.c) : null) ??
+      (day.c != null && Number.isFinite(Number(day.c)) ? Number(day.c) : null);
+    if (current == null || current === 0) {
+      throw new Error('Polygon snapshot: no current price');
+    }
+    const prevClose =
+      prev.c != null && Number.isFinite(Number(prev.c)) ? Number(prev.c) : null;
+    const change =
+      t.todaysChange != null && Number.isFinite(Number(t.todaysChange))
+        ? Number(t.todaysChange)
+        : prevClose != null
+          ? current - prevClose
+          : null;
+    const pctChange =
+      t.todaysChangePerc != null && Number.isFinite(Number(t.todaysChangePerc))
+        ? Number(t.todaysChangePerc)
+        : null;
+    // updated is often nanoseconds on Polygon snapshots
+    let timeSec: number | null = null;
+    if (min.t != null && Number.isFinite(Number(min.t))) {
+      const ms = Number(min.t);
+      timeSec = Math.floor(ms > 1e12 ? ms / 1000 : ms);
+    } else if (t.updated != null && Number.isFinite(Number(t.updated))) {
+      const u = Number(t.updated);
+      timeSec = Math.floor(u > 1e15 ? u / 1e9 : u > 1e12 ? u / 1000 : u);
+    }
+
+    let name: string | null = null;
+    let currency: string | null = null;
+    let exchange: string | null = null;
+    let country: string | null = null;
+    let industry: string | null = null;
+    let ipo: string | null = null;
+    let weburl: string | null = null;
+    let marketCapitalizationMillions: number | null = null;
+    let shareOutstanding: number | null = null;
+
+    try {
+      const refUrl =
+        `https://api.polygon.io/v3/reference/tickers/${encodeURIComponent(sym)}` +
+        `?apiKey=${encodeURIComponent(key)}`;
+      const refRes = await fetch(refUrl);
+      if (refRes.ok) {
+        const refJson = (await refRes.json()) as { results?: Record<string, unknown> };
+        const r = refJson.results || {};
+        name = r['name'] != null ? String(r['name']) : null;
+        currency = r['currency_name'] != null ? String(r['currency_name']).toUpperCase() : null;
+        exchange = r['primary_exchange'] != null ? String(r['primary_exchange']) : null;
+        const loc = r['locale'] != null ? String(r['locale']) : null;
+        country = loc === 'us' ? 'US' : loc;
+        industry = r['sic_description'] != null ? String(r['sic_description']) : null;
+        ipo = r['list_date'] != null ? String(r['list_date']) : null;
+        weburl = r['homepage_url'] != null ? String(r['homepage_url']) : null;
+        const mc = r['market_cap'];
+        if (mc != null && Number.isFinite(Number(mc))) {
+          marketCapitalizationMillions = Number(mc) / 1_000_000;
+        }
+        const so = r['share_class_shares_outstanding'] ?? r['weighted_shares_outstanding'];
+        if (so != null && Number.isFinite(Number(so))) {
+          shareOutstanding = Number(so);
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`Polygon ticker reference failed for ${sym}: ${msg}`);
+    }
+
+    return {
+      symbol: sym,
+      name,
+      currency,
+      exchange,
+      country,
+      industry,
+      ipo,
+      weburl,
+      marketCapitalizationMillions,
+      shareOutstanding,
+      quote: {
+        current,
+        change,
+        pctChange,
+        high: day.h != null && Number.isFinite(Number(day.h)) ? Number(day.h) : null,
+        low: day.l != null && Number.isFinite(Number(day.l)) ? Number(day.l) : null,
+        open: day.o != null && Number.isFinite(Number(day.o)) ? Number(day.o) : null,
+        prevClose,
+        time: timeSec,
+      },
+    };
+  }
+
+  private async candlesPolygon(symbol: string, days: number): Promise<DailyCandlesDto> {
+    const key = this.polygonKey;
+    if (!key) throw new Error('no polygon key');
+    const want = Math.min(Math.max(days + 20, 5), 5000);
+    const end = new Date();
+    const start = new Date(end.getTime() - want * 86400_000);
+    const from = start.toISOString().slice(0, 10);
+    const to = end.toISOString().slice(0, 10);
+    const url =
+      `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/day/${from}/${to}` +
+      `?adjusted=true&sort=asc&limit=50000&apiKey=${encodeURIComponent(key)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Polygon daily HTTP ${res.status}: ${body.slice(0, 120)}`);
+    }
+    const data = (await res.json()) as {
+      status?: string;
+      results?: { t?: number; o?: number; c?: number }[];
+      error?: string;
+    };
+    if (data.error) throw new Error('Polygon: ' + data.error);
+    const results = data.results;
+    if (!results?.length) throw new Error('Polygon: no daily results');
+    const t: number[] = [];
+    const c: number[] = [];
+    const o: number[] = [];
+    for (const bar of results) {
+      if (bar.t == null || bar.c == null) continue;
+      t.push(Math.floor(Number(bar.t) / 1000));
+      c.push(Number(bar.c));
+      o.push(bar.o != null && Number.isFinite(Number(bar.o)) ? Number(bar.o) : Number(bar.c));
+    }
+    if (c.length < 2) throw new Error('Polygon: not enough daily bars');
+    const take = Math.min(days, t.length);
+    const startIdx = Math.max(0, t.length - take);
+    return { t: t.slice(startIdx), c: c.slice(startIdx), o: o.slice(startIdx) };
+  }
+
+  private async hourlyPolygon(
+    symbol: string,
+    fromSec: number,
+    toSec: number
+  ): Promise<HourlyCandlesDto> {
+    const key = this.polygonKey;
+    if (!key) throw new Error('no polygon key');
+    const fromMs = fromSec * 1000;
+    const toMs = toSec * 1000;
+    const url =
+      `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(symbol)}/range/1/hour/${fromMs}/${toMs}` +
+      `?adjusted=true&sort=asc&limit=50000&apiKey=${encodeURIComponent(key)}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Polygon hourly HTTP ${res.status}: ${body.slice(0, 120)}`);
+    }
+    const data = (await res.json()) as {
+      results?: { t?: number; o?: number; h?: number; l?: number; c?: number }[];
+      error?: string;
+    };
+    if (data.error) throw new Error('Polygon: ' + data.error);
+    const results = data.results;
+    if (!results?.length) throw new Error('Polygon: no hourly results');
+    const t: number[] = [];
+    const o: number[] = [];
+    const h: number[] = [];
+    const l: number[] = [];
+    const c: number[] = [];
+    for (const bar of results) {
+      if (bar.t == null || bar.c == null) continue;
+      const ts = Math.floor(Number(bar.t) / 1000);
+      if (ts < fromSec || ts > toSec) continue;
+      const close = Number(bar.c);
+      if (!Number.isFinite(close)) continue;
+      t.push(ts);
+      o.push(bar.o != null && Number.isFinite(Number(bar.o)) ? Number(bar.o) : close);
+      h.push(bar.h != null && Number.isFinite(Number(bar.h)) ? Number(bar.h) : close);
+      l.push(bar.l != null && Number.isFinite(Number(bar.l)) ? Number(bar.l) : close);
+      c.push(close);
+    }
+    if (c.length < 2) throw new Error('Polygon: not enough hourly bars in window');
+    return { t, o, h, l, c, provider: 'polygon' };
   }
 
   private async candlesTwelveData(symbol: string, days: number): Promise<DailyCandlesDto> {
@@ -412,6 +651,16 @@ export class MarketService implements OnModuleInit {
       .toUpperCase();
     if (!sym) throw new BadRequestException('Missing symbol');
     const d = Math.min(500, Math.max(2, days));
+
+    if (this.polygonKey) {
+      try {
+        const fromPoly = await this.candlesPolygon(sym, d);
+        if (fromPoly.c.length >= 2) return fromPoly;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`Polygon daily candles failed for ${sym}: ${msg}`);
+      }
+    }
 
     if (this.twelveKey) {
       try {
@@ -645,6 +894,16 @@ export class MarketService implements OnModuleInit {
     }
     if (toSec - fromSec > MarketService.MAX_HOURLY_SPAN_SEC) {
       throw new BadRequestException('Hourly window too large (max 10 calendar days)');
+    }
+
+    if (this.polygonKey) {
+      try {
+        const fromPoly = await this.hourlyPolygon(sym, fromSec, toSec);
+        if (fromPoly.c.length >= 2) return fromPoly;
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        this.logger.warn(`Polygon hourly candles failed for ${sym}: ${msg}`);
+      }
     }
 
     if (this.twelveKey) {

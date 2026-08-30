@@ -83,6 +83,12 @@ export default () => ({
     .split(',')
     .map((s) => envString(s))
     .filter(Boolean),
+  /** Massive (Polygon) — primary US market data for /api/market/* when set. */
+  polygonApiKey: (
+    process.env.POLYGON_API_KEY ||
+    process.env.MASSIVE_API_KEY ||
+    ''
+  ).trim(),
   /** Server-side only — browser calls `/api/market/*` (avoids Finnhub 403/CORS from the client). */
   finnhubApiKey: (process.env.FINNHUB_API_KEY || '').trim(),
   twelveDataApiKey: (process.env.TWELVE_DATA_API_KEY || '').trim(),

@@ -32,8 +32,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "src"))
 
 from signals_bot.config import load_config
-from signals_bot.providers.stooq import StooqProvider
-from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.providers import ordered_history_providers
 
 
 @dataclass
@@ -164,12 +163,7 @@ def main() -> int:
     args = p.parse_args()
 
     cfg = load_config(Path(args.config).expanduser().resolve())
-    providers = [
-        YahooProvider(timeout_sec=cfg.data.request_timeout_sec, ssl_verify=cfg.data.ssl_verify,
-                      ca_bundle_path=None),
-        StooqProvider(timeout_sec=cfg.data.request_timeout_sec, ssl_verify=cfg.data.ssl_verify,
-                      ca_bundle_path=None, api_key=cfg.data.stooq_api_key),
-    ]
+    providers = ordered_history_providers(cfg)
 
     buys = _fetch_buys(Path(args.db).expanduser())
     if args.limit > 0:

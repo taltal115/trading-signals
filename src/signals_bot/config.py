@@ -67,13 +67,15 @@ class IbkrConfig:
 @dataclass(frozen=True)
 class DataConfig:
     lookback_days: int = 90
-    provider_order: list[str] = field(default_factory=lambda: ["yahoo", "stooq"])
+    provider_order: list[str] = field(default_factory=lambda: ["polygon", "yahoo", "stooq"])
     request_timeout_sec: int = 20
     ca_bundle_path: str | None = None
     ssl_verify: bool = True
     # Optional: Stooq daily CSV requires an api key (register at https://stooq.com/q/d/).
     # Env STOOQ_API_KEY overrides YAML when set (local `.env`; do not commit secrets).
     stooq_api_key: str | None = None
+    # Massive (Polygon) Stocks — POLYGON_API_KEY or MASSIVE_API_KEY from env (preferred over YAML).
+    polygon_api_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -328,7 +330,7 @@ def load_config(config_path: Path) -> AppConfig:
     logging_raw = raw.get("logging", {}) or {}
     ai_raw = raw.get("ai", {}) or {}
 
-    data_provider_order = data_raw.get("provider_order") or ["yahoo", "stooq"]
+    data_provider_order = data_raw.get("provider_order") or ["polygon", "yahoo", "stooq"]
     _raw_stooq = data_raw.get("stooq_api_key")
     stooq_api_key_yaml = (
         str(_raw_stooq).strip() if _raw_stooq not in (None, "") else ""
@@ -336,6 +338,15 @@ def load_config(config_path: Path) -> AppConfig:
     _stooq_env = os.environ.get("STOOQ_API_KEY", "").strip()
     # Prefer env (local secret) over YAML value.
     stooq_api_key_resolved = _stooq_env if _stooq_env else (stooq_api_key_yaml or None)
+    _raw_poly = data_raw.get("polygon_api_key")
+    polygon_api_key_yaml = (
+        str(_raw_poly).strip() if _raw_poly not in (None, "") else ""
+    )
+    _poly_env = (
+        os.environ.get("POLYGON_API_KEY", "").strip()
+        or os.environ.get("MASSIVE_API_KEY", "").strip()
+    )
+    polygon_api_key_resolved = _poly_env if _poly_env else (polygon_api_key_yaml or None)
 
     pricing_raw = ai_raw.get("pricing") or {}
     pricing: dict[str, dict[str, float]] | None = None
@@ -433,6 +444,7 @@ def load_config(config_path: Path) -> AppConfig:
             ca_bundle_path=data_raw.get("ca_bundle_path"),
             ssl_verify=bool(data_raw.get("ssl_verify", True)),
             stooq_api_key=stooq_api_key_resolved,
+            polygon_api_key=polygon_api_key_resolved,
         ),
         strategy=strategy_cfg,
         sqlite=SqliteConfig(

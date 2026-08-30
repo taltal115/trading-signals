@@ -30,8 +30,7 @@ from signals_bot.notifiers.slack import (
     resolve_slack_post_channel,
     sector_color,
 )
-from signals_bot.providers.stooq import StooqProvider
-from signals_bot.providers.yahoo import YahooProvider
+from signals_bot.providers import build_history_providers
 from signals_bot.storage.firestore import MY_POSITIONS_COLLECTION, get_firestore_client
 from signals_bot.trading_calendar import add_ny_sessions, xnys_sessions_between
 
@@ -787,20 +786,10 @@ def main() -> int:
     cfg: AppConfig = load_config(cfg_path)
 
     db = _build_firestore_client()
-    providers = {
-        "yahoo": YahooProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
-        ),
-        "stooq": StooqProvider(
-            timeout_sec=cfg.data.request_timeout_sec,
-            ssl_verify=cfg.data.ssl_verify,
-            ca_bundle_path=cfg.resolve_path(cfg.data.ca_bundle_path).as_posix() if cfg.data.ca_bundle_path else None,
-            api_key=cfg.data.stooq_api_key,
-        ),
-    }
-    order = [x for x in cfg.data.provider_order if x in providers] or ["yahoo", "stooq"]
+    providers = build_history_providers(cfg)
+    order = [x for x in cfg.data.provider_order if x in providers] or [
+        n for n in ("polygon", "yahoo", "stooq") if n in providers
+    ]
     market_tz = cfg.tz()
     auto_close_enabled = _truthy_env("MONITOR_AUTO_CLOSE", default=True) and not args.no_auto_close
 
