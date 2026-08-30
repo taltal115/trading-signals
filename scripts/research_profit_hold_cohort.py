@@ -356,7 +356,7 @@ def run_cohort(
         metrics = sig.get("metrics") if isinstance(sig.get("metrics"), dict) else {}
         entry = float(sig.get("close") or 0.0)
 
-        if not args.include_immature and nyse_session_dates_between_exclusive_start(
+        if not include_immature and nyse_session_dates_between_exclusive_start(
             asof, today
         ) < hold_days + 1:
             continue

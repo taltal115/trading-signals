@@ -475,17 +475,6 @@ def main(argv: list[str] | None = None) -> int:
         conf_risk = int(getattr(strat, "high_confidence_risk_threshold", 98) if strat else 98)
         conf_pref_min = int(getattr(strat, "prefer_confidence_min", 90) if strat else 90)
         conf_pref_max = int(getattr(strat, "prefer_confidence_max", 94) if strat else 94)
-        pending_all = list_pending_tickers(
-            db,
-            signal_doc_id,
-            prefer_min_pct=prefer_min,
-            prefer_max_pct=prefer_max,
-            lottery_vol_ratio_min=lottery_vol,
-            lottery_ret_5d_min_pct=lottery_ret,
-            high_confidence_risk_threshold=conf_risk,
-            prefer_confidence_min=conf_pref_min,
-            prefer_confidence_max=conf_pref_max,
-        )
         cont_ret_min = float(getattr(strat, "continuation_ret_5d_min_pct", 10.0) if strat else 10.0)
         cont_ret_max = float(getattr(strat, "continuation_ret_5d_max_pct", 20.0) if strat else 20.0)
         cont_vol_min = float(getattr(strat, "continuation_vol_ratio_min", 2.0) if strat else 2.0)
@@ -501,6 +490,9 @@ def main(argv: list[str] | None = None) -> int:
                 prefer_max_pct=prefer_max,
                 lottery_vol_ratio_min=lottery_vol,
                 lottery_ret_5d_min_pct=lottery_ret,
+                high_confidence_risk_threshold=conf_risk,
+                prefer_confidence_min=conf_pref_min,
+                prefer_confidence_max=conf_pref_max,
             )
             targets: list[dict[str, Any]] = []
             for ticker, _idx, cand in pending_tuples:
@@ -593,14 +585,21 @@ def main(argv: list[str] | None = None) -> int:
             if i > 0 and pace > 0 and not args.verify_only:
                 log.info("Pacing %.1fs before next entry LLM call", pace)
                 time.sleep(pace)
-            row = read_signal_row(db, signal_doc_id, ticker) or {}
-            lottery = bool(row.get("lottery_flag"))
+            ticker = str(item.get("ticker") or "").strip().upper()
+            item_doc_id = str(item.get("signal_doc_id") or signal_doc_id).strip()
+            cand = float(item.get("candidate_score") or 0.0)
+            if not ticker or not item_doc_id:
+                log.error("Entry eval skipped malformed queue item: %s", item)
+                failures += 1
+                continue
+            row = read_signal_row(db, item_doc_id, ticker) or {}
+            lottery = bool(row.get("lottery_flag") or item.get("lottery_flag"))
             try:
                 rc = evaluate_one(
                     cfg=cfg,
                     log=log,
                     ticker=ticker,
-                    signal_doc_id=signal_doc_id,
+                    signal_doc_id=item_doc_id,
                     candidate_score=cand,
                     candidate_from_firestore=True,
                     theme=str(args.theme),
@@ -619,6 +618,7 @@ def main(argv: list[str] | None = None) -> int:
                 log.error("Entry eval crashed for %s (continuing batch): %s", ticker, e)
                 failures += 1
                 continue
+            touched_docs.add(item_doc_id)
             if rc == EXIT_RATE_LIMITED:
                 rate_limited = True
             elif rc != 0:

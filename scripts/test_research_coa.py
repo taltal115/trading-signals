@@ -1,6 +1,8 @@
+import inspect
 import unittest
 
 from scripts.research_coa import build_course_of_action
+from scripts.research_profit_hold_cohort import run_cohort
 
 
 class ResearchCoaTests(unittest.TestCase):
@@ -43,6 +45,14 @@ class ResearchCoaTests(unittest.TestCase):
         coa = build_course_of_action(summary, since="2026-08-04", actionable_only=False)
         titles = " ".join(str(i.get("title")) for i in coa["items"])
         self.assertIn("hard-reject", titles.lower())
+
+
+class RunCohortLibraryTests(unittest.TestCase):
+    def test_run_cohort_does_not_read_cli_args(self) -> None:
+        """UI / GHA call run_cohort() without argparse — do not use args.* here."""
+        src = inspect.getsource(run_cohort)
+        self.assertNotIn("args.", src)
+        self.assertIn("include_immature", src)
 
 
 if __name__ == "__main__":
