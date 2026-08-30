@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -46,6 +47,15 @@ export class GithubWorkflowService {
       this.log.warn(`GitHub workflow dispatch auth failed: ${res.status} ${workflowFile}`);
       throw new ForbiddenException(
         'GitHub rejected the token (needs workflow scope and repo access).',
+      );
+    }
+    if (res.status === 404) {
+      this.log.warn(
+        `GitHub workflow ${workflowFile} not found on ${owner}/${repo}@main (push the workflow file or use local runner)`,
+      );
+      throw new NotFoundException(
+        `GitHub workflow ${workflowFile} not found on ${owner}/${repo} main. ` +
+          'Push .github/workflows to origin/main, or set RESEARCH_RUN_LOCAL=true / AUTH_BYPASS_LOCAL=true for local Python runs.',
       );
     }
     if (!res.ok) {

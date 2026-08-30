@@ -989,7 +989,7 @@ export class FirestoreService implements OnModuleInit {
           {
             ...data,
             id,
-            status: 'queued',
+            status: data['status'] || 'queued',
             created_at_utc: data['created_at_utc'] || new Date().toISOString(),
             updated_at_utc: new Date().toISOString(),
           },

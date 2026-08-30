@@ -86,7 +86,7 @@ For real Google sign-in locally, set `AUTH_BYPASS_LOCAL=false`, provide `GOOGLE_
   - Hourly hold window: `GET /api/market/candles?symbol=AAPL&interval=1h&from=<unix>&to=<unix>` → `{ t, o, h, l, c, provider }` where `provider` is `twelve_data` | `alpha_vantage` | `finnhub`. Max window ~10 calendar days. Provider order: Twelve Data → Alpha Vantage → Finnhub.
 - `GET|POST|PATCH /api/positions...`, `GET /api/monitor/checks` — session required (or bypass user).
 - `POST /api/github/workflows/position-monitor` — body `{ "ticker": "AAPL" }`; dispatches `position-monitor.yml` (dashboard **Check**). Requires session + `GITHUB_PERSONAL_TOKEN` on the server. (Bot scan / AI eval are **not** exposed as Nest dispatch routes.)
-- `POST /api/github/workflows/profit-hold-research` — body `{ since, until?, actionable_only?, include_immature?, limit_runs?, notify_slack? }`; creates a queued `research_runs` doc and dispatches `profit-hold-research.yml`. Returns `{ ok, run_id }`.
+- `POST /api/github/workflows/profit-hold-research` — body `{ since, until?, actionable_only?, include_immature?, limit_runs?, notify_slack? }`; creates a queued `research_runs` doc and dispatches `profit-hold-research.yml`. Returns `{ ok, run_id, runner }`. If the workflow is missing on `origin/main` (404) or `AUTH_BYPASS_LOCAL` / `RESEARCH_RUN_LOCAL=true`, Nest runs `scripts/run_ui_profit_hold_research.py` locally in the background.
 - `GET /api/research/runs?limit=` / `GET /api/research/runs/:id` — list/detail profit-hold research runs (session required).
 
 ## Google OAuth troubleshooting (`401 invalid_client` / “OAuth client was not found”)
