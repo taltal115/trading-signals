@@ -12,6 +12,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from signals_bot.strategy.breakout import Signal
+from signals_bot.strategy.signal_quality import buy_rank_key_from_row
 
 log = logging.getLogger(__name__)
 
@@ -294,6 +295,13 @@ class SlackNotifier:
         rows: Iterable[dict[str, Any]],
         top_n: int,
         min_confidence: int,
+        prefer_min_pct: float = 8.0,
+        prefer_max_pct: float = 20.0,
+        lottery_vol_ratio_min: float = 5.0,
+        lottery_ret_5d_min_pct: float = 50.0,
+        high_confidence_risk_threshold: int = 98,
+        prefer_confidence_min: int = 90,
+        prefer_confidence_max: int = 94,
     ) -> None:
         """Post Firestore BUY rows that already passed the AI entry gate."""
         passed: list[dict[str, Any]] = []
@@ -311,16 +319,20 @@ class SlackNotifier:
                 continue
             passed.append(r)
 
-        def _row_sort(r: dict[str, Any]) -> tuple:
-            preferred = 0 if r.get("preferred_ret_5d_band") else 1
-            lottery = 1 if r.get("lottery_flag") else 0
-            try:
-                ret = float(r.get("ret_5d_pct")) if r.get("ret_5d_pct") is not None else 999.0
-            except (TypeError, ValueError):
-                ret = 999.0
-            return (preferred, lottery, ret)
-
-        passed.sort(key=_row_sort)
+        # Same rank key as the scan / entry-batch top-N so Slack order matches
+        # the canonical signal_quality ranking (conf bands, lottery, ret_5d band).
+        passed.sort(
+            key=lambda r: buy_rank_key_from_row(
+                r,
+                prefer_min_pct=prefer_min_pct,
+                prefer_max_pct=prefer_max_pct,
+                lottery_vol_ratio_min=lottery_vol_ratio_min,
+                lottery_ret_5d_min_pct=lottery_ret_5d_min_pct,
+                high_confidence_risk_threshold=high_confidence_risk_threshold,
+                prefer_confidence_min=prefer_confidence_min,
+                prefer_confidence_max=prefer_confidence_max,
+            )
+        )
         passed = passed[: max(0, top_n)]
         if not passed:
             log.info("Slack AI-passed: nothing to post (asof=%s)", asof_date)

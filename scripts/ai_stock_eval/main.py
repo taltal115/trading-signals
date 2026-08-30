@@ -264,6 +264,16 @@ def evaluate_one(
             e,
         )
         return 1
+    if getattr(usage, "source", "") == "stub" and not dry_run:
+        # Without an API key the stub WAIT verdict would be persisted as
+        # ai_gate=filtered, permanently burning this signal's pending eval.
+        log.error(
+            "OPENAI_API_KEY unset — stub verdict for %s; leaving ai_gate=pending "
+            "(no Firestore write). Configure the key and re-run.",
+            ticker,
+        )
+        return 1
+
     verdict = normalize_verdict(raw_verdict)
     conviction = float(verdict["conviction"])
 
@@ -458,6 +468,9 @@ def main(argv: list[str] | None = None) -> int:
         prefer_max = float(getattr(strat, "ret_5d_prefer_max_pct", 20.0) if strat else 20.0)
         lottery_vol = float(getattr(strat, "lottery_vol_ratio_min", 5.0) if strat else 5.0)
         lottery_ret = float(getattr(strat, "lottery_ret_5d_min_pct", 50.0) if strat else 50.0)
+        conf_risk = int(getattr(strat, "high_confidence_risk_threshold", 98) if strat else 98)
+        conf_pref_min = int(getattr(strat, "prefer_confidence_min", 90) if strat else 90)
+        conf_pref_max = int(getattr(strat, "prefer_confidence_max", 94) if strat else 94)
         pending_all = list_pending_tickers(
             db,
             signal_doc_id,
@@ -465,6 +478,9 @@ def main(argv: list[str] | None = None) -> int:
             prefer_max_pct=prefer_max,
             lottery_vol_ratio_min=lottery_vol,
             lottery_ret_5d_min_pct=lottery_ret,
+            high_confidence_risk_threshold=conf_risk,
+            prefer_confidence_min=conf_pref_min,
+            prefer_confidence_max=conf_pref_max,
         )
         top_n = int(getattr(ai_cfg, "max_entry_evals_per_run", 5) if ai_cfg else 5)
         top_n = max(0, top_n)
@@ -513,25 +529,30 @@ def main(argv: list[str] | None = None) -> int:
                 time.sleep(pace)
             row = read_signal_row(db, signal_doc_id, ticker) or {}
             lottery = bool(row.get("lottery_flag"))
-            rc = evaluate_one(
-                cfg=cfg,
-                log=log,
-                ticker=ticker,
-                signal_doc_id=signal_doc_id,
-                candidate_score=cand,
-                candidate_from_firestore=True,
-                theme=str(args.theme),
-                source_process=str(args.source_process),
-                position_id=None,
-                owner_uid=None,
-                dry_run=bool(args.dry_run),
-                debug_prompt=bool(args.debug_prompt),
-                stdout_json=bool(args.stdout_json),
-                verify_only=bool(args.verify_only),
-                github_verify_annotations=bool(args.github_verify_annotations),
-                lottery_flag=lottery,
-                skip_paper=bool(args.skip_paper),
-            )
+            try:
+                rc = evaluate_one(
+                    cfg=cfg,
+                    log=log,
+                    ticker=ticker,
+                    signal_doc_id=signal_doc_id,
+                    candidate_score=cand,
+                    candidate_from_firestore=True,
+                    theme=str(args.theme),
+                    source_process=str(args.source_process),
+                    position_id=None,
+                    owner_uid=None,
+                    dry_run=bool(args.dry_run),
+                    debug_prompt=bool(args.debug_prompt),
+                    stdout_json=bool(args.stdout_json),
+                    verify_only=bool(args.verify_only),
+                    github_verify_annotations=bool(args.github_verify_annotations),
+                    lottery_flag=lottery,
+                    skip_paper=bool(args.skip_paper),
+                )
+            except Exception as e:  # noqa: BLE001 — one bad ticker must not abort the batch
+                log.error("Entry eval crashed for %s (continuing batch): %s", ticker, e)
+                failures += 1
+                continue
             if rc == EXIT_RATE_LIMITED:
                 rate_limited = True
             elif rc != 0:
@@ -603,6 +624,7 @@ def _maybe_slack_ai_passed(
         log.info("Slack AI-passed skipped (dry-run)")
         return
     asof, rows = load_signal_run_rows(db, signal_doc_id)
+    strat = getattr(cfg, "strategy", None)
     try:
         from signals_bot.notifiers.slack import SlackNotifier
 
@@ -612,6 +634,13 @@ def _maybe_slack_ai_passed(
             rows=rows,
             top_n=int(getattr(slack_cfg, "post_top_n", 5)),
             min_confidence=int(getattr(slack_cfg, "min_confidence", 70)),
+            prefer_min_pct=float(getattr(strat, "ret_5d_prefer_min_pct", 8.0) if strat else 8.0),
+            prefer_max_pct=float(getattr(strat, "ret_5d_prefer_max_pct", 20.0) if strat else 20.0),
+            lottery_vol_ratio_min=float(getattr(strat, "lottery_vol_ratio_min", 5.0) if strat else 5.0),
+            lottery_ret_5d_min_pct=float(getattr(strat, "lottery_ret_5d_min_pct", 50.0) if strat else 50.0),
+            high_confidence_risk_threshold=int(getattr(strat, "high_confidence_risk_threshold", 98) if strat else 98),
+            prefer_confidence_min=int(getattr(strat, "prefer_confidence_min", 90) if strat else 90),
+            prefer_confidence_max=int(getattr(strat, "prefer_confidence_max", 94) if strat else 94),
         )
     except Exception as e:  # noqa: BLE001
         log.error("Slack AI-passed post failed: %s", e)

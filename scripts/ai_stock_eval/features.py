@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 import numpy as np
@@ -12,6 +13,7 @@ from signals_bot.config import AppConfig
 from signals_bot.strategy.breakout import BreakoutMomentumStrategy
 
 from .context import EvalContext
+from .score import deterministic_raw_sum
 
 
 def _fmt2(x: float | None) -> str:
@@ -97,8 +99,21 @@ def compute_weight_features(
 
     event_timing_score = 0.5
 
-    bull = sum(1 for w in ("beat", "upgrade", "growth", "surge", "win") if any(w in n.title.lower() for n in ctx.headlines))
-    bear = sum(1 for w in ("miss", "downgrade", "lawsuit", "sec", "warning") if any(w in n.title.lower() for n in ctx.headlines))
+    # Word-boundary matching: bare substrings caused false positives ("sec" in
+    # "sector"/"securities", "win" in "window") that skewed sentiment bearish.
+    bull_words = ("beat", "beats", "upgrade", "upgraded", "upgrades", "growth", "surge", "surges", "surged", "win", "wins", "won", "record", "rally")
+    bear_words = ("miss", "misses", "missed", "downgrade", "downgraded", "downgrades", "lawsuit", "lawsuits", "sec", "fraud", "probe", "warning", "warns", "recall", "bankruptcy", "offering", "dilution")
+    titles_lc = [n.title.lower() for n in ctx.headlines]
+
+    def _word_hits(words: tuple[str, ...]) -> int:
+        return sum(
+            1
+            for w in words
+            if any(re.search(rf"\b{re.escape(w)}\b", t) for t in titles_lc)
+        )
+
+    bull = _word_hits(bull_words)
+    bear = _word_hits(bear_words)
     sentiment_intensity = _clamp01(0.35 + (bull - bear) * 0.1)
 
     ticker_news_relevance = _clamp01(headline_count / 5.0) if headline_count else 0.0
@@ -314,7 +329,9 @@ def build_features_strategy_and_placeholders(
         "open_price": _fmt2(open_px),
         "previous_close": _fmt2(prev_c),
         "percent_change": _fmt2(pct_change),
-        "gap_pct": _fmt2(gap_strength_metric),
+        # Raw open-vs-prior-close gap percent. (Bug fix: this used to render the
+        # 0-100 gap_strength feature — abs(gap)*6 — so the LLM saw a 2% gap as "12%".)
+        "gap_pct": _fmt2(gap_raw_pct),
         "relative_strength_pct": rs_vs_spy_str,
         "sma_10": _fmt2(sma10),
         "sma_20": _fmt2(sma20),
@@ -339,7 +356,9 @@ def build_features_strategy_and_placeholders(
         "avg_volume_20d": str(int(avg20_vol)) if math.isfinite(avg20_vol) else "0",
         "relative_volume": _fmt2(rel_vol),
         "technical_score": _fmt2(weight_feats["technical_score"]),
-        "deterministic_score": _fmt2(weight_feats["price_strength_display"]),
+        # Weighted deterministic component actually used by compute_total_score
+        # (was price_strength*100, which mislabeled a single sub-feature as the score).
+        "deterministic_score": _fmt2(deterministic_raw_sum(weight_feats)),
         "strategy_score": strategy_score_display,
         "best_strategy": best_strategy,
         "headlines": headlines_block,
