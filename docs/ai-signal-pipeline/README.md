@@ -36,7 +36,7 @@ ai:
   enabled: true
   entry_min_total: 70
   entry_min_conviction: 0.7
-  max_entry_evals_per_run: 3   # LLM top-N by signal_quality rank; rest ai_gate=skipped
+  max_entry_evals_per_run: 8   # LLM top-N; continuation-band never rule_skipped (2026-08-30)
   max_holding_evals_per_run: 3 # 2026-08: cut holding volume (429 relief)
   holding_min_hours_between_evals: 24
   lottery_entry_min_total: 80

@@ -33,9 +33,12 @@ def _resolve_repo_path(path_str: str) -> Path:
 from .context import build_context, build_provider_status_dict
 from .features import build_features_strategy_and_placeholders, render_user_prompt
 from .firestore_write import (
+    in_continuation_band,
     latest_signal_doc_id,
     list_pending_tickers,
+    list_recent_pending_entry_targets,
     load_signal_run_rows,
+    partition_entry_eval_queue,
     read_candidate_score,
     read_signal_row,
     write_entry_evaluation,
@@ -441,6 +444,7 @@ def main(argv: list[str] | None = None) -> int:
     from signals_bot.storage.firestore import get_firestore_client
 
     db = get_firestore_client()
+    explicit_signal_doc = bool(str(args.signal_doc_id).strip())
     signal_doc_id = str(args.signal_doc_id).strip()
     if not signal_doc_id:
         signal_doc_id = latest_signal_doc_id(db) or ""
@@ -458,67 +462,123 @@ def main(argv: list[str] | None = None) -> int:
         prefer_max = float(getattr(strat, "ret_5d_prefer_max_pct", 20.0) if strat else 20.0)
         lottery_vol = float(getattr(strat, "lottery_vol_ratio_min", 5.0) if strat else 5.0)
         lottery_ret = float(getattr(strat, "lottery_ret_5d_min_pct", 50.0) if strat else 50.0)
-        pending_all = list_pending_tickers(
-            db,
-            signal_doc_id,
-            prefer_min_pct=prefer_min,
-            prefer_max_pct=prefer_max,
-            lottery_vol_ratio_min=lottery_vol,
-            lottery_ret_5d_min_pct=lottery_ret,
-        )
+        cont_ret_min = float(getattr(strat, "continuation_ret_5d_min_pct", 10.0) if strat else 10.0)
+        cont_ret_max = float(getattr(strat, "continuation_ret_5d_max_pct", 20.0) if strat else 20.0)
+        cont_vol_min = float(getattr(strat, "continuation_vol_ratio_min", 2.0) if strat else 2.0)
+        cont_vol_max = float(getattr(strat, "continuation_vol_ratio_max", 3.0) if strat else 3.0)
         top_n = int(getattr(ai_cfg, "max_entry_evals_per_run", 5) if ai_cfg else 5)
         top_n = max(0, top_n)
-        for_llm = pending_all[:top_n]
-        for_skip = pending_all[top_n:]
+
+        if explicit_signal_doc:
+            pending_tuples = list_pending_tickers(
+                db,
+                signal_doc_id,
+                prefer_min_pct=prefer_min,
+                prefer_max_pct=prefer_max,
+                lottery_vol_ratio_min=lottery_vol,
+                lottery_ret_5d_min_pct=lottery_ret,
+            )
+            targets: list[dict[str, Any]] = []
+            for ticker, _idx, cand in pending_tuples:
+                row = read_signal_row(db, signal_doc_id, ticker) or {}
+                targets.append(
+                    {
+                        "signal_doc_id": signal_doc_id,
+                        "ticker": ticker,
+                        "candidate_score": cand,
+                        "in_band": in_continuation_band(
+                            row,
+                            ret_min=cont_ret_min,
+                            ret_max=cont_ret_max,
+                            vol_min=cont_vol_min,
+                            vol_max=cont_vol_max,
+                        ),
+                        "lottery_flag": bool(row.get("lottery_flag")),
+                    }
+                )
+            # Preserve list_pending rank within band; continuation-band first.
+            targets = [t for t in targets if t["in_band"]] + [
+                t for t in targets if not t["in_band"]
+            ]
+        else:
+            targets = list_recent_pending_entry_targets(
+                db,
+                limit_runs=20,
+                prefer_min_pct=prefer_min,
+                prefer_max_pct=prefer_max,
+                lottery_vol_ratio_min=lottery_vol,
+                lottery_ret_5d_min_pct=lottery_ret,
+                cont_ret_min=cont_ret_min,
+                cont_ret_max=cont_ret_max,
+                cont_vol_min=cont_vol_min,
+                cont_vol_max=cont_vol_max,
+            )
+
+        for_llm, for_skip, leave_pending = partition_entry_eval_queue(targets, top_n=top_n)
         log.info(
-            "Batch entry doc=%s pending=%s llm_top_n=%s (llm=%s skipped=%s)",
-            signal_doc_id,
-            len(pending_all),
-            top_n,
+            "Batch entry pending=%s llm=%s skip=%s leave_pending_in_band=%s multi_doc=%s",
+            len(targets),
             len(for_llm),
             len(for_skip),
+            len(leave_pending),
+            not explicit_signal_doc,
         )
-        if not pending_all:
+        if leave_pending:
+            log.info(
+                "Leaving %s continuation-band pending for next batch (over top_n=%s)",
+                len(leave_pending),
+                top_n,
+            )
+        if not targets:
             log.info("No pending tickers")
             _maybe_slack_ai_passed(cfg, log, db, signal_doc_id, dry_run=bool(args.dry_run))
             return 0
         failures = 0
         if not args.dry_run and not args.verify_only:
-            for rank, (ticker, _idx, _cand) in enumerate(for_skip, start=top_n + 1):
+            for rank, item in enumerate(for_skip, start=len(for_llm) + 1):
                 try:
                     write_entry_rank_skipped(
-                        ticker=ticker,
-                        signal_doc_id=signal_doc_id,
+                        ticker=str(item["ticker"]),
+                        signal_doc_id=str(item["signal_doc_id"]),
                         rank=rank,
                         top_n=top_n,
                     )
-                    log.info("Entry skip %s rank=%s (below top %s)", ticker, rank, top_n)
+                    log.info(
+                        "Entry skip %s doc=%s rank=%s (below top %s, out of continuation band)",
+                        item["ticker"],
+                        item["signal_doc_id"],
+                        rank,
+                        top_n,
+                    )
                 except Exception as e:  # noqa: BLE001
-                    log.error("Entry skip write failed %s: %s", ticker, e)
+                    log.error("Entry skip write failed %s: %s", item.get("ticker"), e)
                     failures += 1
         elif for_skip:
-            log.info("Dry-run/verify: would skip %s tickers below top %s", len(for_skip), top_n)
+            log.info("Dry-run/verify: would skip %s out-of-band tickers below top %s", len(for_skip), top_n)
         pace = _inter_request_seconds()
         rate_limited = False
-        for i, (ticker, _idx, cand) in enumerate(for_llm):
+        touched_docs: set[str] = set()
+        for i, item in enumerate(for_llm):
             if rate_limited:
                 log.warning(
                     "Circuit-break: skip remaining entry LLM calls after rate limit "
                     "(leave %s+ pending for next run)",
-                    ticker,
+                    item.get("ticker"),
                 )
                 break
             if i > 0 and pace > 0 and not args.verify_only:
                 log.info("Pacing %.1fs before next entry LLM call", pace)
                 time.sleep(pace)
-            row = read_signal_row(db, signal_doc_id, ticker) or {}
-            lottery = bool(row.get("lottery_flag"))
+            doc_id = str(item["signal_doc_id"])
+            ticker = str(item["ticker"])
+            touched_docs.add(doc_id)
+            lottery = bool(item.get("lottery_flag"))
             rc = evaluate_one(
                 cfg=cfg,
                 log=log,
                 ticker=ticker,
-                signal_doc_id=signal_doc_id,
-                candidate_score=cand,
+                signal_doc_id=doc_id,
+                candidate_score=float(item.get("candidate_score") or 0.0),
                 candidate_from_firestore=True,
                 theme=str(args.theme),
                 source_process=str(args.source_process),
@@ -537,7 +597,8 @@ def main(argv: list[str] | None = None) -> int:
             elif rc != 0:
                 failures += 1
         if not args.verify_only and not args.skip_paper:
-            _maybe_slack_ai_passed(cfg, log, db, signal_doc_id, dry_run=bool(args.dry_run))
+            for doc_id in sorted(touched_docs) or [signal_doc_id]:
+                _maybe_slack_ai_passed(cfg, log, db, doc_id, dry_run=bool(args.dry_run))
         # Rate-limit alone is soft: pending rows retry on the next cron / workflow_run.
         if failures:
             return 1

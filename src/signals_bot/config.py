@@ -168,7 +168,7 @@ class AiConfig:
     entry_min_total: float = 70.0
     entry_min_conviction: float = 0.7
     # Max entry LLM calls per batch — only top-N by signal_quality rank; rest rule-skipped.
-    max_entry_evals_per_run: int = 3
+    max_entry_evals_per_run: int = 8
     max_holding_evals_per_run: int = 3
     # Skip holding re-eval when last holding_advice is newer than this (0 = no cooldown).
     holding_min_hours_between_evals: float = 24.0
@@ -353,7 +353,7 @@ def load_config(config_path: Path) -> AppConfig:
         enabled=bool(ai_raw.get("enabled", True)),
         entry_min_total=float(ai_raw.get("entry_min_total", 70.0)),
         entry_min_conviction=float(ai_raw.get("entry_min_conviction", 0.7)),
-        max_entry_evals_per_run=int(ai_raw.get("max_entry_evals_per_run", 3)),
+        max_entry_evals_per_run=int(ai_raw.get("max_entry_evals_per_run", 8)),
         max_holding_evals_per_run=int(ai_raw.get("max_holding_evals_per_run", 3)),
         holding_min_hours_between_evals=float(ai_raw.get("holding_min_hours_between_evals", 24.0)),
         lottery_entry_min_total=float(ai_raw.get("lottery_entry_min_total", 80.0)),
