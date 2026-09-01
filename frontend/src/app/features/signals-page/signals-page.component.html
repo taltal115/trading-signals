@@ -82,8 +82,8 @@
           <th>stop</th>
           <th>target</th>
           <th>status</th>
-          <th>details</th>
           <th>ai</th>
+          <th>details</th>
           <th>actions</th>
         </tr>
       </thead>
@@ -146,27 +146,6 @@
                 </button>
               </ng-container>
             </td>
-            <td class="sig-details-toggle-cell">
-              <div class="sig-details-toggle-wrap">
-                <button
-                  type="button"
-                  class="btn-sig-stock-info"
-                  [class.is-open]="stockDetailsOpen(row.instanceKey)"
-                  (click)="toggleStockDetails(row.instanceKey, str(row.s['ticker']))"
-                >
-                  {{ stockDetailsOpen(row.instanceKey) ? 'Hide' : 'Info' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn-sig-stock-info"
-                  [class.is-open]="holdChartOpen(row.instanceKey)"
-                  title="3 trading-day hourly hold chart"
-                  (click)="toggleHoldChart(row.instanceKey, $event)"
-                >
-                  {{ holdChartOpen(row.instanceKey) ? 'Hide chart' : 'Chart' }}
-                </button>
-              </div>
-            </td>
             <td class="sig-ai-toggle-cell">
               <div class="sig-ai-toggle-wrap">
                 <span
@@ -184,6 +163,27 @@
                 <span class="sig-ai-tokens-teaser" *ngIf="aiTokensTeaser(row) as teaser" [title]="teaser">{{
                   teaser
                 }}</span>
+              </div>
+            </td>
+            <td class="sig-details-toggle-cell">
+              <div class="sig-details-toggle-wrap">
+                <button
+                  type="button"
+                  class="btn-sig-stock-info"
+                  [class.is-open]="stockDetailsOpen(row.instanceKey)"
+                  (click)="toggleStockDetails(row.instanceKey, str(row.s['ticker']))"
+                >
+                  {{ stockDetailsOpen(row.instanceKey) ? 'Hide' : 'Details' }}
+                </button>
+                <button
+                  type="button"
+                  class="btn-sig-stock-info"
+                  [class.is-open]="holdChartOpen(row.instanceKey)"
+                  title="3 trading-day hourly hold chart"
+                  (click)="toggleHoldChart(row.instanceKey, $event)"
+                >
+                  {{ holdChartOpen(row.instanceKey) ? 'Hide' : 'Graph' }}
+                </button>
                 <button
                   type="button"
                   class="btn-sig-ai-summary"
@@ -192,7 +192,7 @@
                   [title]="hasAiEval(row) ? 'Show AI recommendation and history' : 'No AI evaluation for this signal'"
                   (click)="toggleAiSummary(row.instanceKey, $event, row)"
                 >
-                  {{ aiSummaryToggleLabel(row) }}
+                  {{ aiSummaryOpen(row.instanceKey) ? 'Hide' : 'History' }}
                 </button>
               </div>
             </td>
@@ -215,216 +215,216 @@
           >
             <td colspan="10" class="sig-reason-cell">{{ signalStatus(row.s).reason }}</td>
           </tr>
+          
+          <!-- Unified expandable panel for details, chart, or history -->
           <tr
-            *ngIf="row.kind === 'sig' && stockDetailsOpen(row.instanceKey)"
-            class="sig-stock-details-tr"
+            *ngIf="row.kind === 'sig' && activePanelByRow()[row.instanceKey]"
+            class="sig-unified-panel-tr"
             [class.sig-stock-details-for-older]="row.role === 'older'"
           >
-            <td colspan="10" class="sig-stock-details-cell">
-              <div *ngIf="stockDetailsLoading(row.instanceKey)" class="sig-stock-details-status">
-                Loading market data…
-              </div>
-              <p *ngIf="stockDetailsError(row.instanceKey) as err" class="sig-stock-details-err">
-                {{ err }}
-              </p>
-              <div *ngIf="stockDetailsData(row.instanceKey) as snap" class="sig-stock-details-panel">
-                <div class="sig-stock-details-head">
-                  <strong>{{ snap.name || snap.symbol }}</strong>
-                  <span class="sig-stock-details-ticker code">{{ snap.symbol }}</span>
-                  <a
-                    *ngIf="snap.weburl"
-                    [href]="snap.weburl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="sig-stock-details-link"
-                    >Website</a
-                  >
+            <td colspan="10" class="sig-unified-panel-cell">
+              
+              <!-- Details Panel -->
+              <div *ngIf="stockDetailsOpen(row.instanceKey)" class="sig-unified-panel-content">
+                <div *ngIf="stockDetailsLoading(row.instanceKey)" class="sig-stock-details-status">
+                  Loading market data…
                 </div>
-                <dl class="sig-stock-details-grid">
-                  <dt>Exchange</dt>
-                  <dd>{{ snap.exchange || '—' }}</dd>
-                  <dt>Country</dt>
-                  <dd>{{ snap.country || '—' }}</dd>
-                  <dt>Industry</dt>
-                  <dd>{{ snap.industry || '—' }}</dd>
-                  <dt>IPO</dt>
-                  <dd>{{ snap.ipo || '—' }}</dd>
-                  <dt>Market cap</dt>
-                  <dd>
-                    {{ fmtMarketCapMillions(snap.marketCapitalizationMillions, snap.currency) }}
-                    <span class="sig-detail-hint">(Finnhub, listing currency)</span>
-                  </dd>
-                  <dt>Shares out.</dt>
-                  <dd>{{ fmtShares(snap.shareOutstanding) }}</dd>
-                  <dt>Last price</dt>
-                  <dd>{{ snap.quote.current != null ? fmtUsd(snap.quote.current) : '—' }}</dd>
-                  <dt>Change</dt>
-                  <dd>
-                    <ng-container *ngIf="snap.quote.change != null; else noChg">
-                      {{ snap.quote.change >= 0 ? '+' : '' }}{{ fmtUsd(snap.quote.change) }}
-                      <span *ngIf="snap.quote.pctChange != null" class="sig-detail-pct">
-                        ({{ snap.quote.pctChange >= 0 ? '+' : '' }}{{ fmtUiPercent(snap.quote.pctChange) }}%)
-                      </span>
-                    </ng-container>
-                    <ng-template #noChg>—</ng-template>
-                  </dd>
-                  <dt>Open</dt>
-                  <dd>{{ snap.quote.open != null ? fmtUsd(snap.quote.open) : '—' }}</dd>
-                  <dt>Day high</dt>
-                  <dd>{{ snap.quote.high != null ? fmtUsd(snap.quote.high) : '—' }}</dd>
-                  <dt>Day low</dt>
-                  <dd>{{ snap.quote.low != null ? fmtUsd(snap.quote.low) : '—' }}</dd>
-                  <dt>Prev close</dt>
-                  <dd>{{ snap.quote.prevClose != null ? fmtUsd(snap.quote.prevClose) : '—' }}</dd>
-                  <dt>Quote time</dt>
-                  <dd class="code">{{ fmtUnixQuoteUtc(snap.quote.time) }}</dd>
-                </dl>
-                <p class="sig-stock-details-footnote">
-                  Data from Finnhub via your API server. Intraday volume is not included on this plan.
+                <p *ngIf="stockDetailsError(row.instanceKey) as err" class="sig-stock-details-err">
+                  {{ err }}
                 </p>
-              </div>
-            </td>
-          </tr>
-          <tr
-            *ngIf="row.kind === 'sig' && holdChartOpen(row.instanceKey)"
-            class="sig-hold-chart-tr"
-            [class.sig-stock-details-for-older]="row.role === 'older'"
-          >
-            <td colspan="10" class="sig-hold-chart-cell">
-              <app-signal-hold-chart
-                [ticker]="str(row.s['ticker'])"
-                [asofDate]="row.asofDate"
-                [entryPrice]="entryPriceNum(row.s['close'])"
-              />
-            </td>
-          </tr>
-          <tr
-            *ngIf="row.kind === 'sig' && aiSummaryOpen(row.instanceKey)"
-            class="sig-ai-summary-tr"
-            [class.sig-stock-details-for-older]="row.role === 'older'"
-          >
-            <td colspan="10" class="sig-ai-summary-cell">
-              <ng-container *ngIf="aiViewForRow(row) as ai; else noAi">
-                <div class="sig-ai-summary-panel">
-                  <div class="sig-ai-summary-head">
-                    <span class="sig-ai-summary-ticker code">{{ row.s['ticker'] }}</span>
-                    <span class="sig-ai-action-chip" [ngClass]="ai.actionClass">{{ ai.action }}</span>
-                    <span class="sig-ai-gate" *ngIf="ai.gate">gate: {{ ai.gate }}</span>
-                    <span class="sig-ai-summary-meta" *ngIf="ai.riskLevel">risk: {{ ai.riskLevel }}</span>
-                    <span class="sig-ai-summary-meta" *ngIf="ai.total != null"
-                      >score {{ fmtAiNumber(ai.total, 1) }}</span
+                <div *ngIf="stockDetailsData(row.instanceKey) as snap" class="sig-stock-details-panel">
+                  <div class="sig-stock-details-head">
+                    <strong>{{ snap.name || snap.symbol }}</strong>
+                    <span class="sig-stock-details-ticker code">{{ snap.symbol }}</span>
+                    <a
+                      *ngIf="snap.weburl"
+                      [href]="snap.weburl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="sig-stock-details-link"
+                      >Website</a
                     >
-                    <span class="sig-ai-summary-meta" *ngIf="ai.model">{{ ai.model }}</span>
-                    <span class="sig-ai-summary-meta" *ngIf="ai.totalTokens != null"
-                      >{{ ai.totalTokens }} tokens</span
-                    >
-                    <span class="sig-ai-summary-meta" *ngIf="ai.estimatedCostUsd != null"
-                      >${{ fmtAiNumber(ai.estimatedCostUsd, 4) }}</span
-                    >
-                    <span class="sig-ai-summary-meta sig-ai-summary-ts">
-                      {{ fmtAiTimestamp(ai.evaluatedAt) }}
-                    </span>
                   </div>
-                  <p class="sig-ai-headline" *ngIf="ai.headline">
-                    <strong>{{ ai.headline }}</strong>
-                  </p>
-                  <p class="sig-ai-summary-why" *ngIf="ai.whyNow || ai.summary">
-                    {{ ai.whyNow || ai.summary }}
-                  </p>
-                  <dl class="sig-ai-scores-grid">
-                    <dt *ngIf="ai.entry">Entry</dt>
-                    <dd *ngIf="ai.entry">
-                      {{ ai.entry.min != null ? fmtUsd(ai.entry.min) : '—' }} →
-                      <strong>{{ ai.entry.ideal != null ? fmtUsd(ai.entry.ideal) : '—' }}</strong>
-                      → {{ ai.entry.max != null ? fmtUsd(ai.entry.max) : '—' }}
+                  <dl class="sig-stock-details-grid">
+                    <dt>Exchange</dt>
+                    <dd>{{ snap.exchange || '—' }}</dd>
+                    <dt>Country</dt>
+                    <dd>{{ snap.country || '—' }}</dd>
+                    <dt>Industry</dt>
+                    <dd>{{ snap.industry || '—' }}</dd>
+                    <dt>IPO</dt>
+                    <dd>{{ snap.ipo || '—' }}</dd>
+                    <dt>Market cap</dt>
+                    <dd>
+                      {{ fmtMarketCapMillions(snap.marketCapitalizationMillions, snap.currency) }}
+                      <span class="sig-detail-hint">(Finnhub, listing currency)</span>
                     </dd>
-                    <dt *ngIf="ai.stop != null">Stop</dt>
-                    <dd *ngIf="ai.stop != null">{{ fmtUsd(ai.stop) }}</dd>
-                    <dt *ngIf="ai.target != null">Target</dt>
-                    <dd *ngIf="ai.target != null">{{ fmtUsd(ai.target) }}</dd>
-                    <dt *ngIf="ai.holdDays != null">Hold days</dt>
-                    <dd *ngIf="ai.holdDays != null">{{ ai.holdDays }}</dd>
-                    <dt *ngIf="ai.invalidation">Invalidation</dt>
-                    <dd *ngIf="ai.invalidation">{{ ai.invalidation }}</dd>
+                    <dt>Shares out.</dt>
+                    <dd>{{ fmtShares(snap.shareOutstanding) }}</dd>
+                    <dt>Last price</dt>
+                    <dd>{{ snap.quote.current != null ? fmtUsd(snap.quote.current) : '—' }}</dd>
+                    <dt>Change</dt>
+                    <dd>
+                      <ng-container *ngIf="snap.quote.change != null; else noChg">
+                        {{ snap.quote.change >= 0 ? '+' : '' }}{{ fmtUsd(snap.quote.change) }}
+                        <span *ngIf="snap.quote.pctChange != null" class="sig-detail-pct">
+                          ({{ snap.quote.pctChange >= 0 ? '+' : '' }}{{ fmtUiPercent(snap.quote.pctChange) }}%)
+                        </span>
+                      </ng-container>
+                      <ng-template #noChg>—</ng-template>
+                    </dd>
+                    <dt>Open</dt>
+                    <dd>{{ snap.quote.open != null ? fmtUsd(snap.quote.open) : '—' }}</dd>
+                    <dt>Day high</dt>
+                    <dd>{{ snap.quote.high != null ? fmtUsd(snap.quote.high) : '—' }}</dd>
+                    <dt>Day low</dt>
+                    <dd>{{ snap.quote.low != null ? fmtUsd(snap.quote.low) : '—' }}</dd>
+                    <dt>Prev close</dt>
+                    <dd>{{ snap.quote.prevClose != null ? fmtUsd(snap.quote.prevClose) : '—' }}</dd>
+                    <dt>Quote time</dt>
+                    <dd class="code">{{ fmtUnixQuoteUtc(snap.quote.time) }}</dd>
                   </dl>
-                  <ul class="sig-ai-checklist" *ngIf="ai.checklist.length > 0">
-                    <li *ngFor="let c of ai.checklist" [class.pass]="c.pass" [class.fail]="!c.pass">
-                      {{ c.pass ? '✓' : '✗' }} {{ c.label }}
-                    </li>
-                  </ul>
-
-                  <div class="sig-holding-block" *ngIf="holdingAdviceForRow(row) as hold">
-                    <strong>Holding advice</strong>
+                  <p class="sig-stock-details-footnote">
+                    Data from Finnhub via your API server. Intraday volume is not included on this plan.
+                  </p>
+                </div>
+              </div>
+              
+              <!-- Chart Panel -->
+              <div *ngIf="holdChartOpen(row.instanceKey)" class="sig-unified-panel-content">
+                <app-signal-hold-chart
+                  [ticker]="str(row.s['ticker'])"
+                  [asofDate]="row.asofDate"
+                  [entryPrice]="entryPriceNum(row.s['close'])"
+                />
+              </div>
+              
+              <!-- History Panel -->
+              <div *ngIf="aiSummaryOpen(row.instanceKey)" class="sig-unified-panel-content">
+                <ng-container *ngIf="aiViewForRow(row) as ai; else noAi">
+                  <div class="sig-ai-summary-panel">
                     <div class="sig-ai-summary-head">
-                      <span class="sig-ai-action-chip" [ngClass]="aiActionClassOfPublic(hold.advice)">{{
-                        hold.advice
-                      }}</span>
-                      <span class="sig-ai-summary-meta" *ngIf="hold.riskLevel">risk: {{ hold.riskLevel }}</span>
-                      <span class="sig-ai-summary-meta" *ngIf="row.s['paper_status']"
-                        >paper: {{ row.s['paper_status'] }}</span
+                      <span class="sig-ai-summary-ticker code">{{ row.s['ticker'] }}</span>
+                      <span class="sig-ai-action-chip" [ngClass]="ai.actionClass">{{ ai.action }}</span>
+                      <span class="sig-ai-gate" *ngIf="ai.gate">gate: {{ ai.gate }}</span>
+                      <span class="sig-ai-summary-meta" *ngIf="ai.riskLevel">risk: {{ ai.riskLevel }}</span>
+                      <span class="sig-ai-summary-meta" *ngIf="ai.total != null"
+                        >score {{ fmtAiNumber(ai.total, 1) }}</span
                       >
+                      <span class="sig-ai-summary-meta" *ngIf="ai.model">{{ ai.model }}</span>
+                      <span class="sig-ai-summary-meta" *ngIf="ai.totalTokens != null"
+                        >{{ ai.totalTokens }} tokens</span
+                      >
+                      <span class="sig-ai-summary-meta" *ngIf="ai.estimatedCostUsd != null"
+                        >${{ fmtAiNumber(ai.estimatedCostUsd, 4) }}</span
+                      >
+                      <span class="sig-ai-summary-meta sig-ai-summary-ts">
+                        {{ fmtAiTimestamp(ai.evaluatedAt) }}
+                      </span>
                     </div>
-                    <p class="sig-ai-headline" *ngIf="hold.headline"><strong>{{ hold.headline }}</strong></p>
-                    <p class="sig-ai-summary-why" *ngIf="hold.why">{{ hold.why }}</p>
-                  </div>
-
-                  <div class="sig-ai-history-block">
-                    <strong class="sig-ai-history-title">AI history</strong>
-                    <p *ngIf="aiHistoryState(row.instanceKey)?.status === 'loading'" class="sig-ai-empty">
-                      Loading history…
+                    <p class="sig-ai-headline" *ngIf="ai.headline">
+                      <strong>{{ ai.headline }}</strong>
                     </p>
-                    <p *ngIf="aiHistoryState(row.instanceKey) as histErr">
-                      <span *ngIf="histErr.status === 'error'" class="sig-ai-empty">{{ histErr.message }}</span>
+                    <p class="sig-ai-summary-why" *ngIf="ai.whyNow || ai.summary">
+                      {{ ai.whyNow || ai.summary }}
                     </p>
-                    <ul
-                      class="sig-ai-history-list"
-                      *ngIf="aiHistoryState(row.instanceKey)?.status === 'ok'"
-                    >
-                      <li *ngFor="let h of aiHistoryState(row.instanceKey)?.rows || []">
-                        <button
-                          type="button"
-                          class="sig-ai-history-item"
-                          (click)="toggleHistoryDetail(h.id)"
-                          [attr.aria-expanded]="aiHistoryExpandedId() === h.id"
-                        >
-                          <span class="sig-ai-history-meta">
-                            <span class="sig-ai-history-ts">{{ fmtAiTimestamp(h.tsUtc) }}</span>
-                            <span class="sig-ai-history-stage">{{ h.stage }}</span>
-                            <span
-                              class="sig-ai-action-chip"
-                              [ngClass]="aiActionClassOfPublic(h.decision)"
-                              >{{ h.decision }}</span
-                            >
-                            <span class="sig-ai-history-model" *ngIf="h.model">{{ h.model }}</span>
-                            <span class="sig-ai-history-usage" *ngIf="h.totalTokens != null"
-                              >{{ h.totalTokens }} tok</span
-                            >
-                            <span class="sig-ai-history-usage" *ngIf="h.estimatedCostUsd != null"
-                              >${{ fmtAiNumber(h.estimatedCostUsd, 4) }}</span
-                            >
-                          </span>
-                          <span class="sig-ai-history-headline" *ngIf="h.headline">{{ h.headline }}</span>
-                        </button>
-                        <pre
-                          *ngIf="aiHistoryExpandedId() === h.id && h.recommendation"
-                          class="sig-ai-history-detail"
-                          >{{ h.recommendation | json }}</pre
-                        >
-                      </li>
-                      <li *ngIf="!(aiHistoryState(row.instanceKey)?.rows || []).length" class="sig-ai-empty">
-                        No history docs yet (run AI entry eval).
+                    <dl class="sig-ai-scores-grid">
+                      <dt *ngIf="ai.entry">Entry</dt>
+                      <dd *ngIf="ai.entry">
+                        {{ ai.entry.min != null ? fmtUsd(ai.entry.min) : '—' }} →
+                        <strong>{{ ai.entry.ideal != null ? fmtUsd(ai.entry.ideal) : '—' }}</strong>
+                        → {{ ai.entry.max != null ? fmtUsd(ai.entry.max) : '—' }}
+                      </dd>
+                      <dt *ngIf="ai.stop != null">Stop</dt>
+                      <dd *ngIf="ai.stop != null">{{ fmtUsd(ai.stop) }}</dd>
+                      <dt *ngIf="ai.target != null">Target</dt>
+                      <dd *ngIf="ai.target != null">{{ fmtUsd(ai.target) }}</dd>
+                      <dt *ngIf="ai.holdDays != null">Hold days</dt>
+                      <dd *ngIf="ai.holdDays != null">{{ ai.holdDays }}</dd>
+                      <dt *ngIf="ai.invalidation">Invalidation</dt>
+                      <dd *ngIf="ai.invalidation">{{ ai.invalidation }}</dd>
+                    </dl>
+                    <ul class="sig-ai-checklist" *ngIf="ai.checklist.length > 0">
+                      <li *ngFor="let c of ai.checklist" [class.pass]="c.pass" [class.fail]="!c.pass">
+                        {{ c.pass ? '✓' : '✗' }} {{ c.label }}
                       </li>
                     </ul>
+
+                    <div class="sig-holding-block" *ngIf="holdingAdviceForRow(row) as hold">
+                      <strong>Holding advice</strong>
+                      <div class="sig-ai-summary-head">
+                        <span class="sig-ai-action-chip" [ngClass]="aiActionClassOfPublic(hold.advice)">{{
+                          hold.advice
+                        }}</span>
+                        <span class="sig-ai-summary-meta" *ngIf="hold.riskLevel">risk: {{ hold.riskLevel }}</span>
+                        <span class="sig-ai-summary-meta" *ngIf="row.s['paper_status']"
+                          >paper: {{ row.s['paper_status'] }}</span
+                        >
+                      </div>
+                      <p class="sig-ai-headline" *ngIf="hold.headline"><strong>{{ hold.headline }}</strong></p>
+                      <p class="sig-ai-summary-why" *ngIf="hold.why">{{ hold.why }}</p>
+                    </div>
+
+                    <div class="sig-ai-history-block">
+                      <strong class="sig-ai-history-title">AI history</strong>
+                      <p *ngIf="aiHistoryState(row.instanceKey)?.status === 'loading'" class="sig-ai-empty">
+                        Loading history…
+                      </p>
+                      <p *ngIf="aiHistoryState(row.instanceKey) as histErr">
+                        <span *ngIf="histErr.status === 'error'" class="sig-ai-empty">{{ histErr.message }}</span>
+                      </p>
+                      <ul
+                        class="sig-ai-history-list"
+                        *ngIf="aiHistoryState(row.instanceKey)?.status === 'ok'"
+                      >
+                        <li *ngFor="let h of aiHistoryState(row.instanceKey)?.rows || []">
+                          <button
+                            type="button"
+                            class="sig-ai-history-item"
+                            (click)="toggleHistoryDetail(h.id)"
+                            [attr.aria-expanded]="aiHistoryExpandedId() === h.id"
+                          >
+                            <span class="sig-ai-history-meta">
+                              <span class="sig-ai-history-ts">{{ fmtAiTimestamp(h.tsUtc) }}</span>
+                              <span class="sig-ai-history-stage">{{ h.stage }}</span>
+                              <span
+                                class="sig-ai-action-chip"
+                                [ngClass]="aiActionClassOfPublic(h.decision)"
+                                >{{ h.decision }}</span
+                              >
+                              <span class="sig-ai-history-model" *ngIf="h.model">{{ h.model }}</span>
+                              <span class="sig-ai-history-usage" *ngIf="h.totalTokens != null"
+                                >{{ h.totalTokens }} tok</span
+                              >
+                              <span class="sig-ai-history-usage" *ngIf="h.estimatedCostUsd != null"
+                                >${{ fmtAiNumber(h.estimatedCostUsd, 4) }}</span
+                              >
+                            </span>
+                            <span class="sig-ai-history-headline" *ngIf="h.headline">{{ h.headline }}</span>
+                          </button>
+                          <pre
+                            *ngIf="aiHistoryExpandedId() === h.id && h.recommendation"
+                            class="sig-ai-history-detail"
+                            >{{ h.recommendation | json }}</pre
+                          >
+                        </li>
+                        <li *ngIf="!(aiHistoryState(row.instanceKey)?.rows || []).length" class="sig-ai-empty">
+                          No history docs yet (run AI entry eval).
+                        </li>
+                      </ul>
+                    </div>
                   </div>
-                </div>
-              </ng-container>
-              <ng-template #noAi>
-                <p class="sig-ai-empty">
-                  No AI evaluation yet for this signal.
-                </p>
-              </ng-template>
+                </ng-container>
+                <ng-template #noAi>
+                  <p class="sig-ai-empty">
+                    No AI evaluation yet for this signal.
+                  </p>
+                </ng-template>
+              </div>
+              
             </td>
           </tr>
+
           <tr *ngIf="row.kind === 'form'" class="signals-inline-form-tr">
             <td colspan="10" class="signals-inline-form-cell">
               <div
