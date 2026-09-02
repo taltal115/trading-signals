@@ -192,6 +192,22 @@ class AiConfig:
 
 
 @dataclass(frozen=True)
+class ResearchConfig:
+    """Configuration for Massive.com AI research layer."""
+    enabled: bool = False
+    max_research_per_run: int = 5
+    model: str = "gpt-5.4"
+    news_days_back: int = 7
+    news_limit: int = 20
+    events_days_back: int = 30
+    risk_limit: int = 10
+    cache_hours: int = 24
+    research_weight: float = 0.3
+    min_research_confidence: float = 70.0
+    fallback_on_failure: bool = True
+
+
+@dataclass(frozen=True)
 class RunSummary:
     run: RunConfig
     universe: UniverseConfig
@@ -215,6 +231,7 @@ class AppConfig:
     ibkr: IbkrConfig
     ibkr_scanner: IbkrScannerConfig
     ai: AiConfig = AiConfig()
+    research: ResearchConfig = ResearchConfig()
 
     def tz(self) -> ZoneInfo:
         return ZoneInfo(self.run.timezone)
@@ -329,6 +346,7 @@ def load_config(config_path: Path) -> AppConfig:
     slack_raw = raw.get("slack", {}) or {}
     logging_raw = raw.get("logging", {}) or {}
     ai_raw = raw.get("ai", {}) or {}
+    research_raw = raw.get("research", {}) or {}
 
     data_provider_order = data_raw.get("provider_order") or ["polygon", "yahoo", "stooq"]
     _raw_stooq = data_raw.get("stooq_api_key")
@@ -475,6 +493,19 @@ def load_config(config_path: Path) -> AppConfig:
             location_code=str((universe_raw.get("ibkr_scanner") or {}).get("location_code", "STK.US.MAJOR")),
         ),
         ai=ai_cfg,
+        research=ResearchConfig(
+            enabled=bool(research_raw.get("enabled", False)),
+            max_research_per_run=int(research_raw.get("max_research_per_run", 5)),
+            model=str(research_raw.get("model", "gpt-5.4")),
+            news_days_back=int(research_raw.get("news_days_back", 7)),
+            news_limit=int(research_raw.get("news_limit", 20)),
+            events_days_back=int(research_raw.get("events_days_back", 30)),
+            risk_limit=int(research_raw.get("risk_limit", 10)),
+            cache_hours=int(research_raw.get("cache_hours", 24)),
+            research_weight=float(research_raw.get("research_weight", 0.3)),
+            min_research_confidence=float(research_raw.get("min_research_confidence", 70.0)),
+            fallback_on_failure=bool(research_raw.get("fallback_on_failure", True)),
+        ),
     )
     return cfg
 
