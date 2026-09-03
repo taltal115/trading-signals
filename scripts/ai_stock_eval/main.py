@@ -47,6 +47,11 @@ from .firestore_write import (
 from .llm import OpenAIHttpError, call_openai_json, normalize_verdict
 from .prompts import get_entry_prompts
 from .recommendation import build_recommendation, resolve_ai_gate
+from .research_integration import (
+    adjust_ai_gate_with_research,
+    enrich_context_with_research,
+    research_enabled,
+)
 from .score import compute_total_score
 from .verify_context import format_github_annotation, verify_eval_context
 
@@ -151,6 +156,15 @@ def evaluate_one(
 ) -> int:
     system_prompt, user_template = get_entry_prompts()
     ctx = build_context(ticker=ticker, cfg=cfg, candidate_score=candidate_score)
+    
+    research_data = {}
+    if research_enabled(cfg):
+        try:
+            research_data = enrich_context_with_research(ticker, ctx, cfg)
+        except Exception as e:
+            log.error("Research enrichment failed for %s: %s", ticker, e)
+            research_data = {"research_available": False, "research_error": str(e)}
+    
     feats, strategy_results, best_strategy, placeholders = build_features_strategy_and_placeholders(
         ctx=ctx,
         cfg=cfg,
@@ -320,6 +334,14 @@ def evaluate_one(
         entry_min_total=entry_min_total,
         entry_min_conviction=entry_min_conviction,
     )
+    
+    if research_data.get("research_available"):
+        ai_gate, recommendation = adjust_ai_gate_with_research(
+            ai_gate=ai_gate,
+            recommendation=recommendation,
+            research_data=research_data,
+            cfg=cfg,
+        )
 
     provider_status = build_provider_status_dict(
         ctx, candidate_from_firestore=candidate_from_firestore
