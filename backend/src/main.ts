@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import cookieParser from 'cookie-parser';
 import type { NextFunction, Request, Response } from 'express';
 import session from 'express-session';
@@ -10,6 +11,7 @@ import { FirestoreService } from './firebase/firestore.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.useWebSocketAdapter(new IoAdapter(app));
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 

@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, computed, effect, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { HttpParams } from '@angular/common/http';
@@ -7,6 +7,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { Subscription, switchMap, catchError, of, tap, firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
 import { MarketDataService } from '../../core/market-data.service';
+import { MarketQuotesWsService } from '../../core/market-quotes-ws.service';
 import { OpenPositionService } from '../../core/open-position.service';
 import { PositionsStoreService } from '../../core/positions-store.service';
 import { SignalsNewBadgeService } from '../../core/signals-new-badge.service';
@@ -366,6 +367,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   private readonly fb = inject(FormBuilder);
   private readonly authSvc = inject(AuthService);
   private readonly market = inject(MarketDataService);
+  private readonly quotesWs = inject(MarketQuotesWsService);
   private readonly openPos = inject(OpenPositionService);
   private readonly positionsStore = inject(PositionsStoreService);
   readonly signalsBadge = inject(SignalsNewBadgeService);
@@ -389,6 +391,22 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   readonly liveByTicker = signal<Record<string, string>>({});
   /** Last fetched raw price for comparison (e.g. vs signal close in Log Buy form). */
   readonly livePriceNumByTicker = signal<Record<string, number>>({});
+
+  /** Mirror Massive delayed WS ticks into the live-price columns. */
+  private readonly syncLiveFromWs = effect(() => {
+    const prices = this.quotesWs.priceByTicker();
+    const fmt: Record<string, string> = {};
+    const nums: Record<string, number> = {};
+    for (const [sym, p] of Object.entries(prices)) {
+      if (!Number.isFinite(p) || p <= 0) continue;
+      nums[sym] = p;
+      fmt[sym] = fmtUsd(p);
+    }
+    if (!Object.keys(nums).length) return;
+    this.livePriceNumByTicker.update((m) => ({ ...m, ...nums }));
+    this.liveByTicker.update((m) => ({ ...m, ...fmt }));
+  });
+
   readonly inlineLiveRefreshing = signal(false);
   readonly inlineKey = signal<string | null>(null);
   readonly inlineExpanded = signal(false);
@@ -619,20 +637,21 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Fetch live prices for all unique tickers in the loaded signals.
-   * Called automatically after signals load to populate the table.
+   * Subscribe Massive delayed WS only for tickers on the current page.
+   * Replaces prior page set (Nest unsubscribes dropped symbols).
    */
-  private fetchAllLivePrices(rows: SignalInstanceRow[]): void {
-    const tickers = new Set<string>();
+  private syncPageLiveQuotes(rows: SignalInstanceRow[]): void {
+    const tickers: string[] = [];
+    const seen = new Set<string>();
     for (const r of rows) {
       const t = String(r.signal['ticker'] || '')
         .trim()
         .toUpperCase();
-      if (t) tickers.add(t);
+      if (!t || seen.has(t)) continue;
+      seen.add(t);
+      tickers.push(t);
     }
-    for (const sym of tickers) {
-      void this.refreshLive(sym);
-    }
+    this.quotesWs.setPageSymbols(tickers);
   }
 
   private fetchSignalsPage(cursor: string | undefined): void {
@@ -698,7 +717,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     this.inlineExpanded.set(false);
     this.bracketPct.set(null);
     this.signalsBadge.recompute(this.docsForBadge());
-    this.fetchAllLivePrices(rows);
+    this.syncPageLiveQuotes(rows);
   }
 
   onPageSizeChange(raw: string): void {
@@ -742,6 +761,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.sub?.unsubscribe();
+    this.quotesWs.clear();
   }
 
   confClass(conf: unknown): string {
@@ -947,6 +967,15 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   liveDisplay(ticker: string): string {
     const k = ticker.trim().toUpperCase();
     return this.liveByTicker()[k] ?? '—';
+  }
+
+  /** Numeric live price for hold-chart overlay (null if unknown). */
+  livePriceNum(ticker: unknown): number | null {
+    const k = String(ticker || '')
+      .trim()
+      .toUpperCase();
+    const v = this.livePriceNumByTicker()[k];
+    return v != null && Number.isFinite(v) && v > 0 ? v : null;
   }
 
   /**

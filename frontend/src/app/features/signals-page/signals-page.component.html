@@ -295,6 +295,7 @@
                 [ticker]="str(row.s['ticker'])"
                 [asofDate]="row.asofDate"
                 [entryPrice]="entryPriceNum(row.s['close'])"
+                [livePrice]="livePriceNum(row.s['ticker'])"
               />
             </td>
           </tr>
