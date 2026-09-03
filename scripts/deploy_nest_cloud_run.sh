@@ -59,7 +59,7 @@ echo "Project=$PROJECT Region=$REGION Service=$SERVICE"
 gcloud config set project "$PROJECT"
 
 # describe can fail with PERMISSION_DENIED even when the repo exists (e.g. Firebase Admin SA).
-# Treat ALREADY_EXISTS as success so create is idempotent.
+# Create is best-effort / idempotent: ALREADY_EXISTS or create-denied → continue (repo must already exist).
 if ! gcloud artifacts repositories describe cloud-run --location="${REGION}" >/dev/null 2>&1; then
   echo "Creating Artifact Registry repo 'cloud-run' in ${REGION} (if missing)..."
   create_out="$(
@@ -69,8 +69,10 @@ if ! gcloud artifacts repositories describe cloud-run --location="${REGION}" >/d
       --description="Trading signals Nest API" 2>&1
   )" && create_rc=0 || create_rc=$?
   if [[ "${create_rc}" -ne 0 ]]; then
-    if echo "${create_out}" | grep -qi 'ALREADY_EXISTS'; then
-      echo "Artifact Registry repo 'cloud-run' already exists — continuing."
+    if echo "${create_out}" | grep -qiE 'ALREADY_EXISTS|PERMISSION_DENIED'; then
+      echo "Skipping Artifact Registry create (repo exists or this SA cannot create)."
+      echo "  Continuing — push/deploy still need Artifact Registry Writer + Cloud Run rights."
+      echo "  Prefer GitHub secret GCP_SA_KEY with a deploy SA (see docs/deploy-github-actions.md)."
     else
       echo "${create_out}" >&2
       exit "${create_rc}"
