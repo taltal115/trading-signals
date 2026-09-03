@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Deploy frontend (Angular → Firebase Hosting) or backend (Nest → Cloud Run).
 # Run from anywhere:  bash scripts/deploy.sh fe | be
+# CI: on merge to main, .github/workflows/deploy-on-main.yml deploys FE/BE by path
+# (see docs/deploy-github-actions.md).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
