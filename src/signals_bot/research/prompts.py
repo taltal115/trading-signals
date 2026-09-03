@@ -1,5 +1,9 @@
 """Prompts for AI research synthesis."""
 
+from __future__ import annotations
+
+from typing import Any
+
 RESEARCH_SYSTEM_PROMPT = """You are an expert stock market analyst specializing in short-term (1-2 week) breakout momentum trading.
 
 Your task is to analyze fundamental and news data to determine if a stock that passed technical breakout filters is a good short-term entry candidate.

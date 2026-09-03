@@ -47,4 +47,4 @@ From Massive.com ($30/month):
 ## See Also
 
 - [Full Documentation](../../../docs/massive-research-layer.md)
-- [Test Script](../../../scripts/test_research.py)
+- [Test Script](../../../scripts/run_research_smoke.py)

@@ -101,10 +101,10 @@ Test research on a specific ticker:
 
 ```bash
 # Basic usage
-python scripts/test_research.py AAPL
+python scripts/run_research_smoke.py AAPL
 
 # With custom parameters
-python scripts/test_research.py TSLA \
+python scripts/run_research_smoke.py TSLA \
   --model gpt-5.4 \
   --news-days 14 \
   --price 250.0 \
@@ -112,10 +112,10 @@ python scripts/test_research.py TSLA \
   --vol-ratio 4.2
 
 # Fetch data only (no AI)
-python scripts/test_research.py NVDA --no-ai --json
+python scripts/run_research_smoke.py NVDA --no-ai --json
 
 # Verbose logging
-python scripts/test_research.py MSFT -v
+python scripts/run_research_smoke.py MSFT -v
 ```
 
 ## Module Structure
@@ -381,7 +381,7 @@ python --version
 
 Check if the API key is valid:
 ```bash
-python scripts/test_research.py AAPL --no-ai
+python scripts/run_research_smoke.py AAPL --no-ai
 ```
 
 ### "OpenAI rate limit"
@@ -422,7 +422,7 @@ Research calls are paced 15s apart. If still hitting limits:
 
 For issues or questions:
 1. Check logs: `tail -f logs/signals_bot.log`
-2. Test standalone: `python scripts/test_research.py AAPL -v`
+2. Test standalone: `python scripts/run_research_smoke.py AAPL -v`
 3. Review config: `cat config.yaml | grep -A 20 research:`
 
 ---

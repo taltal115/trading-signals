@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Standalone test script for Massive.com AI research layer.
+"""Standalone smoke script for Massive.com AI research layer.
 
 Usage:
-    python scripts/test_research.py AAPL
-    python scripts/test_research.py TSLA --model gpt-5.4-mini
-    python scripts/test_research.py NVDA --news-days 14 --verbose
+    python scripts/run_research_smoke.py AAPL
+    python scripts/run_research_smoke.py TSLA --model gpt-5.4-mini
+    python scripts/run_research_smoke.py NVDA --news-days 14 --verbose
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
         format="%(levelname)s [%(name)s] %(message)s",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    return logging.getLogger("test_research")
+    return logging.getLogger("run_research_smoke")
 
 
 def main() -> int:

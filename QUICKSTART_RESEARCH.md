@@ -42,13 +42,13 @@ pip install massive-py
 
 ```bash
 # Test research on a single ticker
-python scripts/test_research.py AAPL
+python scripts/run_research_smoke.py AAPL
 
 # Test with more details
-python scripts/test_research.py TSLA --verbose
+python scripts/run_research_smoke.py TSLA --verbose
 
 # Fetch data only (no AI)
-python scripts/test_research.py NVDA --no-ai
+python scripts/run_research_smoke.py NVDA --no-ai
 ```
 
 אם הכל עובד, תראה:
@@ -196,7 +196,7 @@ pip install massive-py
 
 שאלות? תריץ:
 ```bash
-python scripts/test_research.py --help
+python scripts/run_research_smoke.py --help
 ```
 
 או תקרא:
