@@ -21,6 +21,7 @@ Your app uses **5 primary market data providers** across **3 layers**:
 | Provider | Type | Python Bot | Nest API | Frontend | Status |
 |----------|------|------------|----------|----------|--------|
 | **Massive (Polygon)** | REST API | ✅ Primary | ✅ Primary | Indirect via API | **Active** |
+| **Massive (Polygon) WS** | Delayed WebSocket (AM) | ❌ | ✅ Hub | Socket.IO via Nest | **Active (Signals live price)** |
 | **Yahoo Finance** | SDK (yfinance) | ✅ Fallback #1 | ❌ | ❌ | Active |
 | **Stooq** | CSV API | ✅ Fallback #2 | ❌ | ❌ | Active |
 | **Finnhub** | SDK (finnhub-python) | Discovery only | ✅ Fallback | Indirect via API | Active |
