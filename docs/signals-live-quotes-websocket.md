@@ -55,6 +55,9 @@ Angular Signals page
 
 ## Deploy notes
 
-- Firebase Hosting rewrite `/api/**` → Cloud Run already covers `/api/socket.io`.
+- Firebase Hosting rewrite `/api/**` → Cloud Run covers `/api/socket.io` for **HTTP**.
+- The browser on `*.web.app` / `*.firebaseapp.com` uses Socket.IO **HTTP polling only**. Hosting cannot complete the WebSocket upgrade (`wss://…/api/socket.io` failed). Polling still streams quotes.
+- Local `ng serve` still prefers WebSocket (`proxy.conf.json` has `"ws": true`).
+- `contentscript.js` MaxListeners / ObjectMultiplex lines are a **browser extension** (e.g. MetaMask), not this app.
 - Set `POLYGON_WS_REALTIME=true` on Cloud Run when the key is Stocks Advanced.
-- Prefer **session affinity** on Cloud Run if you run multiple instances (Socket.IO sticky).
+- Cloud Run deploy enables **session affinity** (Socket.IO polling is sticky across instances).

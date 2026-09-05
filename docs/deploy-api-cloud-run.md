@@ -61,10 +61,11 @@ gcloud run deploy "$SERVICE" \
   --region "$REGION" \
   --platform managed \
   --allow-unauthenticated \
+  --session-affinity \
   --port 8080
 ```
 
-`--allow-unauthenticated` is normal: your app still enforces sessions on protected routes; Google’s edge handles TLS only.
+`--allow-unauthenticated` is normal: your app still enforces sessions on protected routes; Google’s edge handles TLS only. `--session-affinity` keeps Socket.IO polling on the same instance.
 
 ## 3. Environment variables and secrets
 

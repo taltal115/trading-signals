@@ -71,10 +71,17 @@ export class MarketQuotesWsService implements OnDestroy {
     const base = (environment.apiBaseUrl || '').replace(/\/$/, '');
     // Same-origin in prod (Hosting rewrite); empty base → current origin in ng serve proxy.
     const url = base || undefined;
+    const host = typeof location !== 'undefined' ? location.hostname : '';
+    const behindHosting =
+      host.endsWith('.web.app') || host.endsWith('.firebaseapp.com');
+    // Hosting → Cloud Run rewrites HTTP, but the WebSocket upgrade fails
+    // (`wss://…/api/socket.io`). Stay on polling so live quotes still work.
     const socket = io(`${url || ''}/market-quotes`, {
       path: '/api/socket.io',
       withCredentials: true,
-      transports: ['websocket', 'polling'],
+      transports: behindHosting ? ['polling'] : ['websocket', 'polling'],
+      upgrade: !behindHosting,
+      rememberUpgrade: false,
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1500,

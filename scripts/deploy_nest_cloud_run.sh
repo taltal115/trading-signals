@@ -108,6 +108,7 @@ gcloud run deploy "${SERVICE}" \
   --region "${REGION}" \
   --platform managed \
   --allow-unauthenticated \
+  --session-affinity \
   --port 8080
 
 echo ""
