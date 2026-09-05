@@ -89,19 +89,23 @@ strategy:
   vol_ratio_min: 2.0            # was 3.0; volume / avg20 volume
 
   # Hard rejects (2026-08): downgrade BUY→WAIT before Firestore / AI / Slack.
-  # 2026-08-10 follow-up: KEEP — HYFM (−25.6%) confirms lottery channel still toxic.
-  # Do not loosen for one-off winners like LIFE (+38%, conf 100 / vol 3.6×).
+  # 2026-08-10 follow-up: KEEP lottery gates — HYFM (−25.6%) confirms vol/ret extremes stay toxic.
+  # 2026-09: disable conf-only hard reject (0). Aug 2026 starve: in-band names with conf≥98
+  # were killed even when not lottery. Ranking still penalizes conf≥98 via
+  # high_confidence_risk_threshold. Do not loosen lottery (ret_5d≥50 / vol≥5×).
   # 0 disables each gate.
-  hard_reject_confidence_min: 98      # reject if conf >= this
-  hard_reject_ret_5d_min_pct: 50.0    # reject if ret_5d >= this
-  hard_reject_vol_ratio_min: 5.0      # reject if vol_ratio >= this
-  # Continuation lane required for actionable BUY (ret_5d 10–20%, vol [2, 3)).
-  # 2026-08-10 follow-up: KEEP — 5/5 mature winners in-band (+3.9% avg).
+  hard_reject_confidence_min: 0       # 0 = disabled; ranking still penalizes conf≥98
+  hard_reject_ret_5d_min_pct: 50.0    # reject if ret_5d >= this (lottery)
+  hard_reject_vol_ratio_min: 5.0      # reject if vol_ratio >= this (lottery)
+  # Continuation lane required for actionable BUY (ret_5d 10–25%, vol [2, 3.5)).
+  # 2026-08-10: keep the lane (do not drop require_continuation_band).
+  # 2026-09: widen to match ret_5d_max_pct 25 and a slightly looser exclusive vol cap
+  # so the scanner is not starved vs the overextension ceiling. Do not reopen lottery.
   require_continuation_band: true
   continuation_ret_5d_min_pct: 10.0
-  continuation_ret_5d_max_pct: 20.0
+  continuation_ret_5d_max_pct: 25.0
   continuation_vol_ratio_min: 2.0
-  continuation_vol_ratio_max: 3.0     # exclusive upper bound
+  continuation_vol_ratio_max: 3.5     # exclusive upper bound
 
   # BUY must meet breakout rules AND reach this confidence (0 = disabled).
   # Backtest showed confidence is NOT predictive of returns, so the high 85 floor

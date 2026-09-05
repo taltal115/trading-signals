@@ -498,9 +498,9 @@ def main(argv: list[str] | None = None) -> int:
         conf_pref_min = int(getattr(strat, "prefer_confidence_min", 90) if strat else 90)
         conf_pref_max = int(getattr(strat, "prefer_confidence_max", 94) if strat else 94)
         cont_ret_min = float(getattr(strat, "continuation_ret_5d_min_pct", 10.0) if strat else 10.0)
-        cont_ret_max = float(getattr(strat, "continuation_ret_5d_max_pct", 20.0) if strat else 20.0)
+        cont_ret_max = float(getattr(strat, "continuation_ret_5d_max_pct", 25.0) if strat else 25.0)
         cont_vol_min = float(getattr(strat, "continuation_vol_ratio_min", 2.0) if strat else 2.0)
-        cont_vol_max = float(getattr(strat, "continuation_vol_ratio_max", 3.0) if strat else 3.0)
+        cont_vol_max = float(getattr(strat, "continuation_vol_ratio_max", 3.5) if strat else 3.5)
         top_n = int(getattr(ai_cfg, "max_entry_evals_per_run", 5) if ai_cfg else 5)
         top_n = max(0, top_n)
 
