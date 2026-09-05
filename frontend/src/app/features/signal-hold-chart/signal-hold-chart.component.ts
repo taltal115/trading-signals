@@ -16,9 +16,10 @@ import {
   candleProviderLabel,
   isProviderQuotaError,
   type CandleProviderId,
+  type HourlyCandles,
 } from '../../core/market-data.service';
 import { drawHoldLineChart, lastIndexAtOrBefore, type HoldLineHit } from '../../core/hold-line-chart.util';
-import { computeSignalHoldWindow } from '../../core/signal-hold-window';
+import { computeSignalHoldWindow, type SignalHoldWindow } from '../../core/signal-hold-window';
 import { fmtUsd } from '../../core/positions-logic';
 
 @Component({
@@ -34,6 +35,8 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
   @Input({ required: true }) ticker!: string;
   @Input({ required: true }) asofDate!: string;
   @Input({ required: true }) entryPrice!: number;
+  /** Massive delayed WS last price for this ticker (page-scoped); overlays in-progress hold. */
+  @Input() livePrice: number | null = null;
 
   @ViewChild('canvasEl') canvasRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('tipEl') tipRef?: ElementRef<HTMLDivElement>;
@@ -56,6 +59,9 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
   private ro?: ResizeObserver;
   private resizeDebounce?: ReturnType<typeof setTimeout>;
   private loadGen = 0;
+  private clipped: HourlyCandles | null = null;
+  private win: SignalHoldWindow | null = null;
+  private lastDrawnLive: number | null = null;
 
   ngAfterViewInit(): void {
     this.viewReady = true;
@@ -76,6 +82,10 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
       (changes['ticker'] || changes['asofDate'] || changes['entryPrice'])
     ) {
       void this.load();
+      return;
+    }
+    if (this.viewReady && changes['livePrice'] && this.clipped && this.win?.inProgress) {
+      this.redrawWithLive();
     }
   }
 
@@ -103,6 +113,9 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
     this.progressCaption.set('');
     this.detachCanvasListeners();
     this.tipVisible = false;
+    this.clipped = null;
+    this.win = null;
+    this.lastDrawnLive = null;
 
     const sym = String(this.ticker || '')
       .trim()
@@ -133,7 +146,7 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
 
       // Drop any bars after planned exit (provider may overshoot).
       const exitCut = lastIndexAtOrBefore(candles.t, win.exitMs);
-      const clipped = {
+      const clipped: HourlyCandles = {
         t: candles.t.slice(0, exitCut + 1),
         o: candles.o.slice(0, exitCut + 1),
         h: candles.h.slice(0, exitCut + 1),
@@ -145,22 +158,13 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
         throw new Error('Not enough hourly bars in the hold window');
       }
 
-      const exitIdx = lastIndexAtOrBefore(clipped.t, win.exitMs);
-      const exitPrice =
-        !win.inProgress && clipped.c.length ? clipped.c[exitIdx] : null;
-
-      const { hits } = drawHoldLineChart(canvas, clipped, {
-        entryMs: win.entryMs,
-        exitMs: win.exitMs,
-        entryPrice: entry,
-        exitPrice,
-        inProgress: win.inProgress,
-      });
-      this.hits = hits;
+      this.clipped = clipped;
+      this.win = win;
+      this.paint(canvas, clipped, win, entry);
       this.providerLabel.set(candleProviderLabel(candles.provider as CandleProviderId));
       this.progressCaption.set(
         win.inProgress
-          ? '3 trading-day hold in progress (hourly closes through now)'
+          ? '3 trading-day hold in progress (hourly + Massive delayed live)'
           : '3 trading-day hold window complete'
       );
 
@@ -178,6 +182,49 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
     } finally {
       if (gen === this.loadGen) this.loading.set(false);
     }
+  }
+
+  private redrawWithLive(): void {
+    const canvas = this.canvasRef?.nativeElement;
+    const clipped = this.clipped;
+    const win = this.win;
+    if (!canvas || !clipped || !win?.inProgress) return;
+    const live = Number(this.livePrice);
+    if (!Number.isFinite(live) || live <= 0) return;
+    if (this.lastDrawnLive != null && Math.abs(this.lastDrawnLive - live) < 1e-6) return;
+    this.lastDrawnLive = live;
+
+    const next: HourlyCandles = {
+      t: clipped.t.slice(),
+      o: clipped.o.slice(),
+      h: clipped.h.slice(),
+      l: clipped.l.slice(),
+      c: clipped.c.slice(),
+      provider: clipped.provider,
+    };
+    const last = next.c.length - 1;
+    next.c[last] = live;
+    next.h[last] = Math.max(next.h[last], live);
+    next.l[last] = Math.min(next.l[last], live);
+    this.paint(canvas, next, win, Number(this.entryPrice));
+  }
+
+  private paint(
+    canvas: HTMLCanvasElement,
+    candles: HourlyCandles,
+    win: SignalHoldWindow,
+    entry: number,
+  ): void {
+    const exitIdx = lastIndexAtOrBefore(candles.t, win.exitMs);
+    const exitPrice = !win.inProgress && candles.c.length ? candles.c[exitIdx] : null;
+    const { hits } = drawHoldLineChart(canvas, candles, {
+      entryMs: win.entryMs,
+      exitMs: win.exitMs,
+      entryPrice: entry,
+      exitPrice,
+      inProgress: win.inProgress,
+    });
+    this.hits = hits;
   }
 
   private onMouseMove(e: MouseEvent, canvas: HTMLCanvasElement): void {

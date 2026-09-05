@@ -194,3 +194,27 @@ ai:
       prompt_per_1m: 30.0
       completion_per_1m: 180.0
 
+# AI Research Layer (Massive.com fundamental data)
+research:
+  enabled: false  # Set to true to enable research layer (requires MASSIVE_API_KEY)
+  # Max signals to research per run (top-ranked BUYs only)
+  max_research_per_run: 5
+  # Research model (can be same as entry_model or different)
+  model: gpt-5.4
+  # News lookback period (days)
+  news_days_back: 7
+  # Max news articles to fetch per ticker
+  news_limit: 20
+  # Material events lookback (days)
+  events_days_back: 30
+  # Max risk factors to fetch
+  risk_limit: 10
+  # Cache research results for this many hours (avoid re-fetching same data)
+  cache_hours: 24
+  # Research score weight in final AI gate decision (0.0 = ignore research, 1.0 = equal weight)
+  research_weight: 0.3
+  # Minimum research confidence to boost AI gate pass (0-100)
+  min_research_confidence: 70
+  # Fail gracefully if Massive API is down (continue without research)
+  fallback_on_failure: true
+

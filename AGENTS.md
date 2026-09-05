@@ -55,6 +55,8 @@ cd backend && npm ci && npm run start:dev
 | Research notes | `docs/research/YYYY-MM/` |
 | Research UI (cohort runs) | `frontend/.../research-page/`, `scripts/run_ui_profit_hold_research.py`, Firestore `research_runs` |
 | Bot strategy docs | `docs/bot-logic-and-strategy.md` |
+| Deploy (local) | `./scripts/deploy.sh fe` / `be` — see `docs/deploy-api-cloud-run.md` |
+| Deploy (CI on main) | `.github/workflows/deploy-on-main.yml` + quality gate — see `docs/deploy-github-actions.md` |
 
 ## Cursor primitives in this repo
 

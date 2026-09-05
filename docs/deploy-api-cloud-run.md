@@ -24,6 +24,8 @@ Override defaults if needed: `GCP_PROJECT=… GCP_REGION=us-central1 CLOUD_RUN_S
 
 Then set **environment variables / secrets** on the Cloud Run service (step 3 below), then run `firebase deploy --only hosting`.
 
+**CI:** merges to `main` can deploy automatically (path-based FE/BE). See [deploy-github-actions.md](./deploy-github-actions.md).
+
 ## Why Hosting rewrites `/api`
 
 Keeping `apiBaseUrl: ''` in the Angular production build means the browser calls `https://<your-site>/api/...`. Firebase Hosting forwards those requests to your Cloud Run service. You get one origin, so session cookies and Google OAuth redirects stay consistent.

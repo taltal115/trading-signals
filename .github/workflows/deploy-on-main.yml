@@ -1,0 +1,208 @@
+name: Deploy on main
+
+# After merge to main: quality gate → detect FE/BE paths → deploy only what changed.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_target:
+        description: "What to deploy (auto = path detection)"
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - fe
+          - be
+          - both
+          - none
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  detect:
+    name: Detect deploy targets
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.resolve.outputs.frontend }}
+      backend: ${{ steps.resolve.outputs.backend }}
+      summary: ${{ steps.resolve.outputs.summary }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Path filter (push range)
+        if: github.event_name == 'push'
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          # Compare this push to its parent(s) so multi-commit merges work.
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'scripts/deploy_nest_cloud_run.sh'
+            frontend:
+              - 'frontend/**'
+              - 'firebase.json'
+              - '.firebaserc'
+              - 'web/legacy-vanilla/**'
+
+      - name: Resolve targets
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL: ${{ github.event.inputs.deploy_target || 'auto' }}
+          FILTER_BE: ${{ steps.filter.outputs.backend || '' }}
+          FILTER_FE: ${{ steps.filter.outputs.frontend || '' }}
+        run: |
+          set -euo pipefail
+          be=false
+          fe=false
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            case "$MANUAL" in
+              be) be=true ;;
+              fe) fe=true ;;
+              both) be=true; fe=true ;;
+              none) ;;
+              auto)
+                # Manual auto: deploy both (safe default when no push range).
+                be=true
+                fe=true
+                ;;
+              *)
+                echo "Unknown deploy_target=$MANUAL" >&2
+                exit 1
+                ;;
+            esac
+          else
+            [[ "$FILTER_BE" == "true" ]] && be=true
+            [[ "$FILTER_FE" == "true" ]] && fe=true
+          fi
+          echo "frontend=$fe" >> "$GITHUB_OUTPUT"
+          echo "backend=$be" >> "$GITHUB_OUTPUT"
+          if [[ "$be" == "true" && "$fe" == "true" ]]; then
+            summary="both (backend Cloud Run + frontend Hosting)"
+          elif [[ "$be" == "true" ]]; then
+            summary="backend only (Cloud Run)"
+          elif [[ "$fe" == "true" ]]; then
+            summary="frontend only (Firebase Hosting)"
+          else
+            summary="none (docs/scripts/bot-only change — skip app deploy)"
+          fi
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+          echo "### Deploy plan: **$summary**" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- backend → \`$be\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- frontend → \`$fe\`" >> "$GITHUB_STEP_SUMMARY"
+
+  quality:
+    name: Quality gate
+    needs: detect
+    # Always run quality on main merges (even if deploy is skipped).
+    uses: ./.github/workflows/quality-gate.yml
+
+  deploy-backend:
+    name: Deploy backend (Cloud Run)
+    needs: [detect, quality]
+    if: needs.detect.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT: ${{ vars.GCP_PROJECT || 'trading-goals' }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'trading-signals-api' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          # Prefer a deploy SA (GCP_SA_KEY). Fallback: existing bot secret if that SA has deploy IAM.
+          credentials_json: ${{ secrets.GCP_SA_KEY || secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy Nest to Cloud Run
+        run: bash scripts/deploy_nest_cloud_run.sh
+
+  deploy-frontend:
+    name: Deploy frontend (Firebase Hosting)
+    needs: [detect, quality, deploy-backend]
+    # Wait for backend when both change; allow skipped backend when FE-only.
+    if: |
+      always() &&
+      needs.quality.result == 'success' &&
+      needs.detect.outputs.frontend == 'true' &&
+      (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped')
+    runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT: ${{ vars.GCP_PROJECT || 'trading-goals' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Auth Google (Firebase + Hosting)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY || secrets.GOOGLE_APPLICATION_CREDENTIALS }}
+
+      - name: Build Angular (production)
+        working-directory: frontend
+        run: |
+          npm ci
+          npx ng build --configuration=production
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Hosting
+        run: |
+          # Prefer CI token if set; otherwise Application Default Credentials from GCP_SA_KEY.
+          if [[ -n "${{ secrets.FIREBASE_TOKEN }}" ]]; then
+            firebase deploy --only hosting --project "$GCP_PROJECT" --token "${{ secrets.FIREBASE_TOKEN }}" --non-interactive
+          else
+            firebase deploy --only hosting --project "$GCP_PROJECT" --non-interactive
+          fi
+
+  summary:
+    name: Deploy summary
+    needs: [detect, quality, deploy-backend, deploy-frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write summary
+        env:
+          PLAN: ${{ needs.detect.outputs.summary }}
+          Q: ${{ needs.quality.result }}
+          BE: ${{ needs.deploy-backend.result }}
+          FE: ${{ needs.deploy-frontend.result }}
+        run: |
+          {
+            echo "## Deploy on main"
+            echo "- Plan: **${PLAN}**"
+            echo "- Quality gate: \`${Q}\`"
+            echo "- Backend deploy: \`${BE}\`"
+            echo "- Frontend deploy: \`${FE}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$Q" != "success" ]]; then
+            echo "Quality gate failed — no successful deploy expected." >&2
+            exit 1
+          fi
+          if [[ "${{ needs.detect.outputs.backend }}" == "true" && "$BE" != "success" ]]; then
+            exit 1
+          fi
+          if [[ "${{ needs.detect.outputs.frontend }}" == "true" && "$FE" != "success" ]]; then
+            exit 1
+          fi
