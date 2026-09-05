@@ -55,6 +55,12 @@
     >
       Clear notifications ({{ signalsBadge.count() }})
     </button>
+    <span
+      class="sig-live-feed-hint universe-page-meta"
+      *ngIf="showLiveFeedHint()"
+      [title]="liveFeedTitle()"
+      >{{ liveFeedLabel() }}</span
+    >
   </div>
   <p class="empty-state" *ngIf="loading() && instanceRows().length === 0">Loading signals…</p>
   <p class="empty-state" *ngIf="!loading() && loadError()">{{ loadError() }}</p>
@@ -257,7 +263,7 @@
                       <dt>Market cap</dt>
                       <dd>
                         {{ fmtMarketCapMillions(snap.marketCapitalizationMillions, snap.currency) }}
-                        <span class="sig-detail-hint">(Finnhub, listing currency)</span>
+                        <span class="sig-detail-hint">(listing currency)</span>
                       </dd>
                       <dt>Shares out.</dt>
                       <dd>{{ fmtShares(snap.shareOutstanding) }}</dd>
@@ -285,7 +291,8 @@
                       <dd class="code">{{ fmtUnixQuoteUtc(snap.quote.time) }}</dd>
                     </dl>
                     <p class="sig-stock-details-footnote">
-                      Data from Finnhub via your API server. Intraday volume is not included on this plan.
+                      Quote and profile via your API server (Massive/Polygon first; Finnhub
+                      fallback). Intraday volume is not included on this panel.
                     </p>
                   </div>
                 </ng-container>

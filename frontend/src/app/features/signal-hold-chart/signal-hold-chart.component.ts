@@ -35,7 +35,7 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
   @Input({ required: true }) ticker!: string;
   @Input({ required: true }) asofDate!: string;
   @Input({ required: true }) entryPrice!: number;
-  /** Massive delayed WS last price for this ticker (page-scoped); overlays in-progress hold. */
+  /** Massive/Polygon last price for this ticker (page-scoped WS); overlays in-progress hold. */
   @Input() livePrice: number | null = null;
 
   @ViewChild('canvasEl') canvasRef?: ElementRef<HTMLCanvasElement>;
@@ -164,7 +164,7 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
       this.providerLabel.set(candleProviderLabel(candles.provider as CandleProviderId));
       this.progressCaption.set(
         win.inProgress
-          ? '3 trading-day hold in progress (hourly + Massive delayed live)'
+          ? '3 trading-day hold in progress (hourly + live overlay)'
           : '3 trading-day hold window complete'
       );
 

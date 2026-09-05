@@ -392,7 +392,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   /** Last fetched raw price for comparison (e.g. vs signal close in Log Buy form). */
   readonly livePriceNumByTicker = signal<Record<string, number>>({});
 
-  /** Mirror Massive delayed WS ticks into the live-price columns. */
+  /** Mirror Massive/Polygon WS ticks into the live-price columns. */
   private readonly syncLiveFromWs = effect(() => {
     const prices = this.quotesWs.priceByTicker();
     const fmt: Record<string, string> = {};
@@ -407,13 +407,31 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     this.liveByTicker.update((m) => ({ ...m, ...fmt }));
   });
 
+  /** Toolbar label: realtime vs ~15m delayed (from Nest hub_status). */
+  showLiveFeedHint(): boolean {
+    return this.quotesWs.hubConfigured();
+  }
+
+  liveFeedLabel(): string {
+    if (!this.quotesWs.connected()) return 'Live feed: connecting…';
+    return this.quotesWs.delayed() ? 'Live feed: 15m delayed' : 'Live feed: realtime';
+  }
+
+  liveFeedTitle(): string {
+    const ch = this.quotesWs.channel();
+    if (this.quotesWs.delayed()) {
+      return `Massive delayed WS (channel ${ch}) — Stocks Starter. Set POLYGON_WS_REALTIME=true with Advanced for SIP realtime.`;
+    }
+    return `Massive realtime WS (channel ${ch}) — page tickers only.`;
+  }
+
   readonly inlineLiveRefreshing = signal(false);
   readonly inlineKey = signal<string | null>(null);
   readonly inlineExpanded = signal(false);
   readonly inlineStatus = signal('');
   readonly inlineSaving = signal(false);
 
-  /** Per signal row: expanded Finnhub quote + company profile. */
+  /** Per signal row: expanded quote + company profile (Polygon → Finnhub). */
   readonly stockDetailByRow = signal<Record<string, StockDetailEntry>>({});
 
   /** Per signal row (instanceKey): 3-day hourly hold chart expand. */
@@ -640,7 +658,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * Subscribe Massive delayed WS only for tickers on the current page.
+   * Subscribe Massive/Polygon WS only for tickers on the current page.
    * Replaces prior page set (Nest unsubscribes dropped symbols).
    */
   private syncPageLiveQuotes(rows: SignalInstanceRow[]): void {

@@ -2,22 +2,38 @@ import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import WebSocket from 'ws';
 
+export type AggregateChannel = 'A' | 'AM';
+
 export type MarketQuoteTick = {
   symbol: string;
   price: number;
   /** Event time from Massive/Polygon (ms epoch), when present. */
   tsMs: number;
-  /** Starter plan uses the delayed cluster (~15m). */
-  delayed: true;
+  /** True on delayed cluster (~15m); false on Advanced realtime. */
+  delayed: boolean;
   /** Aggregate channel used for this tick. */
-  channel: 'AM';
+  channel: AggregateChannel;
 };
 
 type QuoteListener = (tick: MarketQuoteTick) => void;
 
+const envFlagTrue = (v: string | undefined): boolean =>
+  ['true', '1', 'yes', 'on'].includes((v || '').trim().toLowerCase());
+
+function resolveChannel(raw: string | undefined, realtime: boolean): AggregateChannel {
+  const c = (raw || '').trim().toUpperCase();
+  if (c === 'A' || c === 'AM') return c;
+  // Advanced realtime → second aggregates; Starter delayed → minute aggregates.
+  return realtime ? 'A' : 'AM';
+}
+
 /**
- * Single upstream WebSocket to Massive/Polygon delayed stocks cluster.
- * Stocks Starter (~$29): delayed AM (per-minute aggregates) only — not trades (T.).
+ * Single upstream WebSocket to Massive/Polygon stocks cluster.
+ *
+ * - Stocks Advanced + `POLYGON_WS_REALTIME=true`: `wss://socket.polygon.io/stocks`, channel `A.` (per-second).
+ * - Starter / rollback: `wss://delayed.polygon.io/stocks`, channel `AM.` (per-minute, ~15m delayed).
+ *
+ * Never subscribe trades `T.` / quotes `Q.` — too much bandwidth for a dashboard page.
  * Clients never see the API key; Nest refcounts symbols across Socket.IO clients.
  */
 @Injectable()
@@ -25,8 +41,8 @@ export class PolygonWsHub implements OnModuleDestroy {
   private readonly logger = new Logger(PolygonWsHub.name);
   private readonly apiKey: string;
   private readonly url: string;
-  /** Prefer AM (minute) over A (second) to stay light on Starter bandwidth. */
-  private readonly channelPrefix = 'AM';
+  private readonly channelPrefix: AggregateChannel;
+  private readonly delayedFeed: boolean;
 
   private ws: WebSocket | null = null;
   private authOk = false;
@@ -40,16 +56,39 @@ export class PolygonWsHub implements OnModuleDestroy {
 
   constructor(private readonly config: ConfigService) {
     this.apiKey = (this.config.get<string>('polygonApiKey') || '').trim();
-    // Delayed cluster for Stocks Starter (15-minute delayed). Real-time requires Advanced+.
-    this.url = (
+
+    const explicitUrl = (
       process.env.POLYGON_WS_URL ||
       process.env.MASSIVE_WS_URL ||
-      'wss://delayed.polygon.io/stocks'
+      ''
     ).trim();
+    const realtime =
+      envFlagTrue(process.env.POLYGON_WS_REALTIME) ||
+      envFlagTrue(process.env.MASSIVE_WS_REALTIME) ||
+      /socket\.(polygon|massive)\.io/i.test(explicitUrl);
+
+    this.delayedFeed = !realtime;
+    this.channelPrefix = resolveChannel(
+      process.env.POLYGON_WS_CHANNEL || process.env.MASSIVE_WS_CHANNEL,
+      realtime,
+    );
+    this.url =
+      explicitUrl ||
+      (realtime ? 'wss://socket.polygon.io/stocks' : 'wss://delayed.polygon.io/stocks');
   }
 
   get configured(): boolean {
     return Boolean(this.apiKey);
+  }
+
+  /** Whether the upstream feed is the delayed (~15m) cluster. */
+  get delayed(): boolean {
+    return this.delayedFeed;
+  }
+
+  /** Aggregate channel prefix (`A` or `AM`). */
+  get channel(): AggregateChannel {
+    return this.channelPrefix;
   }
 
   getLast(symbol: string): MarketQuoteTick | undefined {
@@ -157,7 +196,8 @@ export class PolygonWsHub implements OnModuleDestroy {
     }
     this.intentionalClose = false;
     this.authOk = false;
-    this.logger.log(`Connecting Massive delayed WS (${this.url})`);
+    const mode = this.delayedFeed ? 'delayed' : 'realtime';
+    this.logger.log(`Connecting Massive ${mode} WS (${this.url}) channel=${this.channelPrefix}`);
     const ws = new WebSocket(this.url);
     this.ws = ws;
 
@@ -244,7 +284,8 @@ export class PolygonWsHub implements OnModuleDestroy {
         if (status === 'auth_success' || /authenticated/i.test(message)) {
           this.authOk = true;
           this.reconnectAttempt = 0;
-          this.logger.log('Massive WS authenticated (delayed AM)');
+          const mode = this.delayedFeed ? 'delayed' : 'realtime';
+          this.logger.log(`Massive WS authenticated (${mode} ${this.channelPrefix})`);
           this.resubscribeAll();
         } else if (status === 'auth_failed' || /not authorized|auth.*fail/i.test(message + status)) {
           this.logger.error(`Massive WS auth failed: ${message || status}`);
@@ -261,8 +302,8 @@ export class PolygonWsHub implements OnModuleDestroy {
         symbol: sym,
         price,
         tsMs: Number.isFinite(tsMs) ? tsMs : Date.now(),
-        delayed: true,
-        channel: 'AM',
+        delayed: this.delayedFeed,
+        channel: this.channelPrefix,
       };
       this.lastBySymbol.set(sym, tick);
       for (const fn of this.listeners) {

@@ -11,7 +11,7 @@ export type LiveQuoteTick = {
 };
 
 /**
- * Page-scoped live quotes via Nest → Massive delayed WebSocket hub.
+ * Page-scoped live quotes via Nest → Massive/Polygon WebSocket hub.
  * Call `setPageSymbols` whenever the Signals table page/filter set changes;
  * empty list (or destroy) tears down the client socket so Nest can unsubscribe upstream.
  */
@@ -22,6 +22,10 @@ export class MarketQuotesWsService implements OnDestroy {
 
   readonly connected = signal(false);
   readonly hubConfigured = signal(true);
+  /** True when hub uses delayed (~15m) cluster; false for Advanced realtime. */
+  readonly delayed = signal(true);
+  /** Aggregate channel from hub (`A` or `AM`). */
+  readonly channel = signal('AM');
   readonly lastError = signal('');
 
   /** Latest numeric prices by ticker (from WS / seed). */
@@ -90,12 +94,26 @@ export class MarketQuotesWsService implements OnDestroy {
       this.connected.set(false);
       this.lastError.set(err?.message || String(err));
     });
-    socket.on('hub_status', (payload: { configured?: boolean; message?: string }) => {
-      this.hubConfigured.set(payload?.configured !== false);
-      if (payload?.message && payload.configured === false) {
-        this.lastError.set(payload.message);
-      }
-    });
+    socket.on(
+      'hub_status',
+      (payload: {
+        configured?: boolean;
+        delayed?: boolean;
+        channel?: string;
+        message?: string;
+      }) => {
+        this.hubConfigured.set(payload?.configured !== false);
+        if (typeof payload?.delayed === 'boolean') {
+          this.delayed.set(payload.delayed);
+        }
+        if (payload?.channel) {
+          this.channel.set(String(payload.channel));
+        }
+        if (payload?.message && payload.configured === false) {
+          this.lastError.set(payload.message);
+        }
+      },
+    );
     socket.on('quote', (tick: LiveQuoteTick) => {
       const sym = String(tick?.symbol || '')
         .trim()

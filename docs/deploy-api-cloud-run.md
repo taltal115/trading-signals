@@ -80,7 +80,7 @@ Set production configuration on the service (example — use Secret Manager for 
 | `GOOGLE_CALLBACK_URL` | **`{FRONTEND_URL}/api/auth/google/callback`** when using Hosting `/api` rewrite |
 | `ALLOWED_SIGN_IN_EMAILS` / `ALLOWED_AUTH_UIDS` | Same allowlists as the Angular env |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Full service account JSON (Secret Manager → env), **or** rely on the Cloud Run service account with IAM roles for Firestore (see below) |
-| `POLYGON_API_KEY` | **Strongly recommended** (Massive Stocks Starter). Primary for `/api/market/quote`, `/snapshot`, and `/candles` (daily + hourly). Same key as `api.polygon.io` / also accepted as `MASSIVE_API_KEY`. |
+| `POLYGON_API_KEY` | **Strongly recommended** (Massive Stocks). Primary for `/api/market/quote`, `/snapshot`, and `/candles` (daily + hourly). Same key as `api.polygon.io` / also accepted as `MASSIVE_API_KEY`. For Signals **realtime** live prices, use Stocks Advanced and set `POLYGON_WS_REALTIME=true` (see [signals-live-quotes-websocket.md](./signals-live-quotes-websocket.md)). |
 | `FINNHUB_API_KEY` | Fallback for quotes/snapshot when Polygon fails or is unset. |
 | `TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY` | Fallback for `/api/market/candles` when Polygon fails (Finnhub free often **403** on `stock/candle`). |
 | `GITHUB_PERSONAL_TOKEN` | **Required** for `POST /api/github/workflows/position-monitor` (dashboard **Check**). Not bundled in the frontend. |

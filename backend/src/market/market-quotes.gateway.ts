@@ -21,7 +21,7 @@ type SetSubscriptionsBody = {
 };
 
 /**
- * Browser ↔ Nest multiplex for Massive delayed stock quotes.
+ * Browser ↔ Nest multiplex for Massive stock quotes (realtime Advanced or delayed Starter).
  * Path `/api/socket.io` matches Firebase Hosting `/api/**` → Cloud Run rewrite.
  * One Nest process holds one upstream Polygon connection; clients only set page tickers.
  */
@@ -55,10 +55,11 @@ export class MarketQuotesGateway
 
   afterInit(): void {
     this.hub.addListener(this.onTick);
+    const mode = this.hub.configured
+      ? `${this.hub.delayed ? 'delayed' : 'realtime'} ${this.hub.channel}`
+      : 'no POLYGON_API_KEY';
     this.logger.log(
-      `Market quotes WS ready (namespace=/market-quotes path=/api/socket.io hub=${
-        this.hub.configured ? 'configured' : 'no POLYGON_API_KEY'
-      })`,
+      `Market quotes WS ready (namespace=/market-quotes path=/api/socket.io hub=${mode})`,
     );
   }
 
@@ -66,8 +67,8 @@ export class MarketQuotesGateway
     this.clientSymbols.set(client.id, new Set());
     client.emit('hub_status', {
       configured: this.hub.configured,
-      delayed: true,
-      channel: 'AM',
+      delayed: this.hub.delayed,
+      channel: this.hub.channel,
       message: this.hub.configured
         ? 'Connected — send setSubscriptions with visible page tickers'
         : 'POLYGON_API_KEY missing on API server',
@@ -108,7 +109,7 @@ export class MarketQuotesGateway
     const next = this.hub.replaceClientSymbols(prev, cleaned);
     this.clientSymbols.set(client.id, next);
 
-    // Seed from REST snapshot so the table is not blank until the first AM bar.
+    // Seed from REST snapshot so the table is not blank until the first aggregate bar.
     let seeded = 0;
     const toSeed: string[] = [];
     for (const sym of next) {
@@ -122,8 +123,8 @@ export class MarketQuotesGateway
           symbol: sym,
           price: c,
           tsMs: Date.now(),
-          delayed: true,
-          channel: 'AM',
+          delayed: this.hub.delayed,
+          channel: this.hub.channel,
         };
         client.emit('quote', tick);
         seeded += 1;

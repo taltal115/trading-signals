@@ -95,6 +95,11 @@
   color: var(--muted, #9aa0a6);
 }
 
+.sig-live-feed-hint {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
 .universe-page-loading {
   font-style: italic;
 }
