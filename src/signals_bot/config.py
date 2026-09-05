@@ -132,14 +132,14 @@ class StrategyConfig:
     prefer_confidence_min: int = 90
     prefer_confidence_max: int = 94
     # Hard rejects (2026-08 research): BUY→WAIT before Firestore. 0 disables each gate.
-    hard_reject_confidence_min: int = 98
+    hard_reject_confidence_min: int = 0
     hard_reject_ret_5d_min_pct: float = 50.0
     hard_reject_vol_ratio_min: float = 5.0
     require_continuation_band: bool = True
     continuation_ret_5d_min_pct: float = 10.0
-    continuation_ret_5d_max_pct: float = 20.0
+    continuation_ret_5d_max_pct: float = 25.0
     continuation_vol_ratio_min: float = 2.0
-    continuation_vol_ratio_max: float = 3.0
+    continuation_vol_ratio_max: float = 3.5
     weights: StrategyWeights = StrategyWeights()
 
 
@@ -428,14 +428,14 @@ def load_config(config_path: Path) -> AppConfig:
         high_confidence_risk_threshold=int(strategy_raw.get("high_confidence_risk_threshold", 98)),
         prefer_confidence_min=int(strategy_raw.get("prefer_confidence_min", 90)),
         prefer_confidence_max=int(strategy_raw.get("prefer_confidence_max", 94)),
-        hard_reject_confidence_min=int(strategy_raw.get("hard_reject_confidence_min", 98)),
+        hard_reject_confidence_min=int(strategy_raw.get("hard_reject_confidence_min", 0)),
         hard_reject_ret_5d_min_pct=float(strategy_raw.get("hard_reject_ret_5d_min_pct", 50.0)),
         hard_reject_vol_ratio_min=float(strategy_raw.get("hard_reject_vol_ratio_min", 5.0)),
         require_continuation_band=bool(strategy_raw.get("require_continuation_band", True)),
         continuation_ret_5d_min_pct=float(strategy_raw.get("continuation_ret_5d_min_pct", 10.0)),
-        continuation_ret_5d_max_pct=float(strategy_raw.get("continuation_ret_5d_max_pct", 20.0)),
+        continuation_ret_5d_max_pct=float(strategy_raw.get("continuation_ret_5d_max_pct", 25.0)),
         continuation_vol_ratio_min=float(strategy_raw.get("continuation_vol_ratio_min", 2.0)),
-        continuation_vol_ratio_max=float(strategy_raw.get("continuation_vol_ratio_max", 3.0)),
+        continuation_vol_ratio_max=float(strategy_raw.get("continuation_vol_ratio_max", 3.5)),
         weights=strategy_weights,
     )
 

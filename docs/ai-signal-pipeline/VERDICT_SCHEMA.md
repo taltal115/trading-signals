@@ -19,7 +19,7 @@ Primary object for entry eval. UI and Slack lead with this; raw LLM fields stay 
   },
   "checklist": [
     { "id": "volume", "label": "Volume confirms", "pass": true },
-    { "id": "rr", "label": "Risk/reward >= 2", "pass": true }
+    { "id": "rr", "label": "Risk/reward >= 1.5", "pass": true }
   ],
   "detail": {}
 }

@@ -223,8 +223,7 @@
             [class.sig-stock-details-for-older]="row.role === 'older'"
           >
             <td colspan="10" class="sig-unified-panel-cell">
-              
-              <!-- Details Panel -->
+              <!-- Details -->
               <div *ngIf="stockDetailsOpen(row.instanceKey)" class="sig-unified-panel-content">
                 <div *ngIf="stockDetailsLoading(row.instanceKey)" class="sig-stock-details-status">
                   Loading market data…
@@ -232,102 +231,77 @@
                 <p *ngIf="stockDetailsError(row.instanceKey) as err" class="sig-stock-details-err">
                   {{ err }}
                 </p>
-              </div>
-            </td>
-          </tr>
-          <tr
-            *ngIf="row.kind === 'sig' && holdChartOpen(row.instanceKey)"
-            class="sig-hold-chart-tr"
-            [class.sig-stock-details-for-older]="row.role === 'older'"
-          >
-            <td colspan="10" class="sig-hold-chart-cell">
-              <app-signal-hold-chart
-                [ticker]="str(row.s['ticker'])"
-                [asofDate]="row.asofDate"
-                [entryPrice]="entryPriceNum(row.s['close'])"
-                [livePrice]="livePriceNum(row.s['ticker'])"
-              />
-            </td>
-          </tr>
-          <tr
-            *ngIf="row.kind === 'sig' && aiSummaryOpen(row.instanceKey)"
-            class="sig-ai-summary-tr"
-            [class.sig-stock-details-for-older]="row.role === 'older'"
-          >
-            <td colspan="10" class="sig-ai-summary-cell">
-              <ng-container *ngIf="aiViewForRow(row) as ai; else noAi">
-                <div class="sig-ai-summary-panel">
-                  <div class="sig-ai-summary-head">
-                    <span class="sig-ai-summary-ticker code">{{ row.s['ticker'] }}</span>
-                    <span class="sig-ai-action-chip" [ngClass]="ai.actionClass">{{ ai.action }}</span>
-                    <span class="sig-ai-gate" *ngIf="ai.gate">gate: {{ ai.gate }}</span>
-                    <span class="sig-ai-summary-meta" *ngIf="ai.riskLevel">risk: {{ ai.riskLevel }}</span>
-                    <span class="sig-ai-summary-meta" *ngIf="ai.total != null"
-                      >score {{ fmtAiNumber(ai.total, 1) }}</span
-                    >
-                    <span class="sig-ai-summary-meta" *ngIf="ai.model">{{ ai.model }}</span>
-                    <span class="sig-ai-summary-meta" *ngIf="ai.totalTokens != null"
-                      >{{ ai.totalTokens }} tokens</span
-                    >
-                    <span class="sig-ai-summary-meta" *ngIf="ai.estimatedCostUsd != null"
-                      >${{ fmtAiNumber(ai.estimatedCostUsd, 4) }}</span
-                    >
+                <ng-container *ngIf="stockDetailsData(row.instanceKey) as snap">
+                  <div class="sig-stock-details-panel">
+                    <div class="sig-stock-details-head">
+                      <strong>{{ snap.name || snap.symbol }}</strong>
+                      <span class="sig-stock-details-ticker code">{{ snap.symbol }}</span>
+                      <a
+                        *ngIf="snap.weburl"
+                        [href]="snap.weburl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="sig-stock-details-link"
+                        >Website</a
+                      >
+                    </div>
+                    <dl class="sig-stock-details-grid">
+                      <dt>Exchange</dt>
+                      <dd>{{ snap.exchange || '—' }}</dd>
+                      <dt>Country</dt>
+                      <dd>{{ snap.country || '—' }}</dd>
+                      <dt>Industry</dt>
+                      <dd>{{ snap.industry || '—' }}</dd>
+                      <dt>IPO</dt>
+                      <dd>{{ snap.ipo || '—' }}</dd>
+                      <dt>Market cap</dt>
+                      <dd>
+                        {{ fmtMarketCapMillions(snap.marketCapitalizationMillions, snap.currency) }}
+                        <span class="sig-detail-hint">(Finnhub, listing currency)</span>
+                      </dd>
+                      <dt>Shares out.</dt>
+                      <dd>{{ fmtShares(snap.shareOutstanding) }}</dd>
+                      <dt>Last price</dt>
+                      <dd>{{ snap.quote.current != null ? fmtUsd(snap.quote.current) : '—' }}</dd>
+                      <dt>Change</dt>
+                      <dd>
+                        <ng-container *ngIf="snap.quote.change != null; else noChg">
+                          {{ snap.quote.change >= 0 ? '+' : '' }}{{ fmtUsd(snap.quote.change) }}
+                          <span *ngIf="snap.quote.pctChange != null" class="sig-detail-pct">
+                            ({{ snap.quote.pctChange >= 0 ? '+' : '' }}{{ fmtUiPercent(snap.quote.pctChange) }}%)
+                          </span>
+                        </ng-container>
+                        <ng-template #noChg>—</ng-template>
+                      </dd>
+                      <dt>Open</dt>
+                      <dd>{{ snap.quote.open != null ? fmtUsd(snap.quote.open) : '—' }}</dd>
+                      <dt>Day high</dt>
+                      <dd>{{ snap.quote.high != null ? fmtUsd(snap.quote.high) : '—' }}</dd>
+                      <dt>Day low</dt>
+                      <dd>{{ snap.quote.low != null ? fmtUsd(snap.quote.low) : '—' }}</dd>
+                      <dt>Prev close</dt>
+                      <dd>{{ snap.quote.prevClose != null ? fmtUsd(snap.quote.prevClose) : '—' }}</dd>
+                      <dt>Quote time</dt>
+                      <dd class="code">{{ fmtUnixQuoteUtc(snap.quote.time) }}</dd>
+                    </dl>
+                    <p class="sig-stock-details-footnote">
+                      Data from Finnhub via your API server. Intraday volume is not included on this plan.
+                    </p>
                   </div>
-                  <dl class="sig-stock-details-grid">
-                    <dt>Exchange</dt>
-                    <dd>{{ snap.exchange || '—' }}</dd>
-                    <dt>Country</dt>
-                    <dd>{{ snap.country || '—' }}</dd>
-                    <dt>Industry</dt>
-                    <dd>{{ snap.industry || '—' }}</dd>
-                    <dt>IPO</dt>
-                    <dd>{{ snap.ipo || '—' }}</dd>
-                    <dt>Market cap</dt>
-                    <dd>
-                      {{ fmtMarketCapMillions(snap.marketCapitalizationMillions, snap.currency) }}
-                      <span class="sig-detail-hint">(Finnhub, listing currency)</span>
-                    </dd>
-                    <dt>Shares out.</dt>
-                    <dd>{{ fmtShares(snap.shareOutstanding) }}</dd>
-                    <dt>Last price</dt>
-                    <dd>{{ snap.quote.current != null ? fmtUsd(snap.quote.current) : '—' }}</dd>
-                    <dt>Change</dt>
-                    <dd>
-                      <ng-container *ngIf="snap.quote.change != null; else noChg">
-                        {{ snap.quote.change >= 0 ? '+' : '' }}{{ fmtUsd(snap.quote.change) }}
-                        <span *ngIf="snap.quote.pctChange != null" class="sig-detail-pct">
-                          ({{ snap.quote.pctChange >= 0 ? '+' : '' }}{{ fmtUiPercent(snap.quote.pctChange) }}%)
-                        </span>
-                      </ng-container>
-                      <ng-template #noChg>—</ng-template>
-                    </dd>
-                    <dt>Open</dt>
-                    <dd>{{ snap.quote.open != null ? fmtUsd(snap.quote.open) : '—' }}</dd>
-                    <dt>Day high</dt>
-                    <dd>{{ snap.quote.high != null ? fmtUsd(snap.quote.high) : '—' }}</dd>
-                    <dt>Day low</dt>
-                    <dd>{{ snap.quote.low != null ? fmtUsd(snap.quote.low) : '—' }}</dd>
-                    <dt>Prev close</dt>
-                    <dd>{{ snap.quote.prevClose != null ? fmtUsd(snap.quote.prevClose) : '—' }}</dd>
-                    <dt>Quote time</dt>
-                    <dd class="code">{{ fmtUnixQuoteUtc(snap.quote.time) }}</dd>
-                  </dl>
-                  <p class="sig-stock-details-footnote">
-                    Data from Finnhub via your API server. Intraday volume is not included on this plan.
-                  </p>
-                </div>
+                </ng-container>
               </div>
-              
-              <!-- Chart Panel -->
+
+              <!-- Chart -->
               <div *ngIf="holdChartOpen(row.instanceKey)" class="sig-unified-panel-content">
                 <app-signal-hold-chart
                   [ticker]="str(row.s['ticker'])"
                   [asofDate]="row.asofDate"
                   [entryPrice]="entryPriceNum(row.s['close'])"
+                  [livePrice]="livePriceNum(row.s['ticker'])"
                 />
               </div>
-              
-              <!-- History Panel -->
+
+              <!-- History / AI -->
               <div *ngIf="aiSummaryOpen(row.instanceKey)" class="sig-unified-panel-content">
                 <ng-container *ngIf="aiViewForRow(row) as ai; else noAi">
                   <div class="sig-ai-summary-panel">
@@ -449,7 +423,6 @@
                   </p>
                 </ng-template>
               </div>
-              
             </td>
           </tr>
 

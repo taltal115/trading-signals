@@ -64,7 +64,7 @@ def _checklist(verdict: dict[str, Any]) -> list[dict[str, Any]]:
     rr = float(verdict.get("risk_reward_ratio") or 0.0)
     action = str(verdict.get("action") or "WAIT").upper()
     return [
-        {"id": "rr", "label": "Risk/reward >= 2", "pass": rr >= 2.0},
+        {"id": "rr", "label": "Risk/reward >= 1.5", "pass": rr >= 1.5},
         {"id": "action", "label": "Model says BUY", "pass": action == "BUY"},
     ]
 

@@ -5,7 +5,7 @@ Evaluate the trading candidate and return strict JSON.
 ## Decision framework
 
 1. **Action**
-   - `BUY` — Setup ready NOW. Entry, stop, targets clear. Risk/reward >= 2:1.
+   - `BUY` — Setup ready NOW. Entry, stop, targets clear. Risk/reward >= 1.5:1.
    - `WAIT` — Interesting but not ready (pullback, volume, RSI). Say what would flip to BUY.
    - `AVOID` — Risk outweighs reward.
 
@@ -15,7 +15,7 @@ Evaluate the trading candidate and return strict JSON.
 
 4. **Targets** — T1 ~1–1.5R, T2 ~2–2.5R, T3 stretch; R = entry − stop.
 
-5. **Risk/reward** — (T2 − entry) / (entry − stop); BUY requires >= 2.0.
+5. **Risk/reward** — (T2 − entry) / (entry − stop); BUY requires >= 1.5.
 
 6. **Position size** — small if conviction < 0.6 or high vol; normal otherwise; large only if conviction >= 0.85 and trend+catalyst+volume confirm.
 
@@ -30,10 +30,10 @@ Evaluate the trading candidate and return strict JSON.
 
 ## Continuation band (research-aligned — prefer BUY)
 
-This project's actionable scanner already hard-filters for quiet continuation. When the provided features show **ret_5d in [10%, 20%]** and **vol_ratio in [2.0, 3.0)** (exclusive upper), treat that as the primary trade lane:
+This project's actionable scanner already hard-filters for quiet continuation. When the provided features show **ret_5d in [10%, 25%]** and **vol_ratio in [2.0, 3.5)** (exclusive upper), treat that as the primary trade lane:
 
-- Prefer **BUY** when R/R ≥ 2.0, volume confirms (≥2×), trend/MAs support, and no hard invalidation — do **not** default to WAIT merely because the move is mid-progress or RSI is mildly elevated.
-- Prefer **WAIT** only for a concrete missing piece (no volume, R/R < 2, clear overextension / lottery, broken structure).
+- Prefer **BUY** when R/R ≥ 1.5, volume confirms (≥2×), trend/MAs support, and no hard invalidation — do **not** default to WAIT merely because the move is mid-progress or RSI is mildly elevated.
+- Prefer **WAIT** only for a concrete missing piece (no volume, R/R < 1.5, clear overextension / lottery, broken structure).
 - Prefer **AVOID** for lottery / ignition (vol ≥ 5× or extreme prior momentum) — those are hard-rejected elsewhere; do not rescue them.
 
 Outside the continuation band, keep the conservative WAIT bias.
@@ -65,7 +65,7 @@ Return ONLY valid JSON with these keys:
   "invalidation_conditions": ["condition 1"],
   "checklist": [
     {"id": "volume", "label": "Volume confirms", "pass": true},
-    {"id": "rr", "label": "Risk/reward >= 2", "pass": true},
+    {"id": "rr", "label": "Risk/reward >= 1.5", "pass": true},
     {"id": "trend", "label": "Trend supportive", "pass": true}
   ]
 }
@@ -73,7 +73,7 @@ Return ONLY valid JSON with these keys:
 ## Absolute rules
 
 - Do not fabricate price levels; derive from provided data.
-- Do not BUY if R/R < 2 or RSI > 75 without extraordinary catalyst.
+- Do not BUY if R/R < 1.5 or RSI > 75 without extraordinary catalyst.
 - Do not BUY without volume confirmation (relative volume > 1.0).
 - Prefer WAIT over BUY when in doubt **outside** the continuation band; **inside** the band, prefer BUY when checklist volume+rr+trend pass.
 - Always give specific price levels.
