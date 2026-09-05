@@ -37,18 +37,47 @@ Most projects’ `GOOGLE_APPLICATION_CREDENTIALS` is a **Firebase Admin / Firest
 
 Check the SA email inside the JSON (`client_email`), then in GCP IAM confirm it has roughly:
 
-- Cloud Run Admin  
+- Cloud Run Admin (backend deploy) or at least **Cloud Run Viewer** (`roles/run.viewer`) for frontend-only  
 - Service Account User  
 - Artifact Registry Writer (and/or Cloud Build Editor)  
 - Firebase Hosting Admin  
 
 If those roles are missing, either grant them on that SA or create a dedicated deploy SA and store it as `GCP_SA_KEY`.
 
+### Hosting + Cloud Run rewrite IAM (FE 403)
+
+[`firebase.json`](../firebase.json) rewrites `/api/**` to Cloud Run `trading-signals-api`. When Hosting **finalizes** a version it calls `run.services.get` on that service. Upload can succeed and finalize still fail with:
+
+```text
+403 Permission 'run.services.get' denied on resource
+'namespaces/<PROJECT_NUMBER>/services/trading-signals-api'
+```
+
+Grant **Cloud Run Viewer** to the same SA GitHub uses (`GCP_SA_KEY` or `GOOGLE_APPLICATION_CREDENTIALS`):
+
+```bash
+# client_email from the JSON key
+export DEPLOY_SA="YOUR_SA@trading-goals.iam.gserviceaccount.com"
+export PROJECT="trading-goals"
+export PROJECT_NUMBER="703616057199"   # from the 403 URL (namespaces/…)
+
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:${DEPLOY_SA}" \
+  --role="roles/run.viewer"
+
+# Firebase Hosting service agent (needed to bind the rewrite)
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-firebasehosting.iam.gserviceaccount.com" \
+  --role="roles/run.viewer"
+```
+
+Then re-run **Deploy on main** with `fe` (or `both`). Do not rely on `FIREBASE_TOKEN` for this deploy: a `firebase login:ci` token is a user identity and often cannot call `run.services.get`. The workflow uses Application Default Credentials from the deploy SA.
+
 ### Optional secret
 
 | Secret | Purpose |
 |--------|---------|
-| `FIREBASE_TOKEN` | From `firebase login:ci`. Used if set; otherwise Hosting uses ADC from `GCP_SA_KEY` / `GOOGLE_APPLICATION_CREDENTIALS`. |
+| `FIREBASE_TOKEN` | From `firebase login:ci`. **Not used** for Hosting on `main` (Cloud Run rewrite IAM). Kept as an unused optional secret so existing repos do not break. |
 
 ### Optional repository variables
 

@@ -1,21 +1,44 @@
-<div class="ai-chart-card">
+<div class="ai-chart-card" [class.ai-chart-card-wide]="variant !== 'donut'">
   <div class="ai-chart-head">
     <h3>{{ title }}</h3>
-    <div class="ai-chart-metric-tabs" role="tablist" [attr.aria-label]="title + ' metric'">
-      <button
-        type="button"
-        *ngFor="let m of metrics"
-        role="tab"
-        class="ai-chart-metric-btn"
-        [class.active]="metric() === m"
-        [attr.aria-selected]="metric() === m"
-        (click)="setMetric(m)"
-      >
-        {{ m }}
-      </button>
+    <div class="ai-chart-controls">
+      <div class="ai-chart-metric-tabs" role="tablist" [attr.aria-label]="title + ' metric'">
+        <button
+          type="button"
+          *ngFor="let m of metrics"
+          role="tab"
+          class="ai-chart-metric-btn"
+          [class.active]="metric() === m"
+          [attr.aria-selected]="metric() === m"
+          (click)="setMetric(m)"
+        >
+          {{ m }}
+        </button>
+      </div>
+      <label class="ai-chart-topn" *ngIf="showTopN()">
+        Top
+        <select (change)="onTopNChange($any($event.target).value)">
+          <option *ngFor="let n of topNOptions" [value]="n" [selected]="topN() === n">{{ n }}</option>
+        </select>
+      </label>
     </div>
   </div>
-  <div class="ai-chart-canvas-wrap">
+  <div
+    class="ai-chart-canvas-wrap"
+    [class.ai-chart-canvas-tall]="variant !== 'donut'"
+    (mousemove)="onMove($event)"
+    (mouseleave)="clearTip()"
+  >
     <canvas #canvasEl class="ai-chart-canvas" aria-hidden="true"></canvas>
+    <div class="ai-chart-tip" *ngIf="tip() as t" [style.left.px]="t.x" [style.top.px]="t.y">
+      {{ t.text }}
+    </div>
   </div>
+  <ul class="ai-chart-legend" *ngIf="variant === 'donut' && legend().length">
+    <li *ngFor="let item of legend()">
+      <span class="ai-chart-swatch" [style.background]="item.color"></span>
+      <span class="ai-chart-legend-label">{{ item.label }}</span>
+      <span class="ai-chart-legend-val">{{ item.value }}</span>
+    </li>
+  </ul>
 </div>

@@ -2,8 +2,12 @@
   background: var(--surface, #21262d);
   border: 1px solid rgba(139, 148, 158, 0.18);
   border-radius: 8px;
-  padding: 0.75rem 0.85rem 0.85rem;
-  min-height: 12rem;
+  padding: 0.85rem 1rem 1rem;
+  min-height: 18rem;
+}
+
+.ai-chart-card-wide {
+  min-height: 22rem;
 }
 
 .ai-chart-head {
@@ -12,13 +16,20 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.65rem;
 }
 
 .ai-chart-head h3 {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 600;
+}
+
+.ai-chart-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
 }
 
 .ai-chart-metric-tabs {
@@ -36,7 +47,7 @@
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 0.2rem 0.45rem;
+  padding: 0.25rem 0.5rem;
   border-radius: 4px;
   cursor: pointer;
 }
@@ -46,13 +57,81 @@
   color: var(--accent, #58a6ff);
 }
 
+.ai-chart-topn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: var(--muted, #8b949e);
+}
+
+.ai-chart-topn select {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.2rem 0.35rem;
+  border-radius: 5px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface, #21262d);
+  color: var(--text, #e6edf3);
+}
+
 .ai-chart-canvas-wrap {
+  position: relative;
   width: 100%;
-  height: 11rem;
+  height: 16rem;
+}
+
+.ai-chart-canvas-tall {
+  height: 20rem;
 }
 
 .ai-chart-canvas {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.ai-chart-tip {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+  padding: 0.25rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  background: rgba(13, 17, 23, 0.92);
+  border: 1px solid rgba(139, 148, 158, 0.35);
+  color: var(--text, #e6edf3);
+  white-space: nowrap;
+}
+
+.ai-chart-legend {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+}
+
+.ai-chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.ai-chart-swatch {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.ai-chart-legend-label {
+  color: var(--text, #e6edf3);
+}
+
+.ai-chart-legend-val {
+  color: var(--muted, #8b949e);
+  font-variant-numeric: tabular-nums;
 }

@@ -158,6 +158,8 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY || secrets.GOOGLE_APPLICATION_CREDENTIALS }}
 
+      - uses: google-github-actions/setup-gcloud@v2
+
       - name: Build Angular (production)
         working-directory: frontend
         run: |
@@ -167,14 +169,34 @@ jobs:
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      - name: Confirm Cloud Run rewrite target is readable
+        env:
+          GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+          CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'trading-signals-api' }}
+        run: |
+          set -euo pipefail
+          # Hosting finalize calls run.services.get on the rewrite target. Fail here
+          # with a clear IAM hint instead of a 403 after the static upload.
+          if ! gcloud run services describe "$CLOUD_RUN_SERVICE" \
+            --project="$GCP_PROJECT" \
+            --region="$GCP_REGION" \
+            --format='value(metadata.name)' >/dev/null; then
+            echo "::error::Cannot read Cloud Run service ${CLOUD_RUN_SERVICE} in ${GCP_REGION}."
+            echo "Grant the deploy SA roles/run.viewer (and Firebase Hosting Admin)."
+            echo "See docs/deploy-github-actions.md — Hosting + Cloud Run rewrite IAM."
+            exit 1
+          fi
+
       - name: Deploy Hosting
         run: |
-          # Prefer CI token if set; otherwise Application Default Credentials from GCP_SA_KEY.
+          set -euo pipefail
+          # Always use ADC from GCP_SA_KEY / GOOGLE_APPLICATION_CREDENTIALS.
+          # --token FIREBASE_TOKEN is a user CI token and often lacks run.services.get,
+          # which Hosting needs to finalize /api/** → Cloud Run rewrites.
           if [[ -n "${{ secrets.FIREBASE_TOKEN }}" ]]; then
-            firebase deploy --only hosting --project "$GCP_PROJECT" --token "${{ secrets.FIREBASE_TOKEN }}" --non-interactive
-          else
-            firebase deploy --only hosting --project "$GCP_PROJECT" --non-interactive
+            echo "FIREBASE_TOKEN is set but ignored for Hosting (Cloud Run rewrite IAM)."
           fi
+          firebase deploy --only hosting --project "$GCP_PROJECT" --non-interactive
 
   summary:
     name: Deploy summary

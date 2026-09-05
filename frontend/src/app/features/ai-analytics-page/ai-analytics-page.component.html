@@ -8,13 +8,52 @@
   <p class="empty-state" *ngIf="!loading() && error()">{{ error() }}</p>
 
   <ng-container *ngIf="!loading() && !error()">
+    <div class="ai-toolbar" role="search" aria-label="Analytics filters">
+      <label class="ai-field">
+        Stage
+        <select [value]="filterStage()" (change)="setStage($any($event.target).value)">
+          <option *ngFor="let s of stageOptions()" [value]="s">{{ s }}</option>
+        </select>
+      </label>
+      <label class="ai-field">
+        Decision
+        <select [value]="filterDecision()" (change)="setDecision($any($event.target).value)">
+          <option *ngFor="let d of decisionOptions()" [value]="d">{{ d }}</option>
+        </select>
+      </label>
+      <label class="ai-field ai-field-grow">
+        Ticker
+        <input
+          type="search"
+          [value]="filterTicker()"
+          (input)="setTicker($any($event.target).value)"
+          placeholder="PD, LIND…"
+        />
+      </label>
+      <label class="ai-field">
+        From
+        <input type="date" [value]="filterFrom()" (change)="setFrom($any($event.target).value)" />
+      </label>
+      <label class="ai-field">
+        To
+        <input type="date" [value]="filterTo()" (change)="setTo($any($event.target).value)" />
+      </label>
+      <button type="button" class="ai-reset" (click)="resetFilters()">Reset</button>
+    </div>
+
     <dl class="ai-totals">
-      <dt>Requests</dt>
-      <dd>{{ totals().requests }}</dd>
-      <dt>Tokens</dt>
-      <dd>{{ totals().tokens }}</dd>
-      <dt>Est. cost (USD)</dt>
-      <dd>{{ totals().cost | number: '1.2-4' }}</dd>
+      <div>
+        <dt>Requests</dt>
+        <dd>{{ totals().requests }}</dd>
+      </div>
+      <div>
+        <dt>Tokens</dt>
+        <dd>{{ totals().tokens }}</dd>
+      </div>
+      <div>
+        <dt>Est. cost (USD)</dt>
+        <dd>{{ totals().cost | number: '1.2-4' }}</dd>
+      </div>
     </dl>
 
     <div class="ai-agg-grid">
@@ -23,32 +62,95 @@
       <app-ai-agg-chart title="By ticker" [rows]="byTickerChart()" variant="horizontal" />
     </div>
 
-    <h3>Recent calls</h3>
+    <div class="ai-table-head">
+      <h3>Recent calls</h3>
+      <div class="ai-table-tools">
+        <label class="ai-field ai-field-grow">
+          Filter table
+          <input
+            type="search"
+            [value]="tableQuery()"
+            (input)="setTableQuery($any($event.target).value)"
+            placeholder="Search time, ticker, model…"
+          />
+        </label>
+        <label class="ai-field">
+          Per page
+          <select (change)="onPageSizeChange($any($event.target).value)">
+            <option *ngFor="let n of pageSizeOptions" [value]="n" [selected]="pageSize() === n">{{ n }}</option>
+          </select>
+        </label>
+        <div class="ai-pager" role="navigation" aria-label="Calls pages">
+          <button type="button" class="ai-reset" [disabled]="!canPrevPage()" (click)="prevPage()">
+            Previous
+          </button>
+          <span class="ai-page-meta">Page {{ pageLabel() }} · {{ tableTotal() }} rows</span>
+          <button type="button" class="ai-reset" [disabled]="!canNextPage()" (click)="nextPage()">
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div class="table-wrap">
       <table class="ai-agg-table">
         <thead>
           <tr>
-            <th>time</th>
-            <th>stage</th>
-            <th>ticker</th>
-            <th>decision</th>
-            <th>model</th>
-            <th>tokens</th>
-            <th>cost</th>
+            <th>
+              <button type="button" class="ai-sort-btn" (click)="toggleSort('ts_utc')" [ngClass]="sortClass('ts_utc')">
+                time
+              </button>
+            </th>
+            <th>
+              <button type="button" class="ai-sort-btn" (click)="toggleSort('stage')" [ngClass]="sortClass('stage')">
+                stage
+              </button>
+            </th>
+            <th>
+              <button type="button" class="ai-sort-btn" (click)="toggleSort('ticker')" [ngClass]="sortClass('ticker')">
+                ticker
+              </button>
+            </th>
+            <th>
+              <button type="button" class="ai-sort-btn" (click)="toggleSort('decision')" [ngClass]="sortClass('decision')">
+                decision
+              </button>
+            </th>
+            <th>
+              <button type="button" class="ai-sort-btn" (click)="toggleSort('model')" [ngClass]="sortClass('model')">
+                model
+              </button>
+            </th>
+            <th>
+              <button type="button" class="ai-sort-btn" (click)="toggleSort('tokens')" [ngClass]="sortClass('tokens')">
+                tokens
+              </button>
+            </th>
+            <th>
+              <button type="button" class="ai-sort-btn" (click)="toggleSort('cost')" [ngClass]="sortClass('cost')">
+                cost
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody>
-          <tr *ngFor="let r of rows()">
+          <tr *ngFor="let r of pagedRows()">
             <td class="code">{{ r['ts_utc'] }}</td>
             <td>{{ r['stage'] }}</td>
             <td class="code">{{ r['ticker'] }}</td>
             <td>{{ r['decision'] }}</td>
             <td>{{ r['model'] }}</td>
             <td>{{ r['total_tokens'] }}</td>
-            <td>{{ asNum(r['estimated_cost_usd']) != null ? (asNum(r['estimated_cost_usd'])! | number: '1.2-4') : '—' }}</td>
+            <td>
+              {{
+                asNum(r['estimated_cost_usd']) != null
+                  ? (asNum(r['estimated_cost_usd'])! | number: '1.2-4')
+                  : '—'
+              }}
+            </td>
           </tr>
-          <tr *ngIf="rows().length === 0">
-            <td colspan="7">No AI evals yet.</td>
+          <tr *ngIf="pagedRows().length === 0">
+            <td colspan="7">No AI evals match these filters.</td>
           </tr>
         </tbody>
       </table>
