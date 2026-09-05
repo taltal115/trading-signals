@@ -33,16 +33,43 @@ Manual override: Actions → **Deploy on main** → Run workflow → choose `fe`
 | `GCP_SA_KEY` | **Preferred** — JSON key for a deploy-capable GCP SA (Cloud Run + Hosting) |
 | `GOOGLE_APPLICATION_CREDENTIALS` | **Fallback** — same JSON format; already used by bot workflows for Firestore. OK for deploy **only if** that SA also has Cloud Run / Hosting / Artifact Registry (or Cloud Build) roles |
 
-Most projects’ `GOOGLE_APPLICATION_CREDENTIALS` is a **Firebase Admin / Firestore** key. That is enough for scans and AI jobs, but **often fails** Cloud Run / Hosting deploy with `PERMISSION_DENIED`.
+This repo’s `GOOGLE_APPLICATION_CREDENTIALS` is **`firebase-adminsdk-fbsvc@trading-goals.iam.gserviceaccount.com`**. That key is enough for scans and AI jobs. For **Deploy on main** it also needs (already granted on `trading-goals` if you used the setup below):
 
-Check the SA email inside the JSON (`client_email`), then in GCP IAM confirm it has roughly:
+| Role | Why |
+|------|-----|
+| `roles/cloudbuild.builds.editor` | `gcloud builds submit` |
+| `roles/storage.objectAdmin` | Upload source tarball to `gs://trading-goals_cloudbuild` |
+| `roles/artifactregistry.writer` | Cloud Build / push image to `cloud-run` |
+| `roles/run.admin` | `gcloud run deploy` |
+| `roles/iam.serviceAccountUser` | Act as the Cloud Run runtime SA (`703616057199-compute@…`) |
+| `roles/firebasehosting.admin` | `firebase deploy --only hosting` |
+| `roles/run.viewer` | Hosting finalize `run.services.get` on `/api/**` rewrite |
 
-- Cloud Run Admin (backend deploy) or at least **Cloud Run Viewer** (`roles/run.viewer`) for frontend-only  
-- Service Account User  
-- Artifact Registry Writer (and/or Cloud Build Editor)  
-- Firebase Hosting Admin  
+If `gcloud builds.submit` still says `PERMISSION_DENIED` as `firebase-adminsdk-fbsvc`, those roles are missing or not propagated yet. Prefer a dedicated deploy SA in `GCP_SA_KEY` if you do not want the Firestore admin key to have Cloud Run / Hosting admin.
 
-If those roles are missing, either grant them on that SA or create a dedicated deploy SA and store it as `GCP_SA_KEY`.
+```bash
+export DEPLOY_SA="firebase-adminsdk-fbsvc@trading-goals.iam.gserviceaccount.com"
+export PROJECT="trading-goals"
+export COMPUTE_SA="703616057199-compute@developer.gserviceaccount.com"
+
+for role in \
+  roles/cloudbuild.builds.editor \
+  roles/storage.objectAdmin \
+  roles/artifactregistry.writer \
+  roles/run.admin \
+  roles/iam.serviceAccountUser \
+  roles/firebasehosting.admin \
+  roles/run.viewer
+do
+  gcloud projects add-iam-policy-binding "$PROJECT" \
+    --member="serviceAccount:${DEPLOY_SA}" \
+    --role="$role"
+done
+
+gcloud iam service-accounts add-iam-policy-binding "$COMPUTE_SA" \
+  --member="serviceAccount:${DEPLOY_SA}" \
+  --role="roles/iam.serviceAccountUser"
+```
 
 ### Hosting + Cloud Run rewrite IAM (FE 403)
 
@@ -53,23 +80,7 @@ If those roles are missing, either grant them on that SA or create a dedicated d
 'namespaces/<PROJECT_NUMBER>/services/trading-signals-api'
 ```
 
-Grant **Cloud Run Viewer** to the same SA GitHub uses (`GCP_SA_KEY` or `GOOGLE_APPLICATION_CREDENTIALS`):
-
-```bash
-# client_email from the JSON key
-export DEPLOY_SA="YOUR_SA@trading-goals.iam.gserviceaccount.com"
-export PROJECT="trading-goals"
-export PROJECT_NUMBER="703616057199"   # from the 403 URL (namespaces/…)
-
-gcloud projects add-iam-policy-binding "$PROJECT" \
-  --member="serviceAccount:${DEPLOY_SA}" \
-  --role="roles/run.viewer"
-
-# Firebase Hosting service agent (needed to bind the rewrite)
-gcloud projects add-iam-policy-binding "$PROJECT" \
-  --member="serviceAccount:service-${PROJECT_NUMBER}@gcp-sa-firebasehosting.iam.gserviceaccount.com" \
-  --role="roles/run.viewer"
-```
+Grant **Cloud Run Viewer** (or Admin) to the same SA GitHub uses. This repo’s fallback SA is already `firebase-adminsdk-fbsvc` (see the table above). The dedicated Hosting agent `service-703616057199@gcp-sa-firebasehosting.iam.gserviceaccount.com` is **not created** in this project; Hosting finalize uses the deploy SA instead, so that SA must be able to `run.services.get`.
 
 Then re-run **Deploy on main** with `fe` (or `both`). Do not rely on `FIREBASE_TOKEN` for this deploy: a `firebase login:ci` token is a user identity and often cannot call `run.services.get`. The workflow uses Application Default Credentials from the deploy SA.
 

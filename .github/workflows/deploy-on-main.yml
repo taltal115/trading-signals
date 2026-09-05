@@ -135,12 +135,13 @@ jobs:
   deploy-frontend:
     name: Deploy frontend (Firebase Hosting)
     needs: [detect, quality, deploy-backend]
-    # Wait for backend when both change; allow skipped backend when FE-only.
+    # Wait for backend when both change so Hosting rewrites see the new revision.
+    # Still ship Hosting if Cloud Run failed (IAM/build) — FE-only fixes should not wait.
     if: |
       always() &&
       needs.quality.result == 'success' &&
       needs.detect.outputs.frontend == 'true' &&
-      (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped')
+      (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped' || needs.deploy-backend.result == 'failure')
     runs-on: ubuntu-latest
     env:
       GCP_PROJECT: ${{ vars.GCP_PROJECT || 'trading-goals' }}

@@ -189,7 +189,8 @@ In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/
   export CLOUDSDK_PYTHON="$(which python3.11)"   # or brew install python@3.11
   ./scripts/deploy.sh be
   ```
-- **`PERMISSION_DENIED` on `gcloud builds submit`:** The account you use with `gcloud` (e.g. your Gmail) must be allowed to create Cloud Build jobs and upload sources. In [GCP Console → IAM](https://console.cloud.google.com/iam-admin/iam?project=trading-goals), for project **trading-goals**, grant your user one of:
+- **`PERMISSION_DENIED` on `gcloud builds submit` (GitHub Actions):** Deploy on main authenticates as `firebase-adminsdk-fbsvc@trading-goals.iam.gserviceaccount.com` unless `GCP_SA_KEY` is set. That SA needs Cloud Build Editor, Storage Object Admin, Artifact Registry Writer, Cloud Run Admin, and Service Account User. See [deploy-github-actions.md](./deploy-github-actions.md).
+- **`PERMISSION_DENIED` on `gcloud builds submit` (local):** The account you use with `gcloud` (e.g. your Gmail) must be allowed to create Cloud Build jobs and upload sources. In [GCP Console → IAM](https://console.cloud.google.com/iam-admin/iam?project=trading-goals), for project **trading-goals**, grant your user one of:
   - **Cloud Build Editor** (`roles/cloudbuild.builds.editor`), plus **Storage** access to the Cloud Build staging bucket if prompted; or
   - **Editor** (`roles/editor`) on a personal dev project (broad but common for solo projects); or
   - Have a **project Owner** add you with the right roles.
