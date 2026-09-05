@@ -313,3 +313,20 @@
 tr.sig-hold-chart-tr.sig-stock-details-for-older .sig-hold-chart-cell {
   opacity: 0.92;
 }
+
+.sig-unified-panel-tr {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.sig-unified-panel-cell {
+  padding: 0;
+  border-bottom: 1px solid var(--border, #30363d);
+}
+
+.sig-unified-panel-content {
+  padding: 0.75rem 1rem;
+}
+
+tr.sig-unified-panel-tr.sig-stock-details-for-older .sig-unified-panel-cell {
+  opacity: 0.92;
+}

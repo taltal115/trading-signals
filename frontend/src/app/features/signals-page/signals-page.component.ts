@@ -427,6 +427,9 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
 
   /** Per signal row (instanceKey): whether the inline AI summary panel is expanded. */
   readonly aiSummaryOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
+
+  /** Unified panel state: tracks which panel type is open for each row (instanceKey). */
+  readonly activePanelByRow = signal<Record<string, 'details' | 'chart' | 'history' | null>>({});
   /** Lazy-loaded ai_evals history per instanceKey. */
   readonly aiHistoryByRow = signal<
     Record<string, { status: 'loading' | 'ok' | 'error'; rows?: AiHistoryRow[]; message?: string }>
@@ -713,6 +716,7 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     this.instanceRows.set(rows);
     this.expandedSignalGroups.set(new Set<string>());
     this.holdChartOpenByRow.set(new Set<string>());
+    this.activePanelByRow.set({});
     this.inlineKey.set(null);
     this.inlineExpanded.set(false);
     this.bracketPct.set(null);
@@ -878,9 +882,15 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   }
 
   toggleStockDetails(rowKey: string, ticker: string): void {
-    const cur = this.stockDetailByRow()[rowKey];
-    if (cur?.expanded) {
+    const currentPanel = this.activePanelByRow()[rowKey];
+    if (currentPanel === 'details') {
+      this.activePanelByRow.update((m) => ({ ...m, [rowKey]: null }));
       this.stockDetailByRow.update((m) => ({ ...m, [rowKey]: { expanded: false } }));
+      return;
+    }
+    this.activePanelByRow.update((m) => ({ ...m, [rowKey]: 'details' }));
+    const cur = this.stockDetailByRow()[rowKey];
+    if (cur?.expanded && cur.status === 'ok') {
       return;
     }
     const sym = String(ticker || '')
@@ -911,22 +921,21 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   }
 
   stockDetailsOpen(rowKey: string): boolean {
-    const e = this.stockDetailByRow()[rowKey];
-    return !!e?.expanded;
+    return this.activePanelByRow()[rowKey] === 'details';
   }
 
   toggleHoldChart(instanceKey: string, ev?: Event): void {
     ev?.stopPropagation();
-    this.holdChartOpenByRow.update((prev) => {
-      const next = new Set(prev);
-      if (next.has(instanceKey)) next.delete(instanceKey);
-      else next.add(instanceKey);
-      return next;
-    });
+    const currentPanel = this.activePanelByRow()[instanceKey];
+    if (currentPanel === 'chart') {
+      this.activePanelByRow.update((m) => ({ ...m, [instanceKey]: null }));
+    } else {
+      this.activePanelByRow.update((m) => ({ ...m, [instanceKey]: 'chart' }));
+    }
   }
 
   holdChartOpen(instanceKey: string): boolean {
-    return this.holdChartOpenByRow().has(instanceKey);
+    return this.activePanelByRow()[instanceKey] === 'chart';
   }
 
   stockDetailsLoading(rowKey: string): boolean {
@@ -1275,18 +1284,18 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   }
 
   aiSummaryOpen(instanceKey: string): boolean {
-    return this.aiSummaryOpenByRow().has(instanceKey);
+    return this.activePanelByRow()[instanceKey] === 'history';
   }
 
   toggleAiSummary(instanceKey: string, ev?: Event, row?: SigDisplayRow): void {
     ev?.stopPropagation?.();
-    const opening = !this.aiSummaryOpenByRow().has(instanceKey);
-    this.aiSummaryOpenByRow.update((prev) => {
-      const next = new Set(prev);
-      if (next.has(instanceKey)) next.delete(instanceKey);
-      else next.add(instanceKey);
-      return next;
-    });
+    const currentPanel = this.activePanelByRow()[instanceKey];
+    const opening = currentPanel !== 'history';
+    if (opening) {
+      this.activePanelByRow.update((m) => ({ ...m, [instanceKey]: 'history' }));
+    } else {
+      this.activePanelByRow.update((m) => ({ ...m, [instanceKey]: null }));
+    }
     if (opening && row) {
       void this.loadAiHistory(row);
     }
