@@ -136,10 +136,10 @@ class StrategyConfig:
     hard_reject_ret_5d_min_pct: float = 50.0
     hard_reject_vol_ratio_min: float = 5.0
     require_continuation_band: bool = True
-    continuation_ret_5d_min_pct: float = 10.0
+    continuation_ret_5d_min_pct: float = 8.0
     continuation_ret_5d_max_pct: float = 25.0
     continuation_vol_ratio_min: float = 2.0
-    continuation_vol_ratio_max: float = 3.5
+    continuation_vol_ratio_max: float = 4.0
     weights: StrategyWeights = StrategyWeights()
 
 
@@ -432,10 +432,10 @@ def load_config(config_path: Path) -> AppConfig:
         hard_reject_ret_5d_min_pct=float(strategy_raw.get("hard_reject_ret_5d_min_pct", 50.0)),
         hard_reject_vol_ratio_min=float(strategy_raw.get("hard_reject_vol_ratio_min", 5.0)),
         require_continuation_band=bool(strategy_raw.get("require_continuation_band", True)),
-        continuation_ret_5d_min_pct=float(strategy_raw.get("continuation_ret_5d_min_pct", 10.0)),
+        continuation_ret_5d_min_pct=float(strategy_raw.get("continuation_ret_5d_min_pct", 8.0)),
         continuation_ret_5d_max_pct=float(strategy_raw.get("continuation_ret_5d_max_pct", 25.0)),
         continuation_vol_ratio_min=float(strategy_raw.get("continuation_vol_ratio_min", 2.0)),
-        continuation_vol_ratio_max=float(strategy_raw.get("continuation_vol_ratio_max", 3.5)),
+        continuation_vol_ratio_max=float(strategy_raw.get("continuation_vol_ratio_max", 4.0)),
         weights=strategy_weights,
     )
 

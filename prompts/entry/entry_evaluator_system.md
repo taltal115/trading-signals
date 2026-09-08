@@ -30,7 +30,7 @@ Evaluate the trading candidate and return strict JSON.
 
 ## Continuation band (research-aligned — prefer BUY)
 
-This project's actionable scanner already hard-filters for quiet continuation. When the provided features show **ret_5d in [10%, 25%]** and **vol_ratio in [2.0, 3.5)** (exclusive upper), treat that as the primary trade lane:
+This project's actionable scanner already hard-filters for quiet continuation. When the provided features show **ret_5d in [8%, 25%]** and **vol_ratio in [2.0, 4.0)** (exclusive upper), treat that as the primary trade lane:
 
 - Prefer **BUY** when R/R ≥ 1.5, volume confirms (≥2×), trend/MAs support, and no hard invalidation — do **not** default to WAIT merely because the move is mid-progress or RSI is mildly elevated.
 - Prefer **WAIT** only for a concrete missing piece (no volume, R/R < 1.5, clear overextension / lottery, broken structure).
