@@ -320,6 +320,25 @@ def build_features_strategy_and_placeholders(
     cand = ctx.candidate_score
     cand_str = f"{cand:.1f}" if math.isfinite(cand) else "0.0"
 
+    ret_5d = float(close_s.pct_change(5).iloc[-1] * 100.0) if len(close_s) > 5 else float("nan")
+    ret_10d = float(close_s.pct_change(10).iloc[-1] * 100.0) if len(close_s) > 10 else float("nan")
+    atr_pct = (atr14 / price * 100.0) if price and math.isfinite(atr14) else float("nan")
+    stop_mult = float(getattr(cfg.strategy, "stop_atr_mult", 1.5))
+    tgt_mult = float(getattr(cfg.strategy, "target_atr_mult", 2.5))
+    scanner_stop = price - stop_mult * atr14 if math.isfinite(atr14) else float("nan")
+    scanner_target = price + tgt_mult * atr14 if math.isfinite(atr14) else float("nan")
+    st = cfg.strategy
+    ret_min = float(getattr(st, "continuation_ret_5d_min_pct", 10.0))
+    ret_max = float(getattr(st, "continuation_ret_5d_max_pct", 25.0))
+    vol_min = float(getattr(st, "continuation_vol_ratio_min", 2.0))
+    vol_max = float(getattr(st, "continuation_vol_ratio_max", 3.5))
+    in_band = (
+        math.isfinite(ret_5d)
+        and math.isfinite(rel_vol)
+        and ret_min <= ret_5d <= ret_max
+        and vol_min <= rel_vol < vol_max
+    )
+
     placeholders: dict[str, str] = {
         "ticker": ctx.ticker,
         "theme": theme,
@@ -355,6 +374,13 @@ def build_features_strategy_and_placeholders(
         "volume": str(int(last_vol)) if math.isfinite(last_vol) else "0",
         "avg_volume_20d": str(int(avg20_vol)) if math.isfinite(avg20_vol) else "0",
         "relative_volume": _fmt2(rel_vol),
+        "ret_5d_pct": _fmt2(ret_5d),
+        "ret_10d_pct": _fmt2(ret_10d),
+        "vol_ratio": _fmt2(rel_vol),
+        "atr_pct": _fmt2(atr_pct),
+        "scanner_stop": _fmt2(scanner_stop),
+        "scanner_target": _fmt2(scanner_target),
+        "continuation_band": "yes" if in_band else "no",
         "technical_score": _fmt2(weight_feats["technical_score"]),
         # Weighted deterministic component actually used by compute_total_score
         # (was price_strength*100, which mislabeled a single sub-feature as the score).

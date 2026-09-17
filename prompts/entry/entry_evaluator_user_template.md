@@ -30,6 +30,15 @@ Evaluate this trading candidate:
 - **Resistance**: ${{resistance}}
 - **52W Range Position**: {{position_in_52w_range}} (0=52w low, 1=52w high)
 
+## Scanner continuation (research lane)
+- **Continuation band**: {{continuation_band}} (yes = ret_5d in [10%, 25%] and vol_ratio in [2.0, 3.5))
+- **5D return**: {{ret_5d_pct}}%
+- **10D return**: {{ret_10d_pct}}%
+- **Volume ratio** (vs 20d avg): {{vol_ratio}}x
+- **ATR %**: {{atr_pct}}%
+- **Scanner stop (1.5× ATR)**: ${{scanner_stop}}
+- **Scanner target (2.5× ATR)**: ${{scanner_target}}
+
 ## Volume Profile
 - **Current Volume**: {{volume}}
 - **20-Day Avg Volume**: {{avg_volume_20d}}
