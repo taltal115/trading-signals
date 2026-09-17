@@ -145,10 +145,10 @@ def main(argv: list[str] | None = None) -> int:
     log = _setup_logging()
     cfg = load_config(ROOT / args.config if not Path(args.config).is_absolute() else Path(args.config))
     strat = getattr(cfg, "strategy", None)
-    ret_min = float(getattr(strat, "continuation_ret_5d_min_pct", 10.0) if strat else 10.0)
+    ret_min = float(getattr(strat, "continuation_ret_5d_min_pct", 8.0) if strat else 8.0)
     ret_max = float(getattr(strat, "continuation_ret_5d_max_pct", 25.0) if strat else 25.0)
     vol_min = float(getattr(strat, "continuation_vol_ratio_min", 2.0) if strat else 2.0)
-    vol_max = float(getattr(strat, "continuation_vol_ratio_max", 3.5) if strat else 3.5)
+    vol_max = float(getattr(strat, "continuation_vol_ratio_max", 4.0) if strat else 4.0)
 
     since = date.fromisoformat(args.since)
     until = date.fromisoformat(args.until) if str(args.until).strip() else None
