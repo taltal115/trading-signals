@@ -31,6 +31,26 @@ class ContinuationBandTests(unittest.TestCase):
             )
         )
 
+    def test_in_band_current_config_25_3_5(self) -> None:
+        self.assertTrue(
+            in_continuation_band(
+                {"ret_5d_pct": 23.0, "vol_ratio": 3.2},
+                ret_min=10.0,
+                ret_max=25.0,
+                vol_min=2.0,
+                vol_max=3.5,
+            )
+        )
+        self.assertFalse(
+            in_continuation_band(
+                {"ret_5d_pct": 17.0, "vol_ratio": 3.59},
+                ret_min=10.0,
+                ret_max=25.0,
+                vol_min=2.0,
+                vol_max=3.5,
+            )
+        )
+
     def test_partition_never_skips_in_band(self) -> None:
         targets = [
             {"signal_doc_id": "a", "ticker": "AAA", "in_band": True},

@@ -11,7 +11,7 @@ Evaluate the trading candidate and return strict JSON.
 
 2. **Entry zone** — Near support or breakout confirmation (from support, MAs, ATR).
 
-3. **Stop** — Below nearest support or 1.5–2× ATR below entry; never >3% risk from entry.
+3. **Stop** — Prefer the scanner stop at **1.5× ATR** below entry (or a tighter structural level). Do not reject a continuation-band name because that stop is wider than 3%; ATR on this book is often 3–7%.
 
 4. **Targets** — T1 ~1–1.5R, T2 ~2–2.5R, T3 stretch; R = entry − stop.
 

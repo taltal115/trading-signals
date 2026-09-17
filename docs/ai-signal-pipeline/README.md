@@ -52,7 +52,7 @@ slack:
 ```
 
 **2026-08 flow notes**
-- Scan hard-filters toxic BUYs (conf≥98 / ret_5d≥50 / vol≥5 / outside continuation band) → WAIT before Firestore.
+- Scan hard-filters toxic BUYs (ret_5d≥50 / vol≥5 / outside continuation band) → WAIT before Firestore. Conf≥98 is ranking-only (`hard_reject_confidence_min: 0`).
 - Paper `my_positions` opens **only** when entry AI sets `ai_gate=passed` (not on technical BUY).
 - Holding advisor runs **1×/weekday**, evaluates **passed-only** paper.
 - Entry LLM 429/exhaustion leaves `ai_gate=pending` (never stub-BUY). Batch soft-exits 0 on rate limit, circuit-breaks remaining tickers, and paces calls (`OPENAI_INTER_REQUEST_SECONDS`).
@@ -68,4 +68,4 @@ Research backfill (pending continuation-band, no paper): `scripts/research_backf
 
 Dashboard **Research** page: Nest `POST /api/github/workflows/profit-hold-research` → GHA → Firestore `research_runs` (see [`docs/research/README.md`](../research/README.md)).
 
-Research: [`docs/research/2026-08/`](../research/2026-08/), [`docs/research/2026-07/`](../research/2026-07/).
+Research: [`docs/research/2026-09/`](../research/2026-09/), [`docs/research/2026-08/`](../research/2026-08/), [`docs/research/2026-07/`](../research/2026-07/).
