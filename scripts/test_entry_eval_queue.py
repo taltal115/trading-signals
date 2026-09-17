@@ -31,23 +31,23 @@ class ContinuationBandTests(unittest.TestCase):
             )
         )
 
-    def test_in_band_current_config_25_3_5(self) -> None:
+    def test_in_band_current_config_8_25_4(self) -> None:
         self.assertTrue(
             in_continuation_band(
-                {"ret_5d_pct": 23.0, "vol_ratio": 3.2},
-                ret_min=10.0,
+                {"ret_5d_pct": 8.5, "vol_ratio": 3.59},
+                ret_min=8.0,
                 ret_max=25.0,
                 vol_min=2.0,
-                vol_max=3.5,
+                vol_max=4.0,
             )
         )
         self.assertFalse(
             in_continuation_band(
-                {"ret_5d_pct": 17.0, "vol_ratio": 3.59},
-                ret_min=10.0,
+                {"ret_5d_pct": 17.0, "vol_ratio": 4.0},
+                ret_min=8.0,
                 ret_max=25.0,
                 vol_min=2.0,
-                vol_max=3.5,
+                vol_max=4.0,
             )
         )
 

@@ -152,10 +152,10 @@ def list_recent_pending_entry_targets(
     prefer_max_pct: float = 20.0,
     lottery_vol_ratio_min: float = 5.0,
     lottery_ret_5d_min_pct: float = 50.0,
-    cont_ret_min: float = 10.0,
+    cont_ret_min: float = 8.0,
     cont_ret_max: float = 25.0,
     cont_vol_min: float = 2.0,
-    cont_vol_max: float = 3.5,
+    cont_vol_max: float = 4.0,
 ) -> list[dict[str, Any]]:
     """Pending entry targets across recent signal runs (newest first).
 

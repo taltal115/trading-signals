@@ -328,10 +328,10 @@ def build_features_strategy_and_placeholders(
     scanner_stop = price - stop_mult * atr14 if math.isfinite(atr14) else float("nan")
     scanner_target = price + tgt_mult * atr14 if math.isfinite(atr14) else float("nan")
     st = cfg.strategy
-    ret_min = float(getattr(st, "continuation_ret_5d_min_pct", 10.0))
+    ret_min = float(getattr(st, "continuation_ret_5d_min_pct", 8.0))
     ret_max = float(getattr(st, "continuation_ret_5d_max_pct", 25.0))
     vol_min = float(getattr(st, "continuation_vol_ratio_min", 2.0))
-    vol_max = float(getattr(st, "continuation_vol_ratio_max", 3.5))
+    vol_max = float(getattr(st, "continuation_vol_ratio_max", 4.0))
     in_band = (
         math.isfinite(ret_5d)
         and math.isfinite(rel_vol)
