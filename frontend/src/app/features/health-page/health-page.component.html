@@ -1,0 +1,79 @@
+<div class="health-page">
+  <div class="page-header">
+    <h1>Health Check Dashboard</h1>
+    <div class="header-actions">
+      @if (status()) {
+        <span class="last-updated">Last Updated: {{ formatLastChecked(status()!.timestamp) }}</span>
+      }
+      <button class="btn-refresh" (click)="refresh()" [disabled]="loading()">
+        {{ loading() ? 'Checking...' : 'Refresh' }}
+      </button>
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="error-banner">
+      <strong>Error:</strong> {{ error() }}
+    </div>
+  }
+
+  @if (loading() && !status()) {
+    <div class="loading-state">
+      <p>Loading health status...</p>
+    </div>
+  }
+
+  @if (status()) {
+    <div class="categories">
+      @for (category of status()!.categories; track category.name) {
+        <div class="category-section">
+          <div class="category-header">
+            <h2>
+              <span class="category-icon">{{ healthService.getCategoryIcon(category) }}</span>
+              {{ category.name }}
+              <span class="category-count">
+                ({{ healthService.getHealthyCount(category) }}/{{ healthService.getTotalCount(category) }} healthy)
+              </span>
+              @if (category.critical) {
+                <span class="critical-badge">Critical</span>
+              }
+            </h2>
+          </div>
+
+          <div class="integrations-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Provider</th>
+                  <th>Status</th>
+                  <th>Response Time</th>
+                  <th>Last Checked</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (integration of category.integrations; track integration.name) {
+                  <tr [class]="healthService.getStatusClass(integration.status)">
+                    <td class="provider-name">
+                      {{ integration.name }}
+                      @if (integration.isPaid) {
+                        <span class="paid-badge" title="Paid service">💰</span>
+                      }
+                    </td>
+                    <td class="status-cell">
+                      <span class="status-icon">{{ healthService.getStatusIcon(integration.status) }}</span>
+                      <span class="status-text">{{ integration.status | titlecase }}</span>
+                    </td>
+                    <td class="response-time">{{ formatResponseTime(integration.responseTime) }}</td>
+                    <td class="last-checked">{{ formatLastChecked(integration.lastChecked) }}</td>
+                    <td class="message">{{ integration.message }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

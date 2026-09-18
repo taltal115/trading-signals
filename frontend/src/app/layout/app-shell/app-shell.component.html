@@ -112,6 +112,16 @@
           }
         </a>
         <a
+          routerLink="/health"
+          routerLinkActive="active"
+          class="sidebar-nav-link nav-link"
+          data-abbr="He"
+          title="Health Check"
+          (click)="closeMobileNav()"
+        >
+          <span class="sidebar-nav-text">Health Check</span>
+        </a>
+        <a
           routerLink="/about"
           routerLinkActive="active"
           [routerLinkActiveOptions]="{ exact: false }"
