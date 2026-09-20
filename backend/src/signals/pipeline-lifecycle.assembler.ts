@@ -435,6 +435,44 @@ function nodeEntryQueue(
   };
 }
 
+/** Labels for flat boolean `provider_status` from `build_provider_status_dict`. */
+const PROVIDER_STATUS_META: Record<
+  string,
+  { label: string; optional?: boolean; group: 'news' | 'market' | 'macro' | 'other' }
+> = {
+  finnhub_configured: { label: 'Finnhub API key configured', group: 'news' },
+  finnhub_news_ok: { label: 'Finnhub news headlines', group: 'news' },
+  finnhub_quote_ok: { label: 'Finnhub quote', group: 'market' },
+  newsapi_configured: { label: 'NewsAPI key configured', group: 'news', optional: true },
+  newsapi_ok: { label: 'NewsAPI headlines', group: 'news', optional: true },
+  gdelt_enabled: { label: 'GDELT enabled', group: 'news', optional: true },
+  gdelt_ok: { label: 'GDELT headlines', group: 'news', optional: true },
+  history_ok: { label: 'OHLCV history usable', group: 'market' },
+  yahoo_history_ok: { label: 'Yahoo history', group: 'market', optional: true },
+  stooq_history_ok: { label: 'Stooq history', group: 'market', optional: true },
+  spy_ok: { label: 'SPY context history', group: 'market', optional: true },
+  fred_configured: { label: 'FRED API key configured', group: 'macro', optional: true },
+  fred_ok: { label: 'FRED macro events', group: 'macro', optional: true },
+  firestore_candidate_ok: { label: 'Firestore candidate score', group: 'other' },
+};
+
+function providerFlagOk(val: unknown): boolean | null {
+  if (typeof val === 'boolean') return val;
+  if (typeof val === 'number') return val !== 0;
+  if (typeof val === 'string') {
+    const s = val.trim().toLowerCase();
+    if (['true', '1', 'ok', 'healthy', 'yes'].includes(s)) return true;
+    if (['false', '0', 'fail', 'failed', 'no'].includes(s)) return false;
+  }
+  if (val && typeof val === 'object' && !Array.isArray(val)) {
+    const o = val as Record<string, unknown>;
+    if (o['ok'] === true || o['status'] === 'ok' || o['status'] === 'healthy') return true;
+    if (o['ok'] === false) return false;
+    if (o['skipped'] === true) return true;
+  }
+  return null;
+}
+
 function nodeNewsContext(
   signal: Record<string, unknown>,
   entryEval: AiEvalRow | null,
@@ -464,26 +502,73 @@ function nodeNewsContext(
   const detail = asObj(entryEval.data['detail']);
   const providers = asObj(detail['provider_status']);
   const conditions: PipelineCondition[] = [];
-  let anyOk = false;
-  let anyFail = false;
-  for (const [name, val] of Object.entries(providers)) {
-    const o = asObj(val);
-    const ok =
-      o['ok'] === true ||
-      o['status'] === 'ok' ||
-      o['status'] === 'healthy' ||
-      str(val).toLowerCase() === 'ok';
-    const skipped = o['skipped'] === true || str(o['status']).toLowerCase() === 'skipped';
-    if (ok) anyOk = true;
-    if (!ok && !skipped) anyFail = true;
+
+  const preferredOrder = [
+    'finnhub_news_ok',
+    'finnhub_configured',
+    'newsapi_ok',
+    'newsapi_configured',
+    'gdelt_ok',
+    'gdelt_enabled',
+    'finnhub_quote_ok',
+    'history_ok',
+    'yahoo_history_ok',
+    'stooq_history_ok',
+    'spy_ok',
+    'fred_ok',
+    'fred_configured',
+    'firestore_candidate_ok',
+  ];
+  const keys = [
+    ...preferredOrder.filter((k) => k in providers),
+    ...Object.keys(providers).filter((k) => !preferredOrder.includes(k)),
+  ];
+
+  let newsHeadlineOk = false;
+  let coreMarketOk = false;
+  let optionalFail = false;
+  let requiredFail = false;
+
+  for (const name of keys) {
+    const val = providers[name];
+    const ok = providerFlagOk(val);
+    if (ok == null) continue;
+    const meta = PROVIDER_STATUS_META[name] || {
+      label: name,
+      group: 'other' as const,
+      optional: true,
+    };
+    if (name === 'finnhub_news_ok' || name === 'newsapi_ok') {
+      if (ok) newsHeadlineOk = true;
+    }
+    if (name === 'history_ok' || name === 'finnhub_quote_ok') {
+      if (ok) coreMarketOk = true;
+      else requiredFail = true;
+    }
+    if (!ok && meta.optional) optionalFail = true;
+    if (!ok && !meta.optional && name !== 'finnhub_news_ok' && name !== 'newsapi_ok') {
+      // finnhub_news / newsapi are OR'd — handled below
+      if (name === 'finnhub_configured' && !ok) requiredFail = true;
+    }
     conditions.push({
       id: name,
-      label: name,
-      pass: ok || skipped,
-      actual: String(o['status'] ?? (ok ? 'ok' : 'fail')),
-      detail: str(o['message'] || o['error']) || undefined,
+      label: meta.label,
+      pass: ok,
+      actual: ok,
+      threshold: meta.optional ? 'optional' : 'required',
+      detail: meta.optional && !ok ? 'Optional — entry continues without it' : undefined,
     });
   }
+
+  // Either Finnhub or NewsAPI headlines is enough for the news path.
+  const newsPass =
+    newsHeadlineOk ||
+    providerFlagOk(providers['finnhub_news_ok']) === true ||
+    providerFlagOk(providers['newsapi_ok']) === true;
+  if (!newsPass && ('finnhub_news_ok' in providers || 'newsapi_ok' in providers)) {
+    optionalFail = true; // still not a hard gate fail per product rules
+  }
+
   if (conditions.length === 0) {
     return {
       id: 'news_context',
@@ -497,20 +582,30 @@ function nodeNewsContext(
       raw: detail,
     };
   }
-  const status: PipelineNodeStatus = anyOk
-    ? anyFail
-      ? 'degraded'
-      : 'passed'
-    : 'degraded';
+
+  let status: PipelineNodeStatus;
+  let summary: string;
+  if (newsPass && coreMarketOk && !optionalFail && !requiredFail) {
+    status = 'passed';
+    summary = 'News + context providers OK';
+  } else if (newsPass || coreMarketOk) {
+    status = 'degraded';
+    const bits: string[] = [];
+    if (newsPass) bits.push('headlines OK');
+    else bits.push('no headlines');
+    if (optionalFail) bits.push('optional providers missed');
+    if (requiredFail) bits.push('some core flags failed');
+    summary = bits.join(' — ') + ' (entry continued)';
+  } else {
+    status = 'degraded';
+    summary = 'News incomplete — entry continued';
+  }
+
   return {
     id: 'news_context',
     label: 'News / context',
     status,
-    summary: anyOk
-      ? anyFail
-        ? 'Partial news (Finnhub path may still work)'
-        : 'Providers OK'
-      : 'News incomplete — entry continued',
+    summary,
     job: 'ai-entry-batch',
     atUtc: str(entryEval.data['ts_utc']) || undefined,
     conditions,

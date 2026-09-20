@@ -193,8 +193,20 @@ function runPassed(): void {
           },
           detail: {
             provider_status: {
-              finnhub: { ok: true, status: 'ok' },
-              gdelt: { ok: false, status: 'timeout' },
+              finnhub_configured: true,
+              finnhub_news_ok: true,
+              finnhub_quote_ok: true,
+              newsapi_configured: true,
+              newsapi_ok: true,
+              gdelt_enabled: true,
+              gdelt_ok: false,
+              history_ok: true,
+              yahoo_history_ok: true,
+              stooq_history_ok: false,
+              spy_ok: true,
+              fred_configured: true,
+              fred_ok: true,
+              firestore_candidate_ok: true,
             },
           },
         },
@@ -229,7 +241,15 @@ function runPassed(): void {
   assert.equal(g.nodes.find((n) => n.id === 'paper')!.status, 'passed');
   assert.equal(g.nodes.find((n) => n.id === 'holding')!.status, 'passed');
   assert.equal(g.nodes.find((n) => n.id === 'outcome')!.status, 'passed');
-  assert.equal(g.nodes.find((n) => n.id === 'news_context')!.status, 'degraded');
+  const news = g.nodes.find((n) => n.id === 'news_context')!;
+  assert.equal(news.status, 'degraded');
+  const fhNews = news.conditions.find((c) => c.id === 'finnhub_news_ok');
+  assert.ok(fhNews);
+  assert.equal(fhNews!.pass, true);
+  assert.equal(fhNews!.actual, true);
+  const gdelt = news.conditions.find((c) => c.id === 'gdelt_ok');
+  assert.ok(gdelt);
+  assert.equal(gdelt!.pass, false);
   console.log('ok passed');
 }
 
