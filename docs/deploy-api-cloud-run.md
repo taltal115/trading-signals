@@ -189,6 +189,7 @@ In [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/
   export CLOUDSDK_PYTHON="$(which python3.11)"   # or brew install python@3.11
   ./scripts/deploy.sh be
   ```
+- **`The build is running, and logs are being written to the default logs bucket` (GitHub Actions):** The image often **succeeds**. `gcloud builds submit` then fails while streaming the default logs bucket because `firebase-adminsdk-fbsvc` is not project Viewer/Owner. [`scripts/deploy_nest_cloud_run.sh`](../scripts/deploy_nest_cloud_run.sh) submits `--async` and polls `gcloud builds describe` instead. Do not grant project Owner to the Firestore admin key just to stream logs.
 - **`PERMISSION_DENIED` on `gcloud builds submit` (GitHub Actions):** Deploy on main authenticates as `firebase-adminsdk-fbsvc@trading-goals.iam.gserviceaccount.com` unless `GCP_SA_KEY` is set. That SA needs Cloud Build Editor, Storage Object Admin, Artifact Registry Writer, Cloud Run Admin, and Service Account User. See [deploy-github-actions.md](./deploy-github-actions.md).
 - **`PERMISSION_DENIED` on `gcloud builds submit` (local):** The account you use with `gcloud` (e.g. your Gmail) must be allowed to create Cloud Build jobs and upload sources. In [GCP Console → IAM](https://console.cloud.google.com/iam-admin/iam?project=trading-goals), for project **trading-goals**, grant your user one of:
   - **Cloud Build Editor** (`roles/cloudbuild.builds.editor`), plus **Storage** access to the Cloud Build staging bucket if prompted; or

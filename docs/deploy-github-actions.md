@@ -37,7 +37,7 @@ This repo’s `GOOGLE_APPLICATION_CREDENTIALS` is **`firebase-adminsdk-fbsvc@tra
 
 | Role | Why |
 |------|-----|
-| `roles/cloudbuild.builds.editor` | `gcloud builds submit` |
+| `roles/cloudbuild.builds.editor` | `gcloud builds submit` + `builds describe` (script polls; do not stream default logs) |
 | `roles/storage.objectAdmin` | Upload source tarball to `gs://trading-goals_cloudbuild` |
 | `roles/artifactregistry.writer` | Cloud Build / push image to `cloud-run` |
 | `roles/run.admin` | `gcloud run deploy` |

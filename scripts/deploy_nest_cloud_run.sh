@@ -91,13 +91,42 @@ if [[ "${USE_LOCAL_DOCKER}" == "1" || "${USE_LOCAL_DOCKER}" == "true" ]]; then
   docker push "${IMAGE}"
 else
   echo "Building image via Cloud Build (context: backend/)..."
-  if ! gcloud builds submit "${ROOT}/backend" --tag "${IMAGE}"; then
+  # Submit async and poll Cloud Build API status. `gcloud builds submit` (sync)
+  # streams the default logs bucket and exits 1 when the deploy SA is not
+  # Viewer/Owner — even after the image push succeeds.
+  BUILD_ID="$(
+    gcloud builds submit "${ROOT}/backend" \
+      --tag "${IMAGE}" \
+      --async \
+      --format='value(id)'
+  )" || true
+  if [[ -z "${BUILD_ID}" ]]; then
     echo "" >&2
-    echo "Cloud Build failed. Common causes:" >&2
+    echo "Cloud Build submit failed. Common causes:" >&2
     echo "  • PERMISSION_DENIED — fix IAM (see docs/deploy-api-cloud-run.md)" >&2
     echo "  • gcloud Python 3.9 crash on 'unsupported operand type |' — script sets CLOUDSDK_PYTHON;" >&2
     echo "    if this persists: export CLOUDSDK_PYTHON=\$(which python3.11)" >&2
     echo "  • Or build locally: USE_LOCAL_DOCKER=1 bash scripts/deploy_nest_cloud_run.sh" >&2
+    exit 1
+  fi
+  echo "Submitted Cloud Build ${BUILD_ID}"
+  echo "  https://console.cloud.google.com/cloud-build/builds/${BUILD_ID}?project=${PROJECT}"
+  BUILD_STATUS=""
+  deadline=$((SECONDS + 1800))
+  while (( SECONDS < deadline )); do
+    BUILD_STATUS="$(gcloud builds describe "${BUILD_ID}" --format='value(status)')"
+    echo "  Cloud Build status: ${BUILD_STATUS}"
+    case "${BUILD_STATUS}" in
+      SUCCESS) break ;;
+      FAILURE|TIMEOUT|CANCELLED|EXPIRED|INTERNAL_ERROR)
+        echo "Cloud Build ${BUILD_STATUS}. See console URL above." >&2
+        exit 1
+        ;;
+    esac
+    sleep 8
+  done
+  if [[ "${BUILD_STATUS}" != "SUCCESS" ]]; then
+    echo "Timed out waiting for Cloud Build ${BUILD_ID} (last status=${BUILD_STATUS})." >&2
     exit 1
   fi
 fi
