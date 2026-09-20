@@ -84,7 +84,7 @@ Set production configuration on the service (example — use Secret Manager for 
 | `POLYGON_API_KEY` | **Strongly recommended** (Massive Stocks). Primary for `/api/market/quote`, `/snapshot`, and `/candles` (daily + hourly). Same key as `api.polygon.io` / also accepted as `MASSIVE_API_KEY`. For Signals **realtime** live prices, use Stocks Advanced and set `POLYGON_WS_REALTIME=true` (see [signals-live-quotes-websocket.md](./signals-live-quotes-websocket.md)). |
 | `FINNHUB_API_KEY` | Fallback for quotes/snapshot when Polygon fails or is unset. |
 | `TWELVE_DATA_API_KEY` / `ALPHA_VANTAGE_API_KEY` | Fallback for `/api/market/candles` when Polygon fails (Finnhub free often **403** on `stock/candle`). |
-| `GITHUB_PERSONAL_TOKEN` | **Required** for `POST /api/github/workflows/position-monitor` (dashboard **Check**). Not bundled in the frontend. |
+| `PERSONAL_GITHUB_TOKEN` | **Required** for `POST /api/github/workflows/position-monitor` (dashboard **Check**). Not bundled in the frontend. |
 
 ### Market data (`503` missing keys)
 
@@ -117,17 +117,17 @@ Nest also accepts `ALPHAVANTAGE_API_KEY` (no underscore) for compatibility with 
 
 ### GitHub workflow buttons (`503` “workflow dispatch is not configured”)
 
-If the UI calls `https://<your-host>/api/github/workflows/position-monitor` and the API returns **503** with a message about `GITHUB_PERSONAL_TOKEN`, the Cloud Run service does not have that variable set.
+If the UI calls `https://<your-host>/api/github/workflows/position-monitor` and the API returns **503** with a message about `PERSONAL_GITHUB_TOKEN`, the Cloud Run service does not have that variable set.
 
 1. Create a **GitHub PAT** that can dispatch Actions on this repo:
    - **Classic:** `repo` (or scoped to this repo) + **`workflow`** scope.
    - **Fine-grained:** repository access to `trading-signals`, permissions **Actions: Read and write**.
-2. On Cloud Run → your service → **Variables & secrets** → add **`GITHUB_PERSONAL_TOKEN`** (prefer **Secret Manager** reference for the value).
+2. On Cloud Run → your service → **Variables & secrets** → add **`PERSONAL_GITHUB_TOKEN`** (prefer **Secret Manager** reference for the value).
 3. Use **`--update-env-vars`** (or the console) so you do **not** wipe existing OAuth/Firestore vars:
 
 ```bash
 gcloud run services update trading-signals-api --region us-central1 \
-  --update-env-vars "GITHUB_PERSONAL_TOKEN=ghp_xxxxxxxx"
+  --update-env-vars "PERSONAL_GITHUB_TOKEN=ghp_xxxxxxxx"
 ```
 
 Avoid pasting the PAT in shell history on shared machines; use the console or a secret.

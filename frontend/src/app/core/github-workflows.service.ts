@@ -4,7 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
 
 /**
- * Dispatches GitHub Actions via Nest (`GITHUB_PERSONAL_TOKEN` server-side only).
+ * Dispatches GitHub Actions via Nest (`PERSONAL_GITHUB_TOKEN` server-side only).
  */
 @Injectable({ providedIn: 'root' })
 export class GithubWorkflowsService {

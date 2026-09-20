@@ -18,7 +18,7 @@ export class GithubWorkflowService {
     const token = this.config.get<string>('githubWorkflowToken')?.trim();
     if (!token) {
       throw new ServiceUnavailableException(
-        'GitHub workflow dispatch is not configured. Set GITHUB_PERSONAL_TOKEN (or GITHUB_TOKEN) in the API .env.',
+        'GitHub workflow dispatch is not configured. Set PERSONAL_GITHUB_TOKEN (or GITHUB_TOKEN) in the API .env.',
       );
     }
     const owner = this.config.get<string>('githubRepoOwner') || '';

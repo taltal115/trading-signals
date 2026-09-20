@@ -100,7 +100,7 @@ export default () => ({
   ).trim(),
   /** PAT with `workflow` scope — dispatches Actions from POST /api/github/workflows/* (never sent to browser). */
   githubWorkflowToken: (
-    process.env.GITHUB_PERSONAL_TOKEN ||
+    process.env.PERSONAL_GITHUB_TOKEN ||
     process.env.GITHUB_TOKEN ||
     ''
   ).trim(),
