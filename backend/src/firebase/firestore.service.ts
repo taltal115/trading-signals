@@ -976,6 +976,85 @@ export class FirestoreService implements OnModuleInit {
     }
   }
 
+  /** One signals run document by id. */
+  async getSignalRun(
+    docId: string,
+  ): Promise<{ id: string; data: DocumentData } | null> {
+    const id = String(docId || '').trim();
+    if (!id) return null;
+    try {
+      const snap = await this.db.collection('signals').doc(id).get();
+      if (!snap.exists) return null;
+      return { id: snap.id, data: toPlainDoc(snap.data()) };
+    } catch (e) {
+      this.handleFirestoreListError('getSignalRun', e);
+    }
+  }
+
+  /** Universe symbol subdoc for a given asof date (best-effort). */
+  async getUniverseSymbol(
+    asofDate: string,
+    ticker: string,
+  ): Promise<DocumentData | null> {
+    const date = String(asofDate || '').trim();
+    const sym = String(ticker || '').trim().toUpperCase();
+    if (!date || !sym) return null;
+    try {
+      const snap = await this.db
+        .collection('universe')
+        .doc(date)
+        .collection('symbols')
+        .doc(sym)
+        .get();
+      if (!snap.exists) return null;
+      return toPlainDoc(snap.data());
+    } catch (e) {
+      this.log.warn(`getUniverseSymbol(${date}/${sym}) failed: ${String(e)}`);
+      return null;
+    }
+  }
+
+  /**
+   * Read a my_positions doc by id without owner check (paper positions use
+   * ``__signal_paper__`` and must be visible on the lifecycle page).
+   */
+  async getPositionById(
+    docId: string,
+  ): Promise<{ id: string; data: DocumentData } | null> {
+    const id = String(docId || '').trim();
+    if (!id) return null;
+    try {
+      const snap = await this.db.collection(MY_POSITIONS_COLLECTION).doc(id).get();
+      if (!snap.exists) return null;
+      return { id: snap.id, data: toPlainDoc(snap.data()) };
+    } catch (e) {
+      this.log.warn(`getPositionById(${id}) failed: ${String(e)}`);
+      return null;
+    }
+  }
+
+  /** Recent checks for a paper/user position (no owner filter — lifecycle use). */
+  async listPositionChecksById(
+    posId: string,
+    limitN = 10,
+  ): Promise<{ id: string; data: DocumentData }[]> {
+    const id = String(posId || '').trim();
+    if (!id) return [];
+    try {
+      const snap = await this.db
+        .collection(MY_POSITIONS_COLLECTION)
+        .doc(id)
+        .collection('checks')
+        .orderBy('ts_utc', 'desc')
+        .limit(Math.min(Math.max(limitN, 1), 20))
+        .get();
+      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+    } catch (e) {
+      this.log.warn(`listPositionChecksById(${id}) failed: ${String(e)}`);
+      return [];
+    }
+  }
+
   async createResearchRunQueued(runId: string, data: DocumentData): Promise<void> {
     const id = String(runId || '').trim();
     if (!id) {

@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { HttpParams } from '@angular/common/http';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Subscription, switchMap, catchError, of, tap, firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/auth.service';
@@ -354,7 +355,7 @@ function buildAiEvaluationView(rowSignal: Record<string, unknown>): AiEvaluation
 @Component({
   selector: 'app-signals-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, SignalHoldChartComponent],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, SignalHoldChartComponent],
   templateUrl: './signals-page.component.html',
   styleUrl: './signals-page.component.css',
 })

@@ -1,0 +1,76 @@
+<div class="workflow-page">
+  <div class="workflow-toolbar">
+    <a routerLink="/signals" class="workflow-back">← Signals</a>
+    @if (graph(); as g) {
+      <div class="workflow-title">
+        <h1>
+          <span class="ticker">{{ g.header.ticker }}</span>
+          <span class="asof">{{ g.header.asofDate }}</span>
+        </h1>
+        <span class="gate-chip" [ngClass]="gateClass(g.header.aiGate)">{{
+          g.header.aiGate || 'pending'
+        }}</span>
+      </div>
+      <dl class="workflow-stats">
+        <div>
+          <dt>Confidence</dt>
+          <dd>{{ g.header.confidence ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>Close</dt>
+          <dd>{{ fmtNum(g.header.close) }}</dd>
+        </div>
+        <div>
+          <dt>Stop</dt>
+          <dd>{{ fmtNum(g.header.stop) }}</dd>
+        </div>
+        <div>
+          <dt>Target</dt>
+          <dd>{{ fmtNum(g.header.target) }}</dd>
+        </div>
+        <div>
+          <dt>Doc</dt>
+          <dd class="code" [title]="g.header.docId">{{ g.header.docId }}</dd>
+        </div>
+      </dl>
+    }
+  </div>
+
+  @if (loading()) {
+    <p class="workflow-status">Loading lifecycle…</p>
+  }
+
+  @if (error(); as err) {
+    <div class="workflow-error">{{ err }}</div>
+  }
+
+  @if (graph(); as g) {
+    @if (g.inferredBanner) {
+      <div class="workflow-banner" role="status">{{ g.inferredBanner }}</div>
+    }
+    @if (g.failPoint) {
+      <div class="workflow-fail-banner" role="status">
+        Fail / skip point: <strong>{{ g.failPoint }}</strong>
+      </div>
+    }
+
+    <div class="workflow-body" [class.drawer-open]="!!selected()">
+      <div class="workflow-dag-pane">
+        <app-pipeline-dag
+          [graph]="g"
+          [selectedId]="selected()?.id ?? null"
+          (nodeSelect)="onSelect($event)"
+        />
+      </div>
+      @if (selected(); as sel) {
+        <div class="workflow-drawer-pane">
+          <app-pipeline-drawer
+            [node]="sel"
+            [header]="g.header"
+            (dismiss)="clearSelected()"
+          />
+        </div>
+      }
+    </div>
+  }
+</div>

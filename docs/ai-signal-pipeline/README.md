@@ -26,6 +26,7 @@ flowchart TD
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — jobs, gates, Firestore shapes
 - [VERDICT_SCHEMA.md](./VERDICT_SCHEMA.md) — clear recommendation contract
 - [USAGE_AND_ANALYTICS.md](./USAGE_AND_ANALYTICS.md) — hybrid storage, tokens, UI
+- [LIFECYCLE-UI.md](./LIFECYCLE-UI.md) — per-signal Workflow DAG (phases, conditions, drawer)
 - [RUNBOOK.md](./RUNBOOK.md) — local + GHA commands
 - [PROMPTS.md](./PROMPTS.md) — prompt file map
 

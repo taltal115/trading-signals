@@ -448,6 +448,136 @@ def write_entry_evaluation(
                 "scores": recommendation.get("scores"),
                 "llm": {"verdict": {"action": decision}, "source": getattr(usage, "source", "")},
             }
+            # Append lifecycle stages for the Workflow DAG (does not change gate rules).
+            from signals_bot.pipeline_trace import merge_pipeline_trace_stage
+
+            prev_trace = r.get("pipeline_trace") if isinstance(r.get("pipeline_trace"), dict) else None
+            det = detail if isinstance(detail, dict) else {}
+            skip_reason = str(det.get("skip_reason") or "")
+            scores = recommendation.get("scores") if isinstance(recommendation.get("scores"), dict) else {}
+            total = float(scores.get("total") or 0.0)
+            rec_detail = (
+                recommendation.get("detail")
+                if isinstance(recommendation.get("detail"), dict)
+                else {}
+            )
+            conviction = rec_detail.get("conviction")
+            try:
+                conviction_f = float(conviction) if conviction is not None else None
+            except (TypeError, ValueError):
+                conviction_f = None
+
+            if skip_reason == "rank_below_top_n" or str(ai_gate).lower() == "skipped":
+                rank = det.get("rank")
+                top_n = det.get("top_n")
+                r["pipeline_trace"] = merge_pipeline_trace_stage(
+                    prev_trace,
+                    stage_id="entry_queue",
+                    status="skipped",
+                    job="ai-entry-batch",
+                    at_utc=ts_utc,
+                    conditions=[
+                        {
+                            "id": "top_n",
+                            "label": "Within entry LLM top-N",
+                            "pass": False,
+                            "actual": rank,
+                            "threshold": top_n,
+                            "detail": f"rank {rank} > top {top_n}",
+                        }
+                    ],
+                    detail={"skip_reason": skip_reason or "rank_below_top_n", "rank": rank, "top_n": top_n},
+                )
+            else:
+                r["pipeline_trace"] = merge_pipeline_trace_stage(
+                    prev_trace,
+                    stage_id="entry_queue",
+                    status="passed",
+                    job="ai-entry-batch",
+                    at_utc=ts_utc,
+                    conditions=[
+                        {
+                            "id": "selected",
+                            "label": "Selected for entry LLM",
+                            "pass": True,
+                            "actual": True,
+                        }
+                    ],
+                )
+                r["pipeline_trace"] = merge_pipeline_trace_stage(
+                    r.get("pipeline_trace") if isinstance(r.get("pipeline_trace"), dict) else None,
+                    stage_id="news_context",
+                    status="passed",
+                    job="ai-entry-batch",
+                    at_utc=ts_utc,
+                    detail={"provider_status": det.get("provider_status")},
+                )
+                checklist = recommendation.get("checklist") if isinstance(recommendation.get("checklist"), list) else []
+                r["pipeline_trace"] = merge_pipeline_trace_stage(
+                    r.get("pipeline_trace") if isinstance(r.get("pipeline_trace"), dict) else None,
+                    stage_id="ai_entry",
+                    status="passed",
+                    job="ai-entry-batch",
+                    at_utc=ts_utc,
+                    conditions=[
+                        {
+                            "id": str(c.get("id") or f"c{i}"),
+                            "label": str(c.get("label") or c.get("id") or f"Item {i}"),
+                            "pass": bool(c.get("pass")),
+                            "actual": bool(c.get("pass")),
+                        }
+                        for i, c in enumerate(checklist)
+                        if isinstance(c, dict)
+                    ],
+                    detail={
+                        "decision": decision,
+                        "headline": recommendation.get("headline"),
+                        "scores": scores,
+                    },
+                )
+                gate_l = str(ai_gate).lower()
+                gate_conditions = [
+                    {
+                        "id": "decision_buy",
+                        "label": "decision == BUY",
+                        "pass": str(decision).upper() == "BUY",
+                        "actual": decision,
+                        "threshold": "BUY",
+                    },
+                    {
+                        "id": "total",
+                        "label": "scores.total vs entry_min_total",
+                        "pass": gate_l == "passed",
+                        "actual": total,
+                    },
+                ]
+                if conviction_f is not None:
+                    gate_conditions.append(
+                        {
+                            "id": "conviction",
+                            "label": "conviction vs entry_min_conviction",
+                            "pass": gate_l == "passed",
+                            "actual": conviction_f,
+                        }
+                    )
+                r["pipeline_trace"] = merge_pipeline_trace_stage(
+                    r.get("pipeline_trace") if isinstance(r.get("pipeline_trace"), dict) else None,
+                    stage_id="ai_gate",
+                    status="passed" if gate_l == "passed" else "failed",
+                    job="ai-entry-batch",
+                    at_utc=ts_utc,
+                    conditions=gate_conditions,
+                    detail={"ai_gate": ai_gate, "decision": decision, "total": total},
+                    thresholds_patch={
+                        k: v
+                        for k, v in (
+                            ("entry_min_total", det.get("entry_min_total")),
+                            ("entry_min_conviction", det.get("entry_min_conviction")),
+                        )
+                        if v is not None
+                    }
+                    or None,
+                )
             if apply_plan_overrides and ai_gate == "passed":
                 plan = recommendation.get("plan") if isinstance(recommendation.get("plan"), dict) else {}
                 stop = plan.get("stop")

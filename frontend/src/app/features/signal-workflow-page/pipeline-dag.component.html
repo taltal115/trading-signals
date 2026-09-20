@@ -1,0 +1,33 @@
+<div class="pipeline-dag" role="list">
+  @for (node of graph.nodes; track trackNode($index, node); let last = $last) {
+    <div class="pipeline-dag-col" role="listitem">
+      <button
+        type="button"
+        class="pipeline-node"
+        [class.is-selected]="selectedId === node.id"
+        [class.is-fail-point]="graph.failPoint === node.id"
+        [attr.data-status]="node.status"
+        (click)="onNodeClick(node)"
+      >
+        <div class="pipeline-node-top">
+          <span class="pipeline-node-status" [attr.data-status]="node.status">{{
+            statusIcon(node.status)
+          }}</span>
+          <span class="pipeline-node-label">{{ node.label }}</span>
+        </div>
+        <p class="pipeline-node-summary">{{ node.summary }}</p>
+        @if (node.job) {
+          <span class="pipeline-node-job">{{ node.job }}</span>
+        }
+      </button>
+      @if (!last) {
+        <div class="pipeline-arrow" aria-hidden="true">
+          <svg viewBox="0 0 48 24" width="48" height="24">
+            <path d="M2 12 H38" stroke="currentColor" stroke-width="2" fill="none" />
+            <path d="M32 6 L42 12 L32 18" stroke="currentColor" stroke-width="2" fill="none" />
+          </svg>
+        </div>
+      }
+    </div>
+  }
+</div>
