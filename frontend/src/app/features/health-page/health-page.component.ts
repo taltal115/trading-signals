@@ -1,8 +1,11 @@
 import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { HealthService } from '../../core/health.service';
 import { AuthService } from '../../core/auth.service';
+import {
+  HealthService,
+  type IntegrationHealth,
+} from '../../core/health.service';
 
 @Component({
   selector: 'app-health-page',
@@ -19,7 +22,7 @@ export class HealthPageComponent implements OnInit, OnDestroy {
   readonly loading = toSignal(this.healthService.loading$, { initialValue: false });
   readonly error = toSignal(this.healthService.error$, { initialValue: null });
 
-  private refreshInterval: any;
+  private refreshInterval: ReturnType<typeof setInterval> | undefined;
 
   ngOnInit() {
     this.refresh();
@@ -33,6 +36,10 @@ export class HealthPageComponent implements OnInit, OnDestroy {
 
   refresh() {
     this.healthService.fetchStatus();
+  }
+
+  refreshProvider(integration: IntegrationHealth) {
+    this.healthService.refreshProvider(this.healthService.providerId(integration));
   }
 
   formatResponseTime(ms: number | undefined): string {
