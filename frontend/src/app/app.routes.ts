@@ -35,6 +35,13 @@ export const routes: Routes = [
           import('./features/signals-page/signals-page.component').then((m) => m.SignalsPageComponent),
       },
       {
+        path: 'signals/:docId/:ticker',
+        loadComponent: () =>
+          import('./features/signal-workflow-page/signal-workflow-page.component').then(
+            (m) => m.SignalWorkflowPageComponent
+          ),
+      },
+      {
         path: 'positions',
         loadComponent: () =>
           import('./features/positions-page/positions-page.component').then((m) => m.PositionsPageComponent),

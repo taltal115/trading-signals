@@ -309,6 +309,24 @@
   align-items: center;
 }
 
+a.btn-sig-workflow {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid var(--border, #444);
+  background: var(--surface, #21262d);
+  color: var(--text, #e6edf3);
+}
+
+a.btn-sig-workflow:hover {
+  border-color: #58a6ff;
+  color: #58a6ff;
+}
+
 .sig-hold-chart-cell {
   padding: 0.65rem 1rem 0.85rem;
   border-bottom: 1px solid var(--border, #30363d);

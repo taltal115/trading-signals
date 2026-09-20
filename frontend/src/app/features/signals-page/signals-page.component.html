@@ -200,6 +200,14 @@
                 >
                   {{ aiSummaryOpen(row.instanceKey) ? 'Hide' : 'History' }}
                 </button>
+                <a
+                  class="btn-sig-stock-info btn-sig-workflow"
+                  [routerLink]="['/signals', row.docId, str(row.s['ticker'])]"
+                  [queryParams]="{ index: row.signalIndex }"
+                  title="Lifecycle workflow (phases &amp; conditions)"
+                >
+                  Workflow
+                </a>
               </div>
             </td>
             <td class="sig-actions-cell">

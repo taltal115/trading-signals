@@ -1,0 +1,85 @@
+<aside class="pipeline-drawer" *ngIf="node as n">
+  <header class="pipeline-drawer-head">
+    <div>
+      <h2>{{ n.label }}</h2>
+      <span class="pipeline-drawer-status" [attr.data-status]="n.status">{{ n.status }}</span>
+    </div>
+    <button type="button" class="pipeline-drawer-close" (click)="dismiss.emit()" aria-label="Close">
+      ×
+    </button>
+  </header>
+
+  <p class="pipeline-drawer-summary">{{ n.summary }}</p>
+
+  <dl class="pipeline-drawer-meta" *ngIf="n.job || n.atUtc">
+    <ng-container *ngIf="n.job">
+      <dt>Job</dt>
+      <dd class="code">{{ n.job }}</dd>
+    </ng-container>
+    <ng-container *ngIf="n.atUtc">
+      <dt>At (UTC)</dt>
+      <dd class="code">{{ n.atUtc }}</dd>
+    </ng-container>
+  </dl>
+
+  <section *ngIf="n.conditions?.length" class="pipeline-drawer-section">
+    <h3>Conditions</h3>
+    <table class="pipeline-cond-table">
+      <thead>
+        <tr>
+          <th>Rule</th>
+          <th>Actual</th>
+          <th>Threshold</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let c of n.conditions; trackBy: trackCond" [class.pass]="c.pass" [class.fail]="!c.pass">
+          <td>
+            {{ c.label }}
+            <div class="cond-detail" *ngIf="c.detail">{{ c.detail }}</div>
+          </td>
+          <td class="code">{{ fmt(c.actual) }}</td>
+          <td class="code">{{ fmt(c.threshold) }}</td>
+          <td>{{ c.pass ? '✓' : '✕' }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section *ngIf="n.checklist?.length" class="pipeline-drawer-section">
+    <h3>AI checklist</h3>
+    <ul class="sig-ai-checklist">
+      <li *ngFor="let item of n.checklist" [class.pass]="item.pass" [class.fail]="!item.pass">
+        <span class="chk">{{ item.pass ? '✓' : '✕' }}</span>
+        {{ item.label }}
+      </li>
+    </ul>
+  </section>
+
+  <section *ngIf="detailEntries().length" class="pipeline-drawer-section">
+    <h3>Details</h3>
+    <dl class="pipeline-drawer-meta">
+      <ng-container *ngFor="let e of detailEntries()">
+        <dt>{{ e.key }}</dt>
+        <dd class="code">{{ e.value }}</dd>
+      </ng-container>
+    </dl>
+  </section>
+
+  <section *ngIf="showHoldChart()" class="pipeline-drawer-section">
+    <h3>Hold chart</h3>
+    <app-signal-hold-chart
+      [ticker]="header!.ticker"
+      [asofDate]="header!.asofDate"
+      [entryPrice]="header!.close!"
+    />
+  </section>
+
+  <section class="pipeline-drawer-section">
+    <button type="button" class="btn-raw" (click)="showRaw = !showRaw">
+      {{ showRaw ? 'Hide' : 'Show' }} raw JSON
+    </button>
+    <pre *ngIf="showRaw" class="pipeline-raw">{{ rawJson() }}</pre>
+  </section>
+</aside>

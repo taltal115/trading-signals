@@ -265,6 +265,8 @@ def main() -> int:
                 signals=signals_sorted,
                 run_id=run_id,
                 asof_date=cfg.asof_date().isoformat(),
+                strategy=cfg.strategy,
+                ai=cfg.ai,
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("Firestore write failed: %s", e)

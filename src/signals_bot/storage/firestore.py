@@ -438,12 +438,17 @@ def write_buy_signals(
     signals: Iterable[Signal],
     run_id: str,
     asof_date: str,
+    strategy: Any | None = None,
+    ai: Any | None = None,
 ) -> None:
     buys = [s for s in signals if s.action == "BUY"]
     if not buys:
         return
 
+    from signals_bot.pipeline_trace import build_scan_pipeline_trace
+
     payload_signals: list[dict[str, Any]] = []
+    ts_utc = datetime.now(timezone.utc).isoformat()
     for s in buys:
         close = s.close
         stop = s.suggested_stop
@@ -462,40 +467,48 @@ def write_buy_signals(
             "high_confidence_risk_flag": bool(m.get("high_confidence_risk_flag")),
             "preferred_confidence_band": bool(m.get("preferred_confidence_band")),
         }
-        payload_signals.append(
-            {
-                "ticker": s.ticker,
-                "confidence": s.confidence,
-                "score": s.score,
-                "close": close,
-                "hold_days": s.max_hold_days,
-                "stop": stop,
-                "stop_pct": _pct_from_close(stop, close),
-                "target": target,
-                "target_pct": _pct_from_close(target, close),
-                "estimated_hold_days": m.get("estimated_hold_days"),
-                "sector": m.get("sector"),
-                "industry": m.get("industry"),
-                "notes": s.notes,
-                "metrics": metrics_payload,
-                "ret_5d_pct": m.get("ret_5d_pct"),
-                "ret_10d_pct": m.get("ret_10d_pct"),
-                "atr_pct": m.get("atr_pct"),
-                "vol_ratio": m.get("vol_ratio"),
-                "breakout_dist_pct": m.get("breakout_dist_pct"),
-                "lottery_flag": bool(m.get("lottery_flag")),
-                "preferred_ret_5d_band": bool(m.get("preferred_ret_5d_band")),
-                "high_confidence_risk_flag": bool(m.get("high_confidence_risk_flag")),
-                "preferred_confidence_band": bool(m.get("preferred_confidence_band")),
-                "pipeline_stage": "technical",
-                "ai_gate": "pending",
-            }
-        )
+        row: dict[str, Any] = {
+            "ticker": s.ticker,
+            "confidence": s.confidence,
+            "score": s.score,
+            "close": close,
+            "hold_days": s.max_hold_days,
+            "stop": stop,
+            "stop_pct": _pct_from_close(stop, close),
+            "target": target,
+            "target_pct": _pct_from_close(target, close),
+            "estimated_hold_days": m.get("estimated_hold_days"),
+            "sector": m.get("sector"),
+            "industry": m.get("industry"),
+            "notes": s.notes,
+            "metrics": metrics_payload,
+            "ret_5d_pct": m.get("ret_5d_pct"),
+            "ret_10d_pct": m.get("ret_10d_pct"),
+            "atr_pct": m.get("atr_pct"),
+            "vol_ratio": m.get("vol_ratio"),
+            "breakout_dist_pct": m.get("breakout_dist_pct"),
+            "lottery_flag": bool(m.get("lottery_flag")),
+            "preferred_ret_5d_band": bool(m.get("preferred_ret_5d_band")),
+            "high_confidence_risk_flag": bool(m.get("high_confidence_risk_flag")),
+            "preferred_confidence_band": bool(m.get("preferred_confidence_band")),
+            "pipeline_stage": "technical",
+            "ai_gate": "pending",
+        }
+        if strategy is not None:
+            row["pipeline_trace"] = build_scan_pipeline_trace(
+                confidence=float(s.confidence),
+                metrics=m,
+                notes=str(s.notes or ""),
+                strategy=strategy,
+                ai=ai,
+                at_utc=ts_utc,
+            )
+        payload_signals.append(row)
 
     doc = {
         "run_id": run_id,
         "asof_date": asof_date,
-        "ts_utc": datetime.now(timezone.utc).isoformat(),
+        "ts_utc": ts_utc,
         "signals": payload_signals,
     }
 

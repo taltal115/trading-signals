@@ -1,5 +1,6 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { FirestoreService } from '../firebase/firestore.service';
+import { SignalLifecycleService } from './signal-lifecycle.service';
 
 function parsePositiveInt(raw: string | undefined, fallback: number, max: number): number {
   const n = Number.parseInt(String(raw ?? ''), 10);
@@ -11,7 +12,10 @@ function parsePositiveInt(raw: string | undefined, fallback: number, max: number
 
 @Controller('signals')
 export class SignalsController {
-  constructor(private readonly firestore: FirestoreService) {}
+  constructor(
+    private readonly firestore: FirestoreService,
+    private readonly lifecycleSvc: SignalLifecycleService,
+  ) {}
 
   @Get()
   async list(
@@ -20,6 +24,28 @@ export class SignalsController {
   ) {
     const limit = parsePositiveInt(limitStr, 10, 50);
     return this.firestore.listSignalInstancesPage(limit, cursor?.trim() || undefined);
+  }
+
+  /**
+   * Per-signal Databricks-style lifecycle DAG (phases, conditions, fail point).
+   * Query: docId + ticker (+ optional signal index in signals[]).
+   */
+  @Get('lifecycle')
+  async getLifecycle(
+    @Query('docId') docId?: string,
+    @Query('ticker') ticker?: string,
+    @Query('index') indexStr?: string,
+  ) {
+    let index: number | undefined;
+    if (indexStr != null && String(indexStr).trim() !== '') {
+      const n = Number.parseInt(String(indexStr), 10);
+      if (Number.isFinite(n) && n >= 0) index = n;
+    }
+    return this.lifecycleSvc.getLifecycle({
+      docId: String(docId || ''),
+      ticker: String(ticker || ''),
+      index,
+    });
   }
 
   /** Recent AI evals for analytics page. */
