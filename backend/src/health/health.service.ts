@@ -51,7 +51,6 @@ export class HealthService {
       this.checkFinnhub(),
       this.checkNewsAPI(),
       this.checkGDELT(),
-      this.checkMassive(),
     ]);
 
     return {
@@ -124,11 +123,24 @@ export class HealthService {
 
   // Individual integration checks
 
+  private envKey(...names: string[]): string {
+    for (const name of names) {
+      const v = (this.config.get<string>(name) || '').trim();
+      if (v) return v;
+    }
+    return '';
+  }
+
+  private polygonKey(): string {
+    // Massive.io is the Polygon rebrand — one key, either env name.
+    return this.envKey('POLYGON_API_KEY', 'MASSIVE_API_KEY', 'polygonApiKey');
+  }
+
   private async checkPolygon(): Promise<IntegrationHealth> {
-    const apiKey = this.config.get<string>('POLYGON_API_KEY');
+    const apiKey = this.polygonKey();
     
-    if (!apiKey || apiKey.trim() === '') {
-      return this.notConfigured('Polygon', 'POLYGON_API_KEY', true);
+    if (!apiKey) {
+      return this.notConfigured('Polygon / Massive', 'POLYGON_API_KEY', true);
     }
 
     const start = Date.now();
@@ -138,12 +150,12 @@ export class HealthService {
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data?.results) {
-        return this.healthy('Polygon', 'POLYGON_API_KEY', responseTime, true);
+        return this.healthy('Polygon / Massive', 'POLYGON_API_KEY', responseTime, true);
       }
       
-      return this.down('Polygon', 'POLYGON_API_KEY', 'Invalid response', true);
+      return this.down('Polygon / Massive', 'POLYGON_API_KEY', 'Invalid response', true);
     } catch (error) {
-      return this.handleError('Polygon', 'POLYGON_API_KEY', error as Error, true);
+      return this.handleError('Polygon / Massive', 'POLYGON_API_KEY', error as Error, true);
     }
   }
 
@@ -231,8 +243,9 @@ export class HealthService {
   private async checkGDELT(): Promise<IntegrationHealth> {
     const start = Date.now();
     try {
+      // Public API is often slow; entry eval already treats GDELT as optional fallback.
       const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=AAPL&mode=ArtList&maxrecords=1&format=json';
-      const response = await axios.get(url, { timeout: this.CHECK_TIMEOUT });
+      const response = await axios.get(url, { timeout: 12_000 });
       const responseTime = Date.now() - start;
 
       if (response.status === 200) {
@@ -241,26 +254,23 @@ export class HealthService {
       
       return this.down('GDELT', 'None (Free)', 'Invalid response');
     } catch (error) {
-      return this.handleError('GDELT', 'None (Free)', error as Error);
+      const axiosError = error as AxiosError;
+      const status = axiosError.response?.status;
+      let message = 'Public API unavailable — Finnhub still supplies news';
+      if (axiosError.code === 'ECONNABORTED') {
+        message = 'Public API timed out — Finnhub still supplies news';
+      } else if (status === 429) {
+        message = 'Public API rate-limited — Finnhub still supplies news';
+      }
+      return {
+        name: 'GDELT',
+        key: 'None (Free)',
+        status: 'degraded',
+        responseTime: Date.now() - start,
+        lastChecked: new Date().toISOString(),
+        message,
+      };
     }
-  }
-
-  private async checkMassive(): Promise<IntegrationHealth> {
-    const apiKey = this.config.get<string>('MASSIVE_API_KEY');
-    
-    if (!apiKey || apiKey.trim() === '') {
-      return this.notConfigured('Massive.com', 'MASSIVE_API_KEY', true);
-    }
-
-    // Massive API check would go here - for now just return configured status
-    return {
-      name: 'Massive.com',
-      key: 'MASSIVE_API_KEY',
-      status: 'healthy',
-      lastChecked: new Date().toISOString(),
-      message: 'Configured (check skipped)',
-      isPaid: true,
-    };
   }
 
   private async checkOpenAI(): Promise<IntegrationHealth> {

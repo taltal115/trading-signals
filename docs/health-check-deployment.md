@@ -86,7 +86,7 @@ SLACK_BOT_TOKEN=...           # Messaging (free tier)
 ```bash
 NEWSAPI_API_KEY=...           # Additional news (free tier)
 FRED_API_KEY=...              # Macro data (free)
-MASSIVE_API_KEY=...           # Research (paid, optional)
+MASSIVE_API_KEY=...           # Alias for POLYGON_API_KEY (same vendor; not a news provider)
 GOOGLE_APPLICATION_CREDENTIALS=... # Firestore (auto-set by Cloud Run)
 ```
 
@@ -216,14 +216,13 @@ If a service is slow (>2s response):
 
 | Integration | Expected Status | Notes |
 |-------------|----------------|-------|
-| **Polygon** 💰 | ✅ `healthy` | Requires paid API key |
+| **Polygon / Massive** 💰 | ✅ `healthy` | Same vendor (Massive.io rebrand). Key: `POLYGON_API_KEY` or `MASSIVE_API_KEY` |
 | Yahoo Finance | ✅ `healthy` | Free, usually works |
 | Stooq | ✅ `healthy` | Free, usually works |
-| **Finnhub** | ⚠️ `not_configured` | Free tier available — **ADD KEY** |
-| NewsAPI | ⚠️ `not_configured` | Free tier available — optional |
-| GDELT | ✅ `healthy` | Free, no key required |
-| Massive 💰 | ⚠️ `not_configured` | Paid, optional research layer |
-| **OpenAI** 💰 | ✅ `healthy` | Required for AI entry/holding |
+| **Finnhub** | ✅ `healthy` | News enrichment — already on Cloud Run |
+| NewsAPI | ✅ `healthy` | Extra headlines (`NEWSAPI_API_KEY` on Cloud Run) |
+| GDELT | ⚠️ `degraded` / ✅ | Optional public API; often times out or 429s. Finnhub still supplies news |
+| **OpenAI** 💰 | ✅ `healthy` | Entry/holding AI (`OPENAI_API_KEY`) |
 | FRED | ⚠️ `not_configured` | Free — optional macro data |
 | Firestore | ✅ `healthy` | Auto-configured on Cloud Run |
 | SQLite | ⚠️ `degraded` | Local only (not on Cloud Run) |
