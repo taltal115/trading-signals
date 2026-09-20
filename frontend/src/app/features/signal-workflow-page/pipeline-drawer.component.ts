@@ -1,6 +1,11 @@
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SignalHoldChartComponent } from '../signal-hold-chart/signal-hold-chart.component';
+import {
+  SignalLifecycleService,
+  type NewsArticleItem,
+} from '../../core/signal-lifecycle.service';
+import { formatApiErr } from '../../core/api-errors';
 import type {
   PipelineCondition,
   PipelineHeader,
@@ -15,11 +20,20 @@ import type {
   styleUrl: './pipeline-drawer.component.css',
 })
 export class PipelineDrawerComponent {
+  private readonly lifecycle = inject(SignalLifecycleService);
+
   @Input() node: PipelineNode | null = null;
   @Input() header: PipelineHeader | null = null;
   @Output() readonly dismiss = new EventEmitter<void>();
 
   showRaw = false;
+
+  readonly articlesOpenFor = signal<string | null>(null);
+  readonly articlesLoading = signal(false);
+  readonly articlesError = signal<string | null>(null);
+  readonly articles = signal<NewsArticleItem[]>([]);
+  readonly articlesBrowseUrl = signal<string | null>(null);
+  readonly articlesMessage = signal<string | null>(null);
 
   fmt(v: unknown): string {
     if (v == null || v === '') return '—';
@@ -65,5 +79,44 @@ export class PipelineDrawerComponent {
     } catch {
       return '{}';
     }
+  }
+
+  hasArticlesLink(c: PipelineCondition): boolean {
+    return !!(c.articlesProvider || c.href);
+  }
+
+  toggleArticles(c: PipelineCondition): void {
+    if (!c.articlesProvider || !this.header?.ticker) {
+      return;
+    }
+    const key = c.id;
+    if (this.articlesOpenFor() === key) {
+      this.articlesOpenFor.set(null);
+      return;
+    }
+    this.articlesOpenFor.set(key);
+    this.articlesLoading.set(true);
+    this.articlesError.set(null);
+    this.articles.set([]);
+    this.articlesBrowseUrl.set(c.href || null);
+    this.articlesMessage.set(null);
+
+    this.lifecycle
+      .fetchNewsArticles({
+        ticker: this.header.ticker,
+        provider: c.articlesProvider,
+      })
+      .subscribe({
+        next: (res) => {
+          this.articles.set(res.articles || []);
+          this.articlesBrowseUrl.set(res.browseUrl || c.href || null);
+          this.articlesMessage.set(res.message || null);
+          this.articlesLoading.set(false);
+        },
+        error: (err) => {
+          this.articlesError.set(formatApiErr(err));
+          this.articlesLoading.set(false);
+        },
+      });
   }
 }

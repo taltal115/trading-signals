@@ -1,6 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { FirestoreService } from '../firebase/firestore.service';
 import { SignalLifecycleService } from './signal-lifecycle.service';
+import { NewsArticlesService } from './news-articles.service';
 
 function parsePositiveInt(raw: string | undefined, fallback: number, max: number): number {
   const n = Number.parseInt(String(raw ?? ''), 10);
@@ -15,6 +16,7 @@ export class SignalsController {
   constructor(
     private readonly firestore: FirestoreService,
     private readonly lifecycleSvc: SignalLifecycleService,
+    private readonly newsArticlesSvc: NewsArticlesService,
   ) {}
 
   @Get()
@@ -46,6 +48,18 @@ export class SignalsController {
       ticker: String(ticker || ''),
       index,
     });
+  }
+
+  /** Live headlines with URLs for Workflow News / context drawer. */
+  @Get('news-articles')
+  async getNewsArticles(
+    @Query('ticker') ticker?: string,
+    @Query('provider') provider?: string,
+  ) {
+    return this.newsArticlesSvc.listArticles(
+      String(ticker || ''),
+      String(provider || ''),
+    );
   }
 
   /** Recent AI evals for analytics page. */

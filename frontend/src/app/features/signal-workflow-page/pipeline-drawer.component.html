@@ -31,18 +31,75 @@
           <th>Actual</th>
           <th>Threshold</th>
           <th></th>
+          <th></th>
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let c of n.conditions; trackBy: trackCond" [class.pass]="c.pass" [class.fail]="!c.pass">
-          <td>
-            {{ c.label }}
-            <div class="cond-detail" *ngIf="c.detail">{{ c.detail }}</div>
-          </td>
-          <td class="code">{{ fmt(c.actual) }}</td>
-          <td class="code">{{ fmt(c.threshold) }}</td>
-          <td>{{ c.pass ? '✓' : '✕' }}</td>
-        </tr>
+        <ng-container *ngFor="let c of n.conditions; trackBy: trackCond">
+          <tr [class.pass]="c.pass" [class.fail]="!c.pass">
+            <td>
+              {{ c.label }}
+              <div class="cond-detail" *ngIf="c.detail">{{ c.detail }}</div>
+            </td>
+            <td class="code">{{ fmt(c.actual) }}</td>
+            <td class="code">{{ fmt(c.threshold) }}</td>
+            <td>{{ c.pass ? '✓' : '✕' }}</td>
+            <td class="cond-actions">
+              <ng-container *ngIf="hasArticlesLink(c)">
+                <button
+                  *ngIf="c.articlesProvider"
+                  type="button"
+                  class="btn-articles"
+                  (click)="toggleArticles(c)"
+                >
+                  {{ articlesOpenFor() === c.id ? 'Hide' : 'Articles' }}
+                </button>
+                <a
+                  *ngIf="c.href"
+                  class="btn-articles-ext"
+                  [href]="c.href"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open provider news in a new tab"
+                >↗</a>
+              </ng-container>
+            </td>
+          </tr>
+          <tr *ngIf="articlesOpenFor() === c.id" class="articles-row">
+            <td colspan="5">
+              <div class="articles-panel">
+                <p *ngIf="articlesLoading()" class="articles-status">Loading articles…</p>
+                <p *ngIf="articlesError() as err" class="articles-err">{{ err }}</p>
+                <p *ngIf="!articlesLoading() && articlesMessage() as msg" class="articles-status">
+                  {{ msg }}
+                </p>
+                <ul *ngIf="!articlesLoading() && articles().length" class="articles-list">
+                  <li *ngFor="let a of articles()">
+                    <a [href]="a.url" target="_blank" rel="noopener noreferrer">{{ a.title }}</a>
+                    <span class="articles-meta" *ngIf="a.source || a.publishedAt">
+                      <ng-container *ngIf="a.source">{{ a.source }}</ng-container>
+                      <ng-container *ngIf="a.source && a.publishedAt"> · </ng-container>
+                      <ng-container *ngIf="a.publishedAt">{{ a.publishedAt }}</ng-container>
+                    </span>
+                  </li>
+                </ul>
+                <p
+                  *ngIf="!articlesLoading() && !articlesError() && !articles().length"
+                  class="articles-status"
+                >
+                  No articles returned.
+                </p>
+                <a
+                  *ngIf="articlesBrowseUrl() as browse"
+                  class="articles-browse"
+                  [href]="browse"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >Browse provider ↗</a>
+              </div>
+            </td>
+          </tr>
+        </ng-container>
       </tbody>
     </table>
   </section>

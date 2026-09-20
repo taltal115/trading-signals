@@ -29,6 +29,10 @@ export interface PipelineCondition {
   actual?: string | number | boolean | null;
   threshold?: string | number | boolean | null;
   detail?: string;
+  /** Live article fetch key for News / context drawer (`finnhub` | `newsapi` | `gdelt`). */
+  articlesProvider?: string;
+  /** Optional external browse URL (e.g. GDELT ArtList HTML). */
+  href?: string;
 }
 
 export interface PipelineChecklistItem {

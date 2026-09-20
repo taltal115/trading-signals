@@ -473,11 +473,40 @@ function providerFlagOk(val: unknown): boolean | null {
   return null;
 }
 
+function articlesMetaForFlag(
+  flagId: string,
+  ticker: string,
+): { articlesProvider?: string; href?: string } {
+  const sym = ticker.trim().toUpperCase();
+  if (!sym) return {};
+  if (flagId === 'finnhub_news_ok') {
+    return {
+      articlesProvider: 'finnhub',
+      href: `https://finnhub.io/quote/${encodeURIComponent(sym)}`,
+    };
+  }
+  if (flagId === 'newsapi_ok') {
+    return {
+      articlesProvider: 'newsapi',
+      href: `https://news.google.com/search?q=${encodeURIComponent(sym + ' stock')}`,
+    };
+  }
+  if (flagId === 'gdelt_ok') {
+    const q = encodeURIComponent(sym);
+    return {
+      articlesProvider: 'gdelt',
+      href: `https://api.gdeltproject.org/api/v2/doc/doc?query=${q}&mode=ArtList&maxrecords=25&sort=DateDesc&format=html`,
+    };
+  }
+  return {};
+}
+
 function nodeNewsContext(
   signal: Record<string, unknown>,
   entryEval: AiEvalRow | null,
   gate: string,
   queueStatus: PipelineNodeStatus,
+  ticker: string,
 ): PipelineNode {
   if (queueStatus === 'skipped' || queueStatus === 'pending') {
     return {
@@ -557,6 +586,7 @@ function nodeNewsContext(
       actual: ok,
       threshold: meta.optional ? 'optional' : 'required',
       detail: meta.optional && !ok ? 'Optional — entry continues without it' : undefined,
+      ...articlesMetaForFlag(name, ticker),
     });
   }
 
@@ -1022,7 +1052,13 @@ export function assemblePipelineGraph(input: AssembleLifecycleInput): PipelineGr
   const scan = nodeScan(input.signal, thresholds, fromPersisted);
   const hard = nodeHardFilters(input.signal, thresholds, fromPersisted);
   const queue = nodeEntryQueue(input.signal, thresholds, entryEval);
-  const news = nodeNewsContext(input.signal, entryEval, gate, queue.status);
+  const news = nodeNewsContext(
+    input.signal,
+    entryEval,
+    gate,
+    queue.status,
+    input.ticker,
+  );
   const ai = nodeAiEntry(input.signal, entryEval, queue.status);
   const aiGate = nodeAiGate(input.signal, thresholds, entryEval, queue.status);
   const paper = nodePaper(input.signal, aiGate.status, input.paper);
