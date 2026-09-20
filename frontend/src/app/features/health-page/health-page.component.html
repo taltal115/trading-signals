@@ -49,10 +49,11 @@
                   <th>Response Time</th>
                   <th>Last Checked</th>
                   <th>Message</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                @for (integration of category.integrations; track integration.name) {
+                @for (integration of category.integrations; track healthService.providerId(integration)) {
                   <tr [class]="healthService.getStatusClass(integration.status)">
                     <td class="provider-name">
                       {{ integration.name }}
@@ -67,6 +68,22 @@
                     <td class="response-time">{{ formatResponseTime(integration.responseTime) }}</td>
                     <td class="last-checked">{{ formatLastChecked(integration.lastChecked) }}</td>
                     <td class="message">{{ integration.message }}</td>
+                    <td class="actions-cell">
+                      <button
+                        type="button"
+                        class="btn-refresh-row"
+                        [disabled]="loading() || healthService.isRefreshing(healthService.providerId(integration))"
+                        [attr.aria-label]="'Refresh ' + integration.name"
+                        [title]="'Re-check ' + integration.name"
+                        (click)="refreshProvider(integration)"
+                      >
+                        {{
+                          healthService.isRefreshing(healthService.providerId(integration))
+                            ? '…'
+                            : '↻'
+                        }}
+                      </button>
+                    </td>
                   </tr>
                 }
               </tbody>

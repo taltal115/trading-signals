@@ -184,6 +184,35 @@
   color: #666;
 }
 
+.actions-cell {
+  width: 3rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.btn-refresh-row {
+  padding: 4px 10px;
+  min-width: 2.25rem;
+  background: transparent;
+  color: #2196f3;
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1.2;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-refresh-row:hover:not(:disabled) {
+  background: #e3f2fd;
+  color: #1565c0;
+}
+
+.btn-refresh-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* Status-specific row styling */
 .status-healthy {
   background: rgba(76, 175, 80, 0.05);

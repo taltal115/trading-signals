@@ -1,10 +1,24 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios, { AxiosError } from 'axios';
 import { IntegrationHealth, CategoryHealth, HealthStatusResponse } from './dto/health-status.dto';
 import { FirestoreService } from '../firebase/firestore.service';
 import * as fs from 'fs';
 import * as path from 'path';
+
+type ProviderCheckId =
+  | 'polygon'
+  | 'yahoo'
+  | 'stooq'
+  | 'finnhub'
+  | 'newsapi'
+  | 'gdelt'
+  | 'openai'
+  | 'fred'
+  | 'firestore'
+  | 'sqlite'
+  | 'slack'
+  | 'ibkr';
 
 @Injectable()
 export class HealthService {
@@ -18,7 +32,7 @@ export class HealthService {
 
   async getHealthStatus(): Promise<HealthStatusResponse> {
     const timestamp = new Date().toISOString();
-    
+
     const categories: CategoryHealth[] = [
       await this.checkMarketDataCategory(),
       await this.checkNewsCategory(),
@@ -30,6 +44,33 @@ export class HealthService {
     ];
 
     return { timestamp, categories };
+  }
+
+  /** Re-check one provider (Health page per-row Refresh). */
+  async getIntegrationHealth(rawId: string): Promise<IntegrationHealth> {
+    const id = String(rawId || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '');
+    const checkers: Record<ProviderCheckId, () => Promise<IntegrationHealth>> = {
+      polygon: () => this.checkPolygon(),
+      yahoo: () => this.checkYahoo(),
+      stooq: () => this.checkStooq(),
+      finnhub: () => this.checkFinnhub(),
+      newsapi: () => this.checkNewsAPI(),
+      gdelt: () => this.checkGDELT(),
+      openai: () => this.checkOpenAI(),
+      fred: () => this.checkFRED(),
+      firestore: () => this.checkFirestore(),
+      sqlite: () => this.checkSQLite(),
+      slack: () => this.checkSlack(),
+      ibkr: () => this.checkIBKR(),
+    };
+    const run = checkers[id as ProviderCheckId];
+    if (!run) {
+      throw new NotFoundException(`Unknown health provider: ${rawId}`);
+    }
+    return run();
   }
 
   private async checkMarketDataCategory(): Promise<CategoryHealth> {
@@ -61,9 +102,7 @@ export class HealthService {
   }
 
   private async checkAICategory(): Promise<CategoryHealth> {
-    const integrations = await Promise.all([
-      this.checkOpenAI(),
-    ]);
+    const integrations = await Promise.all([this.checkOpenAI()]);
 
     return {
       name: 'AI & ML',
@@ -73,9 +112,7 @@ export class HealthService {
   }
 
   private async checkMacroCategory(): Promise<CategoryHealth> {
-    const integrations = await Promise.all([
-      this.checkFRED(),
-    ]);
+    const integrations = await Promise.all([this.checkFRED()]);
 
     return {
       name: 'Macro & Economic',
@@ -98,9 +135,7 @@ export class HealthService {
   }
 
   private async checkMessagingCategory(): Promise<CategoryHealth> {
-    const integrations = await Promise.all([
-      this.checkSlack(),
-    ]);
+    const integrations = await Promise.all([this.checkSlack()]);
 
     return {
       name: 'Messaging & Notifications',
@@ -110,9 +145,7 @@ export class HealthService {
   }
 
   private async checkBrokerCategory(): Promise<CategoryHealth> {
-    const integrations = await Promise.all([
-      this.checkIBKR(),
-    ]);
+    const integrations = await Promise.all([this.checkIBKR()]);
 
     return {
       name: 'Broker & Portfolio',
@@ -120,8 +153,6 @@ export class HealthService {
       integrations,
     };
   }
-
-  // Individual integration checks
 
   private envKey(...names: string[]): string {
     for (const name of names) {
@@ -138,9 +169,9 @@ export class HealthService {
 
   private async checkPolygon(): Promise<IntegrationHealth> {
     const apiKey = this.polygonKey();
-    
+
     if (!apiKey) {
-      return this.notConfigured('Polygon / Massive', 'POLYGON_API_KEY', true);
+      return this.notConfigured('polygon', 'Polygon / Massive', 'POLYGON_API_KEY', true);
     }
 
     const start = Date.now();
@@ -150,30 +181,48 @@ export class HealthService {
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data?.results) {
-        return this.healthy('Polygon / Massive', 'POLYGON_API_KEY', responseTime, true);
+        return this.healthy(
+          'polygon',
+          'Polygon / Massive',
+          'POLYGON_API_KEY',
+          responseTime,
+          true,
+        );
       }
-      
-      return this.down('Polygon / Massive', 'POLYGON_API_KEY', 'Invalid response', true);
+
+      return this.down(
+        'polygon',
+        'Polygon / Massive',
+        'POLYGON_API_KEY',
+        'Invalid response',
+        true,
+      );
     } catch (error) {
-      return this.handleError('Polygon / Massive', 'POLYGON_API_KEY', error as Error, true);
+      return this.handleError(
+        'polygon',
+        'Polygon / Massive',
+        'POLYGON_API_KEY',
+        error as Error,
+        true,
+      );
     }
   }
 
   private async checkYahoo(): Promise<IntegrationHealth> {
     const start = Date.now();
     try {
-      // Yahoo Finance via simple price check
-      const url = 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1d';
+      const url =
+        'https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1d';
       const response = await axios.get(url, { timeout: this.CHECK_TIMEOUT });
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data?.chart?.result) {
-        return this.healthy('Yahoo Finance', 'None (Free)', responseTime);
+        return this.healthy('yahoo', 'Yahoo Finance', 'None (Free)', responseTime);
       }
-      
-      return this.down('Yahoo Finance', 'None (Free)', 'Invalid response');
+
+      return this.down('yahoo', 'Yahoo Finance', 'None (Free)', 'Invalid response');
     } catch (error) {
-      return this.handleError('Yahoo Finance', 'None (Free)', error as Error);
+      return this.handleError('yahoo', 'Yahoo Finance', 'None (Free)', error as Error);
     }
   }
 
@@ -185,20 +234,20 @@ export class HealthService {
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data) {
-        return this.healthy('Stooq', 'None (Free)', responseTime);
+        return this.healthy('stooq', 'Stooq', 'None (Free)', responseTime);
       }
-      
-      return this.down('Stooq', 'None (Free)', 'Invalid response');
+
+      return this.down('stooq', 'Stooq', 'None (Free)', 'Invalid response');
     } catch (error) {
-      return this.handleError('Stooq', 'None (Free)', error as Error);
+      return this.handleError('stooq', 'Stooq', 'None (Free)', error as Error);
     }
   }
 
   private async checkFinnhub(): Promise<IntegrationHealth> {
     const apiKey = this.config.get<string>('FINNHUB_API_KEY');
-    
+
     if (!apiKey || apiKey.trim() === '') {
-      return this.notConfigured('Finnhub', 'FINNHUB_API_KEY');
+      return this.notConfigured('finnhub', 'Finnhub', 'FINNHUB_API_KEY');
     }
 
     const start = Date.now();
@@ -208,20 +257,20 @@ export class HealthService {
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data?.c !== undefined) {
-        return this.healthy('Finnhub', 'FINNHUB_API_KEY', responseTime);
+        return this.healthy('finnhub', 'Finnhub', 'FINNHUB_API_KEY', responseTime);
       }
-      
-      return this.down('Finnhub', 'FINNHUB_API_KEY', 'Invalid response');
+
+      return this.down('finnhub', 'Finnhub', 'FINNHUB_API_KEY', 'Invalid response');
     } catch (error) {
-      return this.handleError('Finnhub', 'FINNHUB_API_KEY', error as Error);
+      return this.handleError('finnhub', 'Finnhub', 'FINNHUB_API_KEY', error as Error);
     }
   }
 
   private async checkNewsAPI(): Promise<IntegrationHealth> {
     const apiKey = this.config.get<string>('NEWSAPI_API_KEY');
-    
+
     if (!apiKey || apiKey.trim() === '') {
-      return this.notConfigured('NewsAPI', 'NEWSAPI_API_KEY');
+      return this.notConfigured('newsapi', 'NewsAPI', 'NEWSAPI_API_KEY');
     }
 
     const start = Date.now();
@@ -231,28 +280,28 @@ export class HealthService {
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data?.status === 'ok') {
-        return this.healthy('NewsAPI', 'NEWSAPI_API_KEY', responseTime);
+        return this.healthy('newsapi', 'NewsAPI', 'NEWSAPI_API_KEY', responseTime);
       }
-      
-      return this.down('NewsAPI', 'NEWSAPI_API_KEY', 'Invalid response');
+
+      return this.down('newsapi', 'NewsAPI', 'NEWSAPI_API_KEY', 'Invalid response');
     } catch (error) {
-      return this.handleError('NewsAPI', 'NEWSAPI_API_KEY', error as Error);
+      return this.handleError('newsapi', 'NewsAPI', 'NEWSAPI_API_KEY', error as Error);
     }
   }
 
   private async checkGDELT(): Promise<IntegrationHealth> {
     const start = Date.now();
     try {
-      // Public API is often slow; entry eval already treats GDELT as optional fallback.
-      const url = 'https://api.gdeltproject.org/api/v2/doc/doc?query=AAPL&mode=ArtList&maxrecords=1&format=json';
+      const url =
+        'https://api.gdeltproject.org/api/v2/doc/doc?query=AAPL&mode=ArtList&maxrecords=1&format=json';
       const response = await axios.get(url, { timeout: 12_000 });
       const responseTime = Date.now() - start;
 
       if (response.status === 200) {
-        return this.healthy('GDELT', 'None (Free)', responseTime);
+        return this.healthy('gdelt', 'GDELT', 'None (Free)', responseTime);
       }
-      
-      return this.down('GDELT', 'None (Free)', 'Invalid response');
+
+      return this.down('gdelt', 'GDELT', 'None (Free)', 'Invalid response');
     } catch (error) {
       const axiosError = error as AxiosError;
       const status = axiosError.response?.status;
@@ -263,6 +312,7 @@ export class HealthService {
         message = 'Public API rate-limited — Finnhub still supplies news';
       }
       return {
+        id: 'gdelt',
         name: 'GDELT',
         key: 'None (Free)',
         status: 'degraded',
@@ -275,35 +325,35 @@ export class HealthService {
 
   private async checkOpenAI(): Promise<IntegrationHealth> {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
-    
+
     if (!apiKey || apiKey.trim() === '') {
-      return this.notConfigured('OpenAI', 'OPENAI_API_KEY', true);
+      return this.notConfigured('openai', 'OpenAI', 'OPENAI_API_KEY', true);
     }
 
     const start = Date.now();
     try {
       const url = 'https://api.openai.com/v1/models';
       const response = await axios.get(url, {
-        headers: { 'Authorization': `Bearer ${apiKey}` },
+        headers: { Authorization: `Bearer ${apiKey}` },
         timeout: this.CHECK_TIMEOUT,
       });
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data?.data) {
-        return this.healthy('OpenAI', 'OPENAI_API_KEY', responseTime, true);
+        return this.healthy('openai', 'OpenAI', 'OPENAI_API_KEY', responseTime, true);
       }
-      
-      return this.down('OpenAI', 'OPENAI_API_KEY', 'Invalid response', true);
+
+      return this.down('openai', 'OpenAI', 'OPENAI_API_KEY', 'Invalid response', true);
     } catch (error) {
-      return this.handleError('OpenAI', 'OPENAI_API_KEY', error as Error, true);
+      return this.handleError('openai', 'OpenAI', 'OPENAI_API_KEY', error as Error, true);
     }
   }
 
   private async checkFRED(): Promise<IntegrationHealth> {
     const apiKey = this.config.get<string>('FRED_API_KEY');
-    
+
     if (!apiKey || apiKey.trim() === '') {
-      return this.notConfigured('FRED', 'FRED_API_KEY');
+      return this.notConfigured('fred', 'FRED', 'FRED_API_KEY');
     }
 
     const start = Date.now();
@@ -313,25 +363,34 @@ export class HealthService {
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data?.observations) {
-        return this.healthy('FRED', 'FRED_API_KEY', responseTime);
+        return this.healthy('fred', 'FRED', 'FRED_API_KEY', responseTime);
       }
-      
-      return this.down('FRED', 'FRED_API_KEY', 'Invalid response');
+
+      return this.down('fred', 'FRED', 'FRED_API_KEY', 'Invalid response');
     } catch (error) {
-      return this.handleError('FRED', 'FRED_API_KEY', error as Error);
+      return this.handleError('fred', 'FRED', 'FRED_API_KEY', error as Error);
     }
   }
 
   private async checkFirestore(): Promise<IntegrationHealth> {
     const start = Date.now();
     try {
-      // Try to list signals collection (limit 1 for speed)
-      const docs = await this.firestore.listSignals(1);
+      await this.firestore.listSignals(1);
       const responseTime = Date.now() - start;
 
-      return this.healthy('Firestore', 'GOOGLE_APPLICATION_CREDENTIALS', responseTime);
+      return this.healthy(
+        'firestore',
+        'Firestore',
+        'GOOGLE_APPLICATION_CREDENTIALS',
+        responseTime,
+      );
     } catch (error) {
-      return this.handleError('Firestore', 'GOOGLE_APPLICATION_CREDENTIALS', error as Error);
+      return this.handleError(
+        'firestore',
+        'Firestore',
+        'GOOGLE_APPLICATION_CREDENTIALS',
+        error as Error,
+      );
     }
   }
 
@@ -340,13 +399,14 @@ export class HealthService {
     try {
       const dbPath = this.config.get<string>('sqlite.path', './data/signals.db');
       const fullPath = path.resolve(process.cwd(), '..', dbPath);
-      
+
       if (fs.existsSync(fullPath)) {
         const responseTime = Date.now() - start;
-        return this.healthy('SQLite', 'None (Local)', responseTime);
+        return this.healthy('sqlite', 'SQLite', 'None (Local)', responseTime);
       }
-      
+
       return {
+        id: 'sqlite',
         name: 'SQLite',
         key: 'None (Local)',
         status: 'degraded',
@@ -355,41 +415,46 @@ export class HealthService {
         message: 'Database file not found',
       };
     } catch (error) {
-      return this.handleError('SQLite', 'None (Local)', error as Error);
+      return this.handleError('sqlite', 'SQLite', 'None (Local)', error as Error);
     }
   }
 
   private async checkSlack(): Promise<IntegrationHealth> {
     const token = this.config.get<string>('SLACK_BOT_TOKEN');
-    
+
     if (!token || token.trim() === '') {
-      return this.notConfigured('Slack', 'SLACK_BOT_TOKEN');
+      return this.notConfigured('slack', 'Slack', 'SLACK_BOT_TOKEN');
     }
 
     const start = Date.now();
     try {
       const url = 'https://slack.com/api/auth.test';
-      const response = await axios.post(url, {}, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        timeout: this.CHECK_TIMEOUT,
-      });
+      const response = await axios.post(
+        url,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: this.CHECK_TIMEOUT,
+        },
+      );
       const responseTime = Date.now() - start;
 
       if (response.status === 200 && response.data?.ok) {
-        return this.healthy('Slack', 'SLACK_BOT_TOKEN', responseTime);
+        return this.healthy('slack', 'Slack', 'SLACK_BOT_TOKEN', responseTime);
       }
-      
-      return this.down('Slack', 'SLACK_BOT_TOKEN', 'Token validation failed');
+
+      return this.down('slack', 'Slack', 'SLACK_BOT_TOKEN', 'Token validation failed');
     } catch (error) {
-      return this.handleError('Slack', 'SLACK_BOT_TOKEN', error as Error);
+      return this.handleError('slack', 'Slack', 'SLACK_BOT_TOKEN', error as Error);
     }
   }
 
   private async checkIBKR(): Promise<IntegrationHealth> {
     const enabled = this.config.get<boolean>('ibkr.client_portal.enabled', false);
-    
+
     if (!enabled) {
       return {
+        id: 'ibkr',
         name: 'IBKR Client Portal',
         key: 'IBKR Config',
         status: 'not_configured',
@@ -398,9 +463,12 @@ export class HealthService {
       };
     }
 
-    const baseUrl = this.config.get<string>('ibkr.client_portal.base_url', 'https://localhost:5000/v1/api');
+    const baseUrl = this.config.get<string>(
+      'ibkr.client_portal.base_url',
+      'https://localhost:5000/v1/api',
+    );
     const start = Date.now();
-    
+
     try {
       const url = `${baseUrl}/portfolio/accounts`;
       const response = await axios.get(url, {
@@ -410,19 +478,24 @@ export class HealthService {
       const responseTime = Date.now() - start;
 
       if (response.status === 200) {
-        return this.healthy('IBKR Client Portal', 'IBKR Config', responseTime);
+        return this.healthy('ibkr', 'IBKR Client Portal', 'IBKR Config', responseTime);
       }
-      
-      return this.down('IBKR Client Portal', 'IBKR Config', 'Invalid response');
+
+      return this.down('ibkr', 'IBKR Client Portal', 'IBKR Config', 'Invalid response');
     } catch (error) {
-      return this.handleError('IBKR Client Portal', 'IBKR Config', error as Error);
+      return this.handleError('ibkr', 'IBKR Client Portal', 'IBKR Config', error as Error);
     }
   }
 
-  // Helper methods
-
-  private healthy(name: string, key: string, responseTime: number, isPaid = false): IntegrationHealth {
+  private healthy(
+    id: string,
+    name: string,
+    key: string,
+    responseTime: number,
+    isPaid = false,
+  ): IntegrationHealth {
     return {
+      id,
       name,
       key,
       status: 'healthy',
@@ -433,8 +506,15 @@ export class HealthService {
     };
   }
 
-  private down(name: string, key: string, message: string, isPaid = false): IntegrationHealth {
+  private down(
+    id: string,
+    name: string,
+    key: string,
+    message: string,
+    isPaid = false,
+  ): IntegrationHealth {
     return {
+      id,
       name,
       key,
       status: 'down',
@@ -444,8 +524,14 @@ export class HealthService {
     };
   }
 
-  private notConfigured(name: string, key: string, isPaid = false): IntegrationHealth {
+  private notConfigured(
+    id: string,
+    name: string,
+    key: string,
+    isPaid = false,
+  ): IntegrationHealth {
     return {
+      id,
       name,
       key,
       status: 'not_configured',
@@ -455,7 +541,13 @@ export class HealthService {
     };
   }
 
-  private handleError(name: string, key: string, error: Error, isPaid = false): IntegrationHealth {
+  private handleError(
+    id: string,
+    name: string,
+    key: string,
+    error: Error,
+    isPaid = false,
+  ): IntegrationHealth {
     const axiosError = error as AxiosError;
     let message = 'Connection failed';
 
@@ -472,6 +564,7 @@ export class HealthService {
     this.logger.warn(`Health check failed for ${name}: ${message}`);
 
     return {
+      id,
       name,
       key,
       status: 'down',
