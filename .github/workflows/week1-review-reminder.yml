@@ -1,0 +1,68 @@
+name: Week 1 Signal Review Reminder
+
+# One-time reminder for Monday, September 30, 2026 at 09:00 ET (13:00 UTC)
+on:
+  schedule:
+    - cron: "0 13 30 9 *"  # 13:00 UTC on Sep 30 (09:00 ET)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Post Week 1 review reminder to Slack
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL || '#trading-signals' }}
+        run: |
+          python scripts/notify_week1_review.py
+
+      - name: Post cohort commands
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          SLACK_CHANNEL: ${{ secrets.SLACK_CHANNEL || '#trading-signals' }}
+        run: |
+          python -c "
+          import os
+          from signals_bot.notifications.slack import post_message
+          
+          msg = '''📊 *Week 1 Cohort Analysis Commands*:
+          
+          \`\`\`bash
+          # All technical BUYs
+          PYTHONPATH=./src:. python scripts/research_profit_hold_cohort.py \\
+            --since 2026-09-23 --limit-runs 100 \\
+            --out-csv docs/research/2026-09/profit_hold_week1_all_buys.csv \\
+            --out-json docs/research/2026-09/profit_hold_week1_all_buys_summary.json
+          
+          # Actionable only (if n ≥ 5)
+          PYTHONPATH=./src:. python scripts/research_profit_hold_cohort.py \\
+            --since 2026-09-23 --actionable-only --limit-runs 100 \\
+            --out-csv docs/research/2026-09/profit_hold_week1_actionable.csv \\
+            --out-json docs/research/2026-09/profit_hold_week1_actionable_summary.json
+          \`\`\`
+          '''
+          
+          post_message(
+              token=os.getenv('SLACK_BOT_TOKEN'),
+              channel=os.getenv('SLACK_CHANNEL', '#trading-signals'),
+              message=msg
+          )
+          "
