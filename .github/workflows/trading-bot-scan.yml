@@ -5,6 +5,8 @@ on:
     # ~1 hour before US cash open (09:30 America/New_York). UTC crons + NY gate (see below).
     - cron: "30 12 * * 1-5"
     - cron: "30 13 * * 1-5"
+    # Mid-day scan to capture afternoon breakouts
+    - cron: "30 17 * * 1-5"
   workflow_dispatch:
     inputs:
       ticker:
@@ -37,9 +39,12 @@ jobs:
               print("run=false — weekend")
               open(os.environ["GITHUB_OUTPUT"], "a").write("run=false\n")
               raise SystemExit(0)
-          # Target ~1h before 09:30 ET open → 08:30 local.
-          ok = ny.hour == 8 and 5 <= ny.minute <= 55
-          print(f"NY={ny.isoformat()} gate_ok={ok} (want ~08:30 ET)")
+          # Allow premarket (08:05-09:15 ET) and mid-day (13:05-13:55 ET) scans.
+          premarket_ok = ny.hour == 8 and 5 <= ny.minute <= 59
+          premarket_extended = ny.hour == 9 and ny.minute <= 15
+          midday_ok = ny.hour == 13 and 5 <= ny.minute <= 55
+          ok = premarket_ok or premarket_extended or midday_ok
+          print(f"NY={ny.isoformat()} gate_ok={ok} (premarket 08:05-09:15 or midday 13:05-13:55 ET)")
           open(os.environ["GITHUB_OUTPUT"], "a").write(f"run={'true' if ok else 'false'}\n")
           PY
 
