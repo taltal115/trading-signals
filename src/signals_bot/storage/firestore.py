@@ -680,6 +680,66 @@ def mirror_holding_advice_to_signal(
     _do(txn, ref)
 
 
+def sync_signal_paper_status_from_position(
+    *,
+    db: firestore.Client | None = None,
+    signal_doc_id: str,
+    ticker: str,
+    new_status: str,
+) -> bool:
+    """Sync paper_status on signal to match position status.
+    
+    Called by monitor_open_positions when closing a position to keep the
+    signals collection in sync with my_positions.
+    
+    Returns True if updated, False if no change needed or error.
+    """
+    if not signal_doc_id.strip() or not ticker.strip():
+        return False
+    
+    client = db or _build_client()
+    ref = client.collection(SIGNALS_COLLECTION).document(signal_doc_id.strip())
+    sym = ticker.strip().upper()
+    
+    @firestore.transactional
+    def _do(transaction, run_ref):  # type: ignore[no-untyped-def]
+        snap = run_ref.get(transaction=transaction)
+        if not snap.exists:
+            return False
+        
+        data = snap.to_dict() or {}
+        sigs = data.get("signals")
+        if not isinstance(sigs, list):
+            return False
+        
+        updated = False
+        new_sigs: list[Any] = []
+        for row in sigs:
+            if not isinstance(row, dict):
+                new_sigs.append(row)
+                continue
+            
+            r = dict(row)
+            if str(r.get("ticker", "")).strip().upper() == sym:
+                old_status = r.get("paper_status")
+                if old_status != new_status:
+                    r["paper_status"] = new_status
+                    r["paper_status_synced_at_utc"] = datetime.now(timezone.utc).isoformat()
+                    updated = True
+            new_sigs.append(r)
+        
+        if updated:
+            transaction.update(run_ref, {"signals": new_sigs})
+        
+        return updated
+    
+    try:
+        txn = client.transaction()
+        return _do(txn, ref)
+    except Exception:
+        return False
+
+
 def _holdings_from_portfolio_doc(data: dict[str, Any]) -> tuple[set[str], dict[str, dict[str, Any]]]:
     holdings: set[str] = set()
     merged: dict[str, dict[str, Any]] = {}
