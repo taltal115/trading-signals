@@ -31,7 +31,11 @@ from signals_bot.notifiers.slack import (
     sector_color,
 )
 from signals_bot.providers import build_history_providers
-from signals_bot.storage.firestore import MY_POSITIONS_COLLECTION, get_firestore_client
+from signals_bot.storage.firestore import (
+    MY_POSITIONS_COLLECTION,
+    get_firestore_client,
+    sync_signal_paper_status_from_position,
+)
 from signals_bot.trading_calendar import add_ny_sessions, xnys_sessions_between
 
 NEAR_THRESHOLD_PCT = 0.75
@@ -907,6 +911,19 @@ def main() -> int:
                 )
             ref.set(patch, merge=True)
             print(f"  updated {MY_POSITIONS_COLLECTION}/{snap.id} fields")
+            
+            # Sync paper_status back to signals collection when auto-closing
+            if auto_close:
+                signal_doc_id = data.get("signal_doc_id")
+                if signal_doc_id:
+                    synced = sync_signal_paper_status_from_position(
+                        db=db,
+                        signal_doc_id=signal_doc_id,
+                        ticker=ticker,
+                        new_status="closed",
+                    )
+                    if synced:
+                        print(f"  synced paper_status to signals collection")
 
             pos_owner = data.get("owner_uid") or owner_uid or None
             check_data: dict[str, Any] = {
