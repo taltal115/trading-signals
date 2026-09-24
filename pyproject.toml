@@ -1,6 +1,6 @@
 [project]
 name = "signals-bot"
-version = "0.1.0"
+version = "0.1.1"
 description = "Signal-only breakout momentum scanner with SQLite journaling and Slack notifications."
 readme = "README.md"
 requires-python = ">=3.11"
