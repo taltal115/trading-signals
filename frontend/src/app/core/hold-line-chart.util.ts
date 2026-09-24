@@ -16,6 +16,10 @@ export interface DrawHoldLineChartOpts {
   /** Exit price at the 3-trading-day mark; null if still in progress. */
   exitPrice: number | null;
   inProgress: boolean;
+  /** Stop loss price level (optional). */
+  stopPrice?: number | null;
+  /** Take profit / target price level (optional). */
+  targetPrice?: number | null;
 }
 
 /** Last bar at or before target time; falls back to 0. */
@@ -96,6 +100,15 @@ export function drawHoldLineChart(
     minPrice = Math.min(minPrice, opts.exitPrice);
     maxPrice = Math.max(maxPrice, opts.exitPrice);
   }
+  // Include stop and target in price range
+  if (opts.stopPrice != null && opts.stopPrice > 0) {
+    minPrice = Math.min(minPrice, opts.stopPrice);
+    maxPrice = Math.max(maxPrice, opts.stopPrice);
+  }
+  if (opts.targetPrice != null && opts.targetPrice > 0) {
+    minPrice = Math.min(minPrice, opts.targetPrice);
+    maxPrice = Math.max(maxPrice, opts.targetPrice);
+  }
   let priceRange = maxPrice - minPrice || 1;
   minPrice -= priceRange * 0.08;
   maxPrice += priceRange * 0.08;
@@ -167,6 +180,80 @@ export function drawHoldLineChart(
       'Entry $' + fmtUiDecimal(opts.entryPrice),
       Math.min(ex + 8, width - padding.right - 88),
       Math.max(padding.top + 12, ey - 8)
+    );
+  }
+
+  // Stop loss level (red dashed line)
+  if (opts.stopPrice != null && opts.stopPrice > 0) {
+    const sy = yAtPrice(opts.stopPrice);
+    ctx.strokeStyle = 'rgba(248, 81, 73, 0.6)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, sy);
+    ctx.lineTo(width - padding.right, sy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Check if stop was hit (any low <= stop)
+    let stopHit = false;
+    let stopHitIdx = -1;
+    for (let i = 0; i < candles.l.length; i++) {
+      if (candles.l[i] <= opts.stopPrice) {
+        stopHit = true;
+        stopHitIdx = i;
+        break;
+      }
+    }
+    
+    if (stopHit && stopHitIdx >= 0) {
+      const hx = xAtIndex(stopHitIdx);
+      drawMarkerPoint(ctx, hx, sy, 'rgba(248, 81, 73, 1)', 4);
+    }
+    
+    ctx.fillStyle = 'rgba(248, 81, 73, 0.95)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(
+      'Stop $' + fmtUiDecimal(opts.stopPrice) + (stopHit ? ' ⚠️ HIT' : ''),
+      width - padding.right - 4,
+      Math.max(padding.top + 24, Math.min(sy - 4, height - padding.bottom - 12))
+    );
+  }
+
+  // Take profit / target level (green dashed line)
+  if (opts.targetPrice != null && opts.targetPrice > 0) {
+    const ty = yAtPrice(opts.targetPrice);
+    ctx.strokeStyle = 'rgba(63, 185, 80, 0.6)';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(padding.left, ty);
+    ctx.lineTo(width - padding.right, ty);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // Check if target was hit (any high >= target)
+    let targetHit = false;
+    let targetHitIdx = -1;
+    for (let i = 0; i < candles.h.length; i++) {
+      if (candles.h[i] >= opts.targetPrice) {
+        targetHit = true;
+        targetHitIdx = i;
+        break;
+      }
+    }
+    
+    if (targetHit && targetHitIdx >= 0) {
+      const hx = xAtIndex(targetHitIdx);
+      drawMarkerPoint(ctx, hx, ty, 'rgba(63, 185, 80, 1)', 4);
+    }
+    
+    ctx.fillStyle = 'rgba(63, 185, 80, 0.95)';
+    ctx.font = '10px system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(
+      'Target $' + fmtUiDecimal(opts.targetPrice) + (targetHit ? ' ✓ HIT' : ''),
+      width - padding.right - 4,
+      Math.min(ty + 14, height - padding.bottom - 4)
     );
   }
 

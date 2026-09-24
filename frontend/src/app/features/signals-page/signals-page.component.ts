@@ -30,6 +30,7 @@ import {
 import { environment } from '../../../environments/environment';
 import { normalizeSignalDocs, normalizeSignalsApiResponse, type SignalDoc, type SignalInstanceRow } from '../../core/signal-docs-normalize';
 import { SignalHoldChartComponent } from '../signal-hold-chart/signal-hold-chart.component';
+import { computeSignalHoldWindow } from '../../core/signal-hold-window';
 
 /** One flattened BUY line from any run document (for cross-doc grouping). */
 type FlatSigInst = {
@@ -408,6 +409,17 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     this.liveByTicker.update((m) => ({ ...m, ...fmt }));
   });
 
+  /** Trigger stop/target hit checks for visible primary rows. */
+  private readonly checkStopTargetHitsForVisibleRows = effect(() => {
+    const rows = this.displayRows();
+    for (const row of rows) {
+      if (row.kind === 'sig' && row.role === 'primary') {
+        // Trigger check asynchronously (non-blocking)
+        queueMicrotask(() => void this.checkStopTargetHit(row));
+      }
+    }
+  });
+
   /** Toolbar label: realtime vs ~15m delayed (from Nest hub_status). */
   showLiveFeedHint(): boolean {
     return this.quotesWs.hubConfigured();
@@ -446,6 +458,9 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
 
   /** Per signal row (instanceKey): whether the inline AI summary panel is expanded. */
   readonly aiSummaryOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
+
+  /** Per signal row (instanceKey): tracks whether stop/target was hit during the day. */
+  readonly stopTargetHitByRow = signal<Record<string, { stopHit: boolean; targetHit: boolean; loading: boolean } | null>>({});
 
   /** Unified panel state: tracks which panel type is open for each row (instanceKey). */
   readonly activePanelByRow = signal<Record<string, 'details' | 'chart' | 'history' | null>>({});
@@ -1476,5 +1491,69 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   entryPriceNum(x: unknown): number {
     const n = typeof x === 'number' ? x : Number(x);
     return Number.isFinite(n) ? n : 0;
+  }
+
+  /**
+   * Check if stop loss or take profit was hit during the intraday session.
+   * Uses hourly candles to check if high >= target or low <= stop.
+   */
+  async checkStopTargetHit(row: SigDisplayRow): Promise<void> {
+    const key = row.instanceKey;
+    const existing = this.stopTargetHitByRow()[key];
+    if (existing !== undefined && existing !== null) return; // Already checked
+
+    const stop = Number(row.s['stop']);
+    const target = Number(row.s['target']);
+    const ticker = String(row.s['ticker'] || '').trim().toUpperCase();
+    
+    if (!ticker || (!Number.isFinite(stop) && !Number.isFinite(target))) {
+      this.stopTargetHitByRow.update((m) => ({ ...m, [key]: null }));
+      return;
+    }
+
+    this.stopTargetHitByRow.update((m) => ({ ...m, [key]: { stopHit: false, targetHit: false, loading: true } }));
+
+    try {
+      // Fetch the same hold window data that the chart uses
+      const win = computeSignalHoldWindow(row.asofDate);
+      const fromSec = Math.floor(win.fetchFromMs / 1000);
+      const toSec = Math.floor(win.fetchToMs / 1000);
+      
+      if (toSec <= fromSec) {
+        this.stopTargetHitByRow.update((m) => ({ ...m, [key]: null }));
+        return;
+      }
+
+      const candles = await this.market.fetchHourlyCandles(ticker, fromSec, toSec);
+      
+      let stopHit = false;
+      let targetHit = false;
+
+      // Check each hourly bar
+      for (let i = 0; i < candles.h.length; i++) {
+        const high = candles.h[i];
+        const low = candles.l[i];
+        
+        if (Number.isFinite(target) && high >= target) {
+          targetHit = true;
+        }
+        if (Number.isFinite(stop) && low <= stop) {
+          stopHit = true;
+        }
+        
+        // Early exit if both are hit
+        if (stopHit && targetHit) break;
+      }
+
+      this.stopTargetHitByRow.update((m) => ({ ...m, [key]: { stopHit, targetHit, loading: false } }));
+    } catch (err) {
+      // On error, just mark as null (no data available)
+      console.debug('Failed to check stop/target hit for', ticker, err);
+      this.stopTargetHitByRow.update((m) => ({ ...m, [key]: null }));
+    }
+  }
+
+  getStopTargetHitStatus(instanceKey: string): { stopHit: boolean; targetHit: boolean; loading: boolean } | null {
+    return this.stopTargetHitByRow()[instanceKey] ?? null;
   }
 }
