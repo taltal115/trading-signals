@@ -921,6 +921,19 @@ def main() -> int:
                 "pnl_pct": round(pnl_pct, 2) if pnl_pct is not None else None,
                 "days_held": days_held,
             }
+            advice = data.get("holding_advice")
+            if isinstance(advice, dict):
+                check_data["holding_advice"] = advice
+                at_utc = data.get("holding_advice_at_utc")
+                if at_utc is not None:
+                    check_data["holding_advice_at_utc"] = at_utc
+            ai_meta = data.get("ai")
+            if isinstance(ai_meta, dict):
+                check_data["ai"] = {
+                    "last_decision": ai_meta.get("last_decision"),
+                    "last_stage": ai_meta.get("last_stage"),
+                    "last_at_utc": ai_meta.get("last_at_utc"),
+                }
             if alert.report_price is not None:
                 check_data["monitor_assumed_exit_price"] = round(alert.report_price, 6)
             if session_high is not None:

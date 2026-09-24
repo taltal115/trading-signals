@@ -2,8 +2,11 @@
  * Used only when building with `--configuration=production` (see angular.json fileReplacements).
  * Keep allowlists aligned with Nest `ALLOWED_SIGN_IN_EMAILS` / `ALLOWED_AUTH_UIDS`.
  */
+import { APP_VERSION } from './app-version';
+
 export const environment = {
   production: true,
+  version: APP_VERSION,
   devAuthBypass: false,
   /**
    * One canonical origin must match Nest `FRONTEND_URL` / OAuth callback.

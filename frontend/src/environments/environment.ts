@@ -1,5 +1,9 @@
+import { APP_VERSION } from './app-version';
+
 export const environment = {
   production: false,
+  /** Bundled from frontend/package.json at build time. */
+  version: APP_VERSION,
   /** Dev: no redirect. Prod sets both so `firebaseapp.com` → `web.app` (one cookie origin). */
   canonicalFirebaseAppHost: null as string | null,
   canonicalSiteOrigin: null as string | null,

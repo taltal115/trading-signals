@@ -240,6 +240,66 @@ function parseSignalInstanceCursor(
   return { docId, signalIndex };
 }
 
+function encodeMonitorCheckCursor(tsUtc: string, path: string): string {
+  return `${tsUtc}\t${path}`;
+}
+
+function parseMonitorCheckCursor(
+  cursor: string,
+): { tsUtc: string; path: string } | null {
+  const tab = cursor.indexOf('\t');
+  if (tab < 0) return null;
+  const tsUtc = cursor.slice(0, tab).trim();
+  const path = cursor.slice(tab + 1).trim();
+  if (!tsUtc || !path) return null;
+  return { tsUtc, path };
+}
+
+function hasHoldingAdvice(data: DocumentData): boolean {
+  const advice = data['holding_advice'];
+  if (advice && typeof advice === 'object') {
+    const o = advice as Record<string, unknown>;
+    const action = String(o['advice'] || '').trim();
+    const headline = String(o['headline'] || '').trim();
+    return !!(action || headline);
+  }
+  return false;
+}
+
+function enrichMonitorCheckData(
+  check: DocumentData,
+  parent?: DocumentData,
+): DocumentData {
+  const out: DocumentData = { ...check };
+  if (!hasHoldingAdvice(out) && parent) {
+    const advice = parent['holding_advice'];
+    if (advice && typeof advice === 'object') {
+      out['holding_advice'] = advice;
+    }
+    if (parent['holding_advice_at_utc'] != null && out['holding_advice_at_utc'] == null) {
+      out['holding_advice_at_utc'] = parent['holding_advice_at_utc'];
+    }
+  }
+  if (out['ai'] == null && parent?.['ai'] && typeof parent['ai'] === 'object') {
+    const ai = parent['ai'] as Record<string, unknown>;
+    out['ai'] = {
+      last_decision: ai['last_decision'] ?? null,
+      last_stage: ai['last_stage'] ?? null,
+      last_at_utc: ai['last_at_utc'] ?? null,
+    };
+  }
+  return out;
+}
+
+function monitorAiAdviceMatches(
+  data: DocumentData,
+  filter: 'all' | 'has' | 'none',
+): boolean {
+  if (filter === 'all') return true;
+  const has = hasHoldingAdvice(data);
+  return filter === 'has' ? has : !has;
+}
+
 /** True when `inst` is strictly older than `cursorInst` (appears later in newest-first order). */
 function signalInstanceAfterCursor(inst: SignalFlatInst, cursorInst: SignalFlatInst): boolean {
   return compareSignalInstances(inst, cursorInst) > 0;
@@ -874,18 +934,147 @@ export class FirestoreService implements OnModuleInit {
   }
 
   async listMonitorChecks(
-    ownerUid: string
+    ownerUid: string,
   ): Promise<{ id: string; data: DocumentData }[]> {
+    const page = await this.listMonitorChecksPage(ownerUid, { limit: 100 });
+    return page.docs;
+  }
+
+  /**
+   * Paginated monitor checks (collectionGroup), optional tag / AI-advice filters.
+   * Enriches each row with parent position `holding_advice` when missing on the check.
+   */
+  async listMonitorChecksPage(
+    ownerUid: string,
+    opts: {
+      limit: number;
+      cursor?: string;
+      tag?: 'all' | 'WAIT' | 'SELL';
+      aiAdvice?: 'all' | 'has' | 'none';
+    },
+  ): Promise<{
+    docs: { id: string; data: DocumentData }[];
+    nextCursor: string | null;
+  }> {
+    const limit = Math.min(Math.max(Math.floor(opts.limit) || 20, 1), 50);
+    const tag = opts.tag ?? 'all';
+    const aiAdvice = opts.aiAdvice ?? 'all';
+    const needAiFilter = aiAdvice === 'has' || aiAdvice === 'none';
+
     try {
-      const snap = await this.db
-        .collectionGroup('checks')
-        .where('owner_uid', '==', ownerUid)
-        .orderBy('ts_utc', 'desc')
-        .limit(100)
-        .get();
-      return snap.docs.map((d) => ({ id: d.id, data: toPlainDoc(d.data()) }));
+      const out: { id: string; data: DocumentData; path: string; tsUtc: string }[] =
+        [];
+      let cursor = opts.cursor?.trim() || undefined;
+      // Over-fetch when post-filtering AI; otherwise fetch limit+1 for nextCursor.
+      const batchSize = needAiFilter ? Math.min(limit * 4, 80) : limit + 1;
+      let safety = 0;
+
+      while (out.length < limit + 1 && safety < 8) {
+        safety += 1;
+        let q: admin.firestore.Query = this.db
+          .collectionGroup('checks')
+          .where('owner_uid', '==', ownerUid)
+          .orderBy('ts_utc', 'desc');
+
+        if (tag === 'WAIT' || tag === 'SELL') {
+          q = q.where('tag', '==', tag);
+        }
+
+        if (cursor) {
+          const parsed = parseMonitorCheckCursor(cursor);
+          if (parsed) {
+            try {
+              const startSnap = await this.db.doc(parsed.path).get();
+              if (startSnap.exists) {
+                q = q.startAfter(startSnap);
+              } else {
+                q = q.startAfter(parsed.tsUtc);
+              }
+            } catch {
+              q = q.startAfter(parsed.tsUtc);
+            }
+          }
+        }
+
+        const snap = await q.limit(batchSize).get();
+        if (snap.empty) break;
+
+        const parentIds = new Set<string>();
+        const rawRows: {
+          id: string;
+          path: string;
+          tsUtc: string;
+          data: DocumentData;
+          parentId: string | null;
+        }[] = [];
+
+        for (const d of snap.docs) {
+          const data = toPlainDoc(d.data());
+          const tsUtc = String(data['ts_utc'] || '');
+          const parentRef = d.ref.parent.parent;
+          const parentId = parentRef?.id ?? null;
+          if (parentId) parentIds.add(parentId);
+          rawRows.push({
+            id: d.id,
+            path: d.ref.path,
+            tsUtc,
+            data,
+            parentId,
+          });
+        }
+
+        const parentMap = new Map<string, DocumentData>();
+        if (parentIds.size > 0) {
+          const refs = [...parentIds].map((id) =>
+            this.db.collection(MY_POSITIONS_COLLECTION).doc(id),
+          );
+          // getAll in chunks of 10
+          for (let i = 0; i < refs.length; i += 10) {
+            const chunk = refs.slice(i, i + 10);
+            const docs = await this.db.getAll(...chunk);
+            for (const pd of docs) {
+              if (pd.exists) {
+                parentMap.set(pd.id, toPlainDoc(pd.data()));
+              }
+            }
+          }
+        }
+
+        for (const row of rawRows) {
+          const enriched = enrichMonitorCheckData(
+            row.data,
+            row.parentId ? parentMap.get(row.parentId) : undefined,
+          );
+          if (!monitorAiAdviceMatches(enriched, aiAdvice)) continue;
+          out.push({
+            id: row.id,
+            data: enriched,
+            path: row.path,
+            tsUtc: row.tsUtc,
+          });
+        }
+
+        const lastRaw = rawRows[rawRows.length - 1];
+        cursor = encodeMonitorCheckCursor(lastRaw.tsUtc, lastRaw.path);
+        if (snap.size < batchSize) break;
+      }
+
+      const hasMore = out.length > limit;
+      const page = out.slice(0, limit);
+      const nextCursor =
+        hasMore && page.length > 0
+          ? encodeMonitorCheckCursor(
+              page[page.length - 1].tsUtc,
+              page[page.length - 1].path,
+            )
+          : null;
+
+      return {
+        docs: page.map((r) => ({ id: r.id, data: r.data })),
+        nextCursor,
+      };
     } catch (e) {
-      this.handleFirestoreListError('listMonitorChecks', e);
+      this.handleFirestoreListError('listMonitorChecksPage', e);
     }
   }
 

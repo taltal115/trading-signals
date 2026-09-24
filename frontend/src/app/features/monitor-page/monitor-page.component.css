@@ -1,0 +1,15 @@
+.monitor-toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.monitor-ai-advice {
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+}
+
+.monitor-ai-headline {
+  max-width: 14rem;
+  font-size: 0.85rem;
+  color: var(--muted, #8b949e);
+}

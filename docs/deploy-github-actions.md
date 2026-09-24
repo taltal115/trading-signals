@@ -3,8 +3,9 @@
 On every push to **`main`**, GitHub Actions:
 
 1. Runs the **Quality gate** (backend build, frontend production build, Python unit tests).
-2. **Detects** whether the change needs **frontend**, **backend**, **both**, or **neither**.
-3. Deploys only what is needed (backend first when both, so Hosting rewrites keep working).
+2. **Detects** whether the change needs **frontend**, **backend**, **bot version**, **both**, or **neither**.
+3. **Patch-bumps** semver for each changed package (`frontend/package.json`, `backend/package.json`, `pyproject.toml` + `signals_bot.__version__`) via [`scripts/bump_semver.sh`](../scripts/bump_semver.sh), commits with `[skip ci]`, then deploys from that SHA.
+4. Deploys only what is needed (backend first when both, so Hosting rewrites keep working).
 
 Local deploys are unchanged:
 
@@ -15,14 +16,19 @@ Local deploys are unchanged:
 
 ## Path → deploy target
 
-| Paths changed | Deploy |
+| Paths changed | Deploy / bump |
 |---------------|--------|
-| `backend/**`, `scripts/deploy_nest_cloud_run.sh` | **backend** (Cloud Run) |
-| `frontend/**`, `firebase.json`, `.firebaserc`, `web/legacy-vanilla/**` | **frontend** (Hosting) |
-| Both sets | **both** (Cloud Run, then Hosting) |
-| Docs / Python bot / workflows / research only | **none** (quality still runs) |
+| `backend/**`, `scripts/deploy_nest_cloud_run.sh` | **backend** (Cloud Run) + BE patch bump |
+| `frontend/**`, `firebase.json`, `.firebaserc`, `web/legacy-vanilla/**` | **frontend** (Hosting) + FE patch bump |
+| Bot paths (`src/signals_bot/**`, AI/monitor scripts, `pyproject.toml`, …) | **bot** patch bump only (no Cloud Run/Hosting unless FE/BE also changed) |
+| Both FE+BE sets | **both** (Cloud Run, then Hosting) |
+| Docs / workflows / research notes only | **none** (quality still runs) |
 
 Manual override: Actions → **Deploy on main** → Run workflow → choose `fe` / `be` / `both` / `none` / `auto`.
+
+### App versions in the UI
+
+Sidebar footer shows `FE · BE · Bot` versions. FE is bundled from `frontend/package.json`; BE/Bot come from `GET /api/health` (`version`, `botVersion`). Cloud Run also receives `APP_VERSION` / `BOT_VERSION` on deploy.
 
 ## Required secrets & vars
 

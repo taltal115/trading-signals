@@ -136,6 +136,13 @@
 
       <div class="sidebar-footer">
         <app-market-status-bar />
+        <p class="sidebar-versions" title="App versions (FE from package.json; BE/Bot from /api/health)">
+          <span>FE {{ feVersion }}</span>
+          <span aria-hidden="true"> · </span>
+          <span>BE {{ beVersion() || '—' }}</span>
+          <span aria-hidden="true"> · </span>
+          <span>Bot {{ botVersion() || '—' }}</span>
+        </p>
         @let sidebarUser = authSvc.allowedUser$ | async;
         @if (env.devAuthBypass && devPersonas().length > 0) {
           <label class="dev-persona-picker">
