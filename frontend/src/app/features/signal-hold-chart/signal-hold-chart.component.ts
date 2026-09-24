@@ -37,6 +37,10 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
   @Input({ required: true }) entryPrice!: number;
   /** Massive/Polygon last price for this ticker (page-scoped WS); overlays in-progress hold. */
   @Input() livePrice: number | null = null;
+  /** Stop loss price level (optional). */
+  @Input() stopPrice: number | null = null;
+  /** Take profit / target price level (optional). */
+  @Input() targetPrice: number | null = null;
 
   @ViewChild('canvasEl') canvasRef?: ElementRef<HTMLCanvasElement>;
   @ViewChild('tipEl') tipRef?: ElementRef<HTMLDivElement>;
@@ -79,7 +83,8 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
   ngOnChanges(changes: SimpleChanges): void {
     if (
       this.viewReady &&
-      (changes['ticker'] || changes['asofDate'] || changes['entryPrice'])
+      (changes['ticker'] || changes['asofDate'] || changes['entryPrice'] || 
+       changes['stopPrice'] || changes['targetPrice'])
     ) {
       void this.load();
       return;
@@ -223,6 +228,8 @@ export class SignalHoldChartComponent implements AfterViewInit, OnChanges, OnDes
       entryPrice: entry,
       exitPrice,
       inProgress: win.inProgress,
+      stopPrice: this.stopPrice,
+      targetPrice: this.targetPrice,
     });
     this.hits = hits;
   }

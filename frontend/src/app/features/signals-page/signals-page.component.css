@@ -353,3 +353,36 @@ tr.sig-hold-chart-tr.sig-stock-details-for-older .sig-hold-chart-cell {
 tr.sig-unified-panel-tr.sig-stock-details-for-older .sig-unified-panel-cell {
   opacity: 0.92;
 }
+
+/* Stop/Target hit indicators */
+.sig-stop-cell,
+.sig-target-cell {
+  white-space: nowrap;
+}
+
+.sig-hit-indicator {
+  display: inline-block;
+  margin-left: 0.4em;
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.75em;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.sig-hit-checking {
+  color: var(--muted, #8b949e);
+  background: rgba(139, 148, 158, 0.1);
+}
+
+.sig-stop-hit {
+  color: var(--sell, #f85149);
+  background: rgba(248, 81, 73, 0.2);
+  border: 1px solid rgba(248, 81, 73, 0.4);
+}
+
+.sig-target-hit {
+  color: var(--buy, #3fb950);
+  background: rgba(63, 185, 80, 0.2);
+  border: 1px solid rgba(63, 185, 80, 0.4);
+}

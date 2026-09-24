@@ -131,8 +131,20 @@
                 ↻
               </button>
             </td>
-            <td>{{ fmtUsd(row.s['stop']) }}</td>
-            <td>{{ fmtUsd(row.s['target']) }}</td>
+            <td class="sig-stop-cell">
+              {{ fmtUsd(row.s['stop']) }}
+              <ng-container *ngIf="getStopTargetHitStatus(row.instanceKey) as hitStatus">
+                <span *ngIf="hitStatus.loading" class="sig-hit-indicator sig-hit-checking" title="Checking...">⏳</span>
+                <span *ngIf="!hitStatus.loading && hitStatus.stopHit" class="sig-hit-indicator sig-stop-hit" title="Stop loss was hit during the hold period">⚠️ HIT</span>
+              </ng-container>
+            </td>
+            <td class="sig-target-cell">
+              {{ fmtUsd(row.s['target']) }}
+              <ng-container *ngIf="getStopTargetHitStatus(row.instanceKey) as hitStatus">
+                <span *ngIf="hitStatus.loading" class="sig-hit-indicator sig-hit-checking" title="Checking...">⏳</span>
+                <span *ngIf="!hitStatus.loading && hitStatus.targetHit" class="sig-hit-indicator sig-target-hit" title="Take profit was hit during the hold period">✓ HIT</span>
+              </ng-container>
+            </td>
             <td class="sig-status-cell">
               <ng-container *ngIf="signalStatus(row.s) as st">
                 <div class="sig-status-line">
@@ -313,6 +325,8 @@
                   [asofDate]="row.asofDate"
                   [entryPrice]="entryPriceNum(row.s['close'])"
                   [livePrice]="livePriceNum(row.s['ticker'])"
+                  [stopPrice]="entryPriceNum(row.s['stop'])"
+                  [targetPrice]="entryPriceNum(row.s['target'])"
                 />
               </div>
 
