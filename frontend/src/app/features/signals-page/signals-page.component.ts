@@ -460,7 +460,15 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
   readonly aiSummaryOpenByRow = signal<ReadonlySet<string>>(new Set<string>());
 
   /** Per signal row (instanceKey): tracks whether stop/target was hit during the day. */
-  readonly stopTargetHitByRow = signal<Record<string, { stopHit: boolean; targetHit: boolean; loading: boolean } | null>>({});
+  readonly stopTargetHitByRow = signal<Record<string, { 
+    stopHit: boolean; 
+    targetHit: boolean; 
+    loading: boolean;
+    stopHitTime?: number; // Unix timestamp (ms) when stop was first hit
+    targetHitTime?: number; // Unix timestamp (ms) when target was first hit
+    stopHitIndex?: number; // Candle index where stop was hit
+    targetHitIndex?: number; // Candle index where target was hit
+  } | null>>({});
 
   /** Unified panel state: tracks which panel type is open for each row (instanceKey). */
   readonly activePanelByRow = signal<Record<string, 'details' | 'chart' | 'history' | null>>({});
@@ -1528,24 +1536,44 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
       
       let stopHit = false;
       let targetHit = false;
+      let stopHitTime: number | undefined;
+      let targetHitTime: number | undefined;
+      let stopHitIndex: number | undefined;
+      let targetHitIndex: number | undefined;
 
       // Check each hourly bar
       for (let i = 0; i < candles.h.length; i++) {
         const high = candles.h[i];
         const low = candles.l[i];
+        const timeMs = candles.t[i] * 1000; // Convert to milliseconds
         
-        if (Number.isFinite(target) && high >= target) {
+        if (Number.isFinite(target) && high >= target && !targetHit) {
           targetHit = true;
+          targetHitTime = timeMs;
+          targetHitIndex = i;
         }
-        if (Number.isFinite(stop) && low <= stop) {
+        if (Number.isFinite(stop) && low <= stop && !stopHit) {
           stopHit = true;
+          stopHitTime = timeMs;
+          stopHitIndex = i;
         }
         
         // Early exit if both are hit
         if (stopHit && targetHit) break;
       }
 
-      this.stopTargetHitByRow.update((m) => ({ ...m, [key]: { stopHit, targetHit, loading: false } }));
+      this.stopTargetHitByRow.update((m) => ({ 
+        ...m, 
+        [key]: { 
+          stopHit, 
+          targetHit, 
+          loading: false,
+          stopHitTime,
+          targetHitTime,
+          stopHitIndex,
+          targetHitIndex
+        } 
+      }));
     } catch (err) {
       // On error, just mark as null (no data available)
       console.debug('Failed to check stop/target hit for', ticker, err);
@@ -1553,7 +1581,69 @@ export class SignalsPageComponent implements OnInit, OnDestroy {
     }
   }
 
-  getStopTargetHitStatus(instanceKey: string): { stopHit: boolean; targetHit: boolean; loading: boolean } | null {
+  getStopTargetHitStatus(instanceKey: string): { 
+    stopHit: boolean; 
+    targetHit: boolean; 
+    loading: boolean;
+    stopHitTime?: number;
+    targetHitTime?: number;
+    stopHitIndex?: number;
+    targetHitIndex?: number;
+  } | null {
     return this.stopTargetHitByRow()[instanceKey] ?? null;
+  }
+
+  /**
+   * Determine which hit first: stop or target.
+   * Returns 'stop', 'target', 'both' (same time), or null (neither hit).
+   */
+  getFirstHit(instanceKey: string): 'stop' | 'target' | 'both' | null {
+    const status = this.getStopTargetHitStatus(instanceKey);
+    if (!status || status.loading) return null;
+    
+    if (status.stopHit && status.targetHit) {
+      if (status.stopHitTime && status.targetHitTime) {
+        if (status.stopHitTime < status.targetHitTime) return 'stop';
+        if (status.targetHitTime < status.stopHitTime) return 'target';
+        return 'both'; // Same time (same candle)
+      }
+    }
+    
+    if (status.stopHit) return 'stop';
+    if (status.targetHit) return 'target';
+    return null;
+  }
+
+  /**
+   * Format hit time for display in tooltip.
+   */
+  formatHitTime(timeMs: number | undefined): string {
+    if (!timeMs) return '—';
+    const d = new Date(timeMs);
+    return d.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }) + ' ET';
+  }
+
+  /** Track which hit info tooltip is currently visible (instanceKey + 'stop' or 'target'). */
+  readonly visibleHitTooltip = signal<string | null>(null);
+
+  showHitTooltip(instanceKey: string, type: 'stop' | 'target', event?: MouseEvent): void {
+    event?.stopPropagation();
+    this.visibleHitTooltip.set(`${instanceKey}:${type}`);
+  }
+
+  hideHitTooltip(): void {
+    this.visibleHitTooltip.set(null);
+  }
+
+  isHitTooltipVisible(instanceKey: string, type: 'stop' | 'target'): boolean {
+    return this.visibleHitTooltip() === `${instanceKey}:${type}`;
   }
 }

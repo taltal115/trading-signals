@@ -132,18 +132,72 @@
               </button>
             </td>
             <td class="sig-stop-cell">
-              {{ fmtUsd(row.s['stop']) }}
               <ng-container *ngIf="getStopTargetHitStatus(row.instanceKey) as hitStatus">
-                <span *ngIf="hitStatus.loading" class="sig-hit-indicator sig-hit-checking" title="Checking...">⏳</span>
-                <span *ngIf="!hitStatus.loading && hitStatus.stopHit" class="sig-hit-indicator sig-stop-hit" title="Stop loss was hit during the hold period">⚠️ HIT</span>
+                <div class="sig-price-with-hit">
+                  <div *ngIf="hitStatus.loading" class="sig-hit-badge sig-hit-checking">⏳</div>
+                  <button 
+                    *ngIf="!hitStatus.loading && hitStatus.stopHit" 
+                    class="sig-hit-badge sig-stop-hit sig-hit-clickable"
+                    [class.sig-hit-first]="getFirstHit(row.instanceKey) === 'stop'"
+                    type="button"
+                    (click)="showHitTooltip(row.instanceKey, 'stop', $event)"
+                    [title]="'Stop hit at ' + formatHitTime(hitStatus.stopHitTime)"
+                  >
+                    <span class="sig-hit-icon">⚠️</span>
+                    <span class="sig-hit-label">HIT</span>
+                    <span *ngIf="getFirstHit(row.instanceKey) === 'stop'" class="sig-hit-first-badge">1st</span>
+                  </button>
+                  <div class="sig-price-value">{{ fmtUsd(row.s['stop']) }}</div>
+                  <div 
+                    *ngIf="isHitTooltipVisible(row.instanceKey, 'stop')" 
+                    class="sig-hit-tooltip"
+                    (click)="hideHitTooltip()"
+                  >
+                    <div class="sig-hit-tooltip-content">
+                      <strong>Stop Loss Hit</strong>
+                      <div class="sig-hit-tooltip-time">{{ formatHitTime(hitStatus.stopHitTime) }}</div>
+                      <div class="sig-hit-tooltip-hint">Click to close</div>
+                    </div>
+                  </div>
+                </div>
               </ng-container>
+              <div *ngIf="!getStopTargetHitStatus(row.instanceKey)" class="sig-price-value">
+                {{ fmtUsd(row.s['stop']) }}
+              </div>
             </td>
             <td class="sig-target-cell">
-              {{ fmtUsd(row.s['target']) }}
               <ng-container *ngIf="getStopTargetHitStatus(row.instanceKey) as hitStatus">
-                <span *ngIf="hitStatus.loading" class="sig-hit-indicator sig-hit-checking" title="Checking...">⏳</span>
-                <span *ngIf="!hitStatus.loading && hitStatus.targetHit" class="sig-hit-indicator sig-target-hit" title="Take profit was hit during the hold period">✓ HIT</span>
+                <div class="sig-price-with-hit">
+                  <div *ngIf="hitStatus.loading" class="sig-hit-badge sig-hit-checking">⏳</div>
+                  <button 
+                    *ngIf="!hitStatus.loading && hitStatus.targetHit" 
+                    class="sig-hit-badge sig-target-hit sig-hit-clickable"
+                    [class.sig-hit-first]="getFirstHit(row.instanceKey) === 'target'"
+                    type="button"
+                    (click)="showHitTooltip(row.instanceKey, 'target', $event)"
+                    [title]="'Target hit at ' + formatHitTime(hitStatus.targetHitTime)"
+                  >
+                    <span class="sig-hit-icon">✓</span>
+                    <span class="sig-hit-label">HIT</span>
+                    <span *ngIf="getFirstHit(row.instanceKey) === 'target'" class="sig-hit-first-badge">1st</span>
+                  </button>
+                  <div class="sig-price-value">{{ fmtUsd(row.s['target']) }}</div>
+                  <div 
+                    *ngIf="isHitTooltipVisible(row.instanceKey, 'target')" 
+                    class="sig-hit-tooltip"
+                    (click)="hideHitTooltip()"
+                  >
+                    <div class="sig-hit-tooltip-content">
+                      <strong>Take Profit Hit</strong>
+                      <div class="sig-hit-tooltip-time">{{ formatHitTime(hitStatus.targetHitTime) }}</div>
+                      <div class="sig-hit-tooltip-hint">Click to close</div>
+                    </div>
+                  </div>
+                </div>
               </ng-container>
+              <div *ngIf="!getStopTargetHitStatus(row.instanceKey)" class="sig-price-value">
+                {{ fmtUsd(row.s['target']) }}
+              </div>
             </td>
             <td class="sig-status-cell">
               <ng-container *ngIf="signalStatus(row.s) as st">
