@@ -1,6 +1,6 @@
 name: Deploy on main
 
-# After merge to main: quality gate → detect FE/BE paths → deploy only what changed.
+# After merge to main: quality gate → detect FE/BE/bot paths → patch-bump versions → deploy.
 on:
   push:
     branches: [main]
@@ -19,7 +19,7 @@ on:
           - none
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
@@ -33,6 +33,9 @@ jobs:
     outputs:
       frontend: ${{ steps.resolve.outputs.frontend }}
       backend: ${{ steps.resolve.outputs.backend }}
+      bot: ${{ steps.resolve.outputs.bot }}
+      bump: ${{ steps.resolve.outputs.bump }}
+      skip_all: ${{ steps.resolve.outputs.skip_all }}
       summary: ${{ steps.resolve.outputs.summary }}
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +57,14 @@ jobs:
               - 'firebase.json'
               - '.firebaserc'
               - 'web/legacy-vanilla/**'
+            bot:
+              - 'src/signals_bot/**'
+              - 'scripts/ai_*/**'
+              - 'scripts/monitor_open_positions.py'
+              - 'scripts/run_*.py'
+              - 'pyproject.toml'
+              - 'config.yaml'
+              - 'requirements.txt'
 
       - name: Resolve targets
         id: resolve
@@ -62,10 +73,24 @@ jobs:
           MANUAL: ${{ github.event.inputs.deploy_target || 'auto' }}
           FILTER_BE: ${{ steps.filter.outputs.backend || '' }}
           FILTER_FE: ${{ steps.filter.outputs.frontend || '' }}
+          FILTER_BOT: ${{ steps.filter.outputs.bot || '' }}
+          HEAD_MSG: ${{ github.event.head_commit.message || '' }}
         run: |
           set -euo pipefail
+          # Avoid re-entry on the chore bump commit itself.
+          if echo "$HEAD_MSG" | grep -qiE '\[skip ci\]|chore: bump .* versions'; then
+            echo "frontend=false" >> "$GITHUB_OUTPUT"
+            echo "backend=false" >> "$GITHUB_OUTPUT"
+            echo "bot=false" >> "$GITHUB_OUTPUT"
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+            echo "skip_all=true" >> "$GITHUB_OUTPUT"
+            echo "summary=none (version bump commit — skip)" >> "$GITHUB_OUTPUT"
+            echo "### Deploy plan: **none (version bump commit)**" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           be=false
           fe=false
+          bot=false
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             case "$MANUAL" in
               be) be=true ;;
@@ -73,9 +98,9 @@ jobs:
               both) be=true; fe=true ;;
               none) ;;
               auto)
-                # Manual auto: deploy both (safe default when no push range).
                 be=true
                 fe=true
+                bot=true
                 ;;
               *)
                 echo "Unknown deploy_target=$MANUAL" >&2
@@ -85,33 +110,88 @@ jobs:
           else
             [[ "$FILTER_BE" == "true" ]] && be=true
             [[ "$FILTER_FE" == "true" ]] && fe=true
+            [[ "$FILTER_BOT" == "true" ]] && bot=true
+          fi
+          bump=false
+          if [[ "$be" == "true" || "$fe" == "true" || "$bot" == "true" ]]; then
+            bump=true
           fi
           echo "frontend=$fe" >> "$GITHUB_OUTPUT"
           echo "backend=$be" >> "$GITHUB_OUTPUT"
+          echo "bot=$bot" >> "$GITHUB_OUTPUT"
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
+          echo "skip_all=false" >> "$GITHUB_OUTPUT"
           if [[ "$be" == "true" && "$fe" == "true" ]]; then
             summary="both (backend Cloud Run + frontend Hosting)"
           elif [[ "$be" == "true" ]]; then
             summary="backend only (Cloud Run)"
           elif [[ "$fe" == "true" ]]; then
             summary="frontend only (Firebase Hosting)"
+          elif [[ "$bot" == "true" ]]; then
+            summary="bot version bump only (no app deploy)"
           else
-            summary="none (docs/scripts/bot-only change — skip app deploy)"
+            summary="none (docs-only change — skip app deploy)"
           fi
           echo "summary=$summary" >> "$GITHUB_OUTPUT"
           echo "### Deploy plan: **$summary**" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- backend → \`$be\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- frontend → \`$fe\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- bot bump → \`$bot\`" >> "$GITHUB_STEP_SUMMARY"
 
   quality:
     name: Quality gate
     needs: detect
-    # Always run quality on main merges (even if deploy is skipped).
+    # Always run quality on main merges (even if deploy is skipped), except the bump commit.
+    if: needs.detect.outputs.skip_all != 'true'
     uses: ./.github/workflows/quality-gate.yml
+
+  version-bump:
+    name: Patch bump versions
+    needs: [detect, quality]
+    if: needs.detect.outputs.bump == 'true' && needs.quality.result == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.push.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump changed packages
+        env:
+          BUMP_FRONTEND: ${{ needs.detect.outputs.frontend }}
+          BUMP_BACKEND: ${{ needs.detect.outputs.backend }}
+          BUMP_BOT: ${{ needs.detect.outputs.bot }}
+        run: bash scripts/bump_semver.sh
+
+      - name: Commit and push version bumps
+        id: push
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/package.json backend/package.json pyproject.toml \
+            src/signals_bot/__init__.py backend/src/embedded-bot-version.ts || true
+          if git diff --cached --quiet; then
+            echo "sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+            echo "No version file changes to commit."
+            exit 0
+          fi
+          parts=()
+          [[ "${{ needs.detect.outputs.frontend }}" == "true" ]] && parts+=(fe)
+          [[ "${{ needs.detect.outputs.backend }}" == "true" ]] && parts+=(be)
+          [[ "${{ needs.detect.outputs.bot }}" == "true" ]] && parts+=(bot)
+          label=$(IFS=/; echo "${parts[*]}")
+          git commit -m "chore: bump ${label} patch versions [skip ci]"
+          git push origin HEAD:main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Pushed version bump $(git rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
 
   deploy-backend:
     name: Deploy backend (Cloud Run)
-    needs: [detect, quality]
+    needs: [detect, quality, version-bump]
     if: needs.detect.outputs.backend == 'true'
     runs-on: ubuntu-latest
     env:
@@ -120,11 +200,12 @@ jobs:
       CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'trading-signals-api' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version-bump.outputs.sha || github.sha }}
 
       - id: auth
         uses: google-github-actions/auth@v2
         with:
-          # Prefer a deploy SA (GCP_SA_KEY). Fallback: existing bot secret if that SA has deploy IAM.
           credentials_json: ${{ secrets.GCP_SA_KEY || secrets.GOOGLE_APPLICATION_CREDENTIALS }}
 
       - uses: google-github-actions/setup-gcloud@v2
@@ -134,12 +215,11 @@ jobs:
 
   deploy-frontend:
     name: Deploy frontend (Firebase Hosting)
-    needs: [detect, quality, deploy-backend]
-    # Wait for backend when both change so Hosting rewrites see the new revision.
-    # Still ship Hosting if Cloud Run failed (IAM/build) — FE-only fixes should not wait.
+    needs: [detect, quality, version-bump, deploy-backend]
     if: |
       always() &&
       needs.quality.result == 'success' &&
+      needs.version-bump.result == 'success' &&
       needs.detect.outputs.frontend == 'true' &&
       (needs.deploy-backend.result == 'success' || needs.deploy-backend.result == 'skipped' || needs.deploy-backend.result == 'failure')
     runs-on: ubuntu-latest
@@ -147,6 +227,8 @@ jobs:
       GCP_PROJECT: ${{ vars.GCP_PROJECT || 'trading-goals' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version-bump.outputs.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -176,8 +258,6 @@ jobs:
           CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE || 'trading-signals-api' }}
         run: |
           set -euo pipefail
-          # Hosting finalize calls run.services.get on the rewrite target. Fail here
-          # with a clear IAM hint instead of a 403 after the static upload.
           if ! gcloud run services describe "$CLOUD_RUN_SERVICE" \
             --project="$GCP_PROJECT" \
             --region="$GCP_REGION" \
@@ -191,9 +271,6 @@ jobs:
       - name: Deploy Hosting
         run: |
           set -euo pipefail
-          # Always use ADC from GCP_SA_KEY / GOOGLE_APPLICATION_CREDENTIALS.
-          # --token FIREBASE_TOKEN is a user CI token and often lacks run.services.get,
-          # which Hosting needs to finalize /api/** → Cloud Run rewrites.
           if [[ -n "${{ secrets.FIREBASE_TOKEN }}" ]]; then
             echo "FIREBASE_TOKEN is set but ignored for Hosting (Cloud Run rewrite IAM)."
           fi
@@ -201,7 +278,7 @@ jobs:
 
   summary:
     name: Deploy summary
-    needs: [detect, quality, deploy-backend, deploy-frontend]
+    needs: [detect, quality, version-bump, deploy-backend, deploy-frontend]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -209,6 +286,7 @@ jobs:
         env:
           PLAN: ${{ needs.detect.outputs.summary }}
           Q: ${{ needs.quality.result }}
+          BUMP: ${{ needs.version-bump.result }}
           BE: ${{ needs.deploy-backend.result }}
           FE: ${{ needs.deploy-frontend.result }}
         run: |
@@ -216,11 +294,19 @@ jobs:
             echo "## Deploy on main"
             echo "- Plan: **${PLAN}**"
             echo "- Quality gate: \`${Q}\`"
+            echo "- Version bump: \`${BUMP}\`"
             echo "- Backend deploy: \`${BE}\`"
             echo "- Frontend deploy: \`${FE}\`"
           } >> "$GITHUB_STEP_SUMMARY"
+          # Version-only skip / docs-only: quality may be skipped.
+          if [[ "${{ needs.detect.outputs.skip_all }}" == "true" ]]; then
+            exit 0
+          fi
           if [[ "$Q" != "success" ]]; then
             echo "Quality gate failed — no successful deploy expected." >&2
+            exit 1
+          fi
+          if [[ "${{ needs.detect.outputs.bump }}" == "true" && "$BUMP" != "success" ]]; then
             exit 1
           fi
           if [[ "${{ needs.detect.outputs.backend }}" == "true" && "$BE" != "success" ]]; then

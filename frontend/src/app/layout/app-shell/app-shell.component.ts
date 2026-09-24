@@ -57,6 +57,9 @@ export class AppShellComponent implements OnInit, OnDestroy {
 
   readonly mobileOpen = signal(false);
   readonly sidebarCollapsed = signal(false);
+  readonly feVersion = environment.version;
+  readonly beVersion = signal<string | null>(null);
+  readonly botVersion = signal<string | null>(null);
 
   private readonly mq = typeof matchMedia !== 'undefined' ? matchMedia('(max-width: 900px)') : null;
 
@@ -121,6 +124,21 @@ export class AppShellComponent implements OnInit, OnDestroy {
       void this.loadDevPersonas();
     }
     void this.refreshResearchDueBadge();
+    void this.loadAppVersions();
+  }
+
+  private async loadAppVersions(): Promise<void> {
+    try {
+      const base = environment.apiBaseUrl || '';
+      const r = await firstValueFrom(
+        this.http.get<{ version?: string; botVersion?: string }>(`${base}/api/health`),
+      );
+      this.beVersion.set(String(r.version || '').trim() || null);
+      this.botVersion.set(String(r.botVersion || '').trim() || null);
+    } catch {
+      this.beVersion.set(null);
+      this.botVersion.set(null);
+    }
   }
 
   private async refreshResearchDueBadge(): Promise<void> {

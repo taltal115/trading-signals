@@ -27,3 +27,16 @@
   font-size: 0.7rem;
   word-break: break-all;
 }
+
+.sidebar-versions {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  opacity: 0.72;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.app-layout.sidebar-collapsed .sidebar-versions {
+  display: none;
+}

@@ -132,13 +132,36 @@ else
 fi
 
 echo "Deploying to Cloud Run..."
-gcloud run deploy "${SERVICE}" \
-  --image "${IMAGE}" \
-  --region "${REGION}" \
-  --platform managed \
-  --allow-unauthenticated \
-  --session-affinity \
+APP_VERSION="$(node -p "require('${ROOT}/backend/package.json').version" 2>/dev/null || echo "")"
+BOT_VERSION="$(python3 -c "
+import re
+from pathlib import Path
+text = Path('${ROOT}/pyproject.toml').read_text()
+m = re.search(r'(?m)^\s*version\s*=\s*[\"\\']([^\"\\']+)[\"\\']', text)
+print(m.group(1) if m else '')
+" 2>/dev/null || true)"
+UPDATE_ENV=()
+if [[ -n "${APP_VERSION}" ]]; then
+  UPDATE_ENV+=("APP_VERSION=${APP_VERSION}")
+fi
+if [[ -n "${BOT_VERSION}" ]]; then
+  UPDATE_ENV+=("BOT_VERSION=${BOT_VERSION}")
+fi
+DEPLOY_ARGS=(
+  --image "${IMAGE}"
+  --region "${REGION}"
+  --platform managed
+  --allow-unauthenticated
+  --session-affinity
   --port 8080
+)
+if [[ ${#UPDATE_ENV[@]} -gt 0 ]]; then
+  # Comma-join without wiping other Cloud Run env vars.
+  IFS=','; joined="${UPDATE_ENV[*]}"; unset IFS
+  DEPLOY_ARGS+=(--update-env-vars="${joined}")
+  echo "Setting Cloud Run versions: ${joined}"
+fi
+gcloud run deploy "${SERVICE}" "${DEPLOY_ARGS[@]}"
 
 echo ""
 echo "Service URL (set Nest env vars on this service before relying on prod auth/data):"

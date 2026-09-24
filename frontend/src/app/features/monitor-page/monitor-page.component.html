@@ -8,55 +8,133 @@
         Sign in with Google to view monitor data.
       }
     </p>
-  } @else if (loading()) {
-    <p class="empty-state" id="monitor-hint">Loading monitor checks…</p>
-  } @else if (loadError()) {
-    <p class="empty-state" id="monitor-hint">Monitor error: {{ loadError() }}</p>
-  } @else if (rows().length === 0) {
-    <p class="empty-state" id="monitor-hint">No monitor checks yet. The monitor job writes data here.</p>
   } @else {
-    <div class="table-wrap" id="monitor-table-wrap">
-      <table class="monitor-table">
-        <thead>
-          <tr>
-            <th>ticker</th>
-            <th>action</th>
-            <th>confidence</th>
-            <th>spot</th>
-            <th>P/L %</th>
-            <th>days held</th>
-            <th>ATR est</th>
-            <th>reason</th>
-            <th>timestamp</th>
-          </tr>
-        </thead>
-        <tbody id="monitor-body">
-          @for (r of rows(); track r.id) {
-            @let c = r.data;
-            @let tag = c['tag'] ?? c['alert_kind'] ?? '';
-            @let tagCls = tag === 'SELL' ? 'tag-sell' : 'tag-wait';
-            <tr>
-              <td class="code"><strong>{{ c['ticker'] }}</strong></td>
-              <td><span [class]="tagCls">{{ tag }}</span></td>
-              <td>{{ c['confidence'] != null ? (+c['confidence']! | number: '1.0-2') : '—' }}</td>
-              <td>{{ c['last_spot'] != null ? (+c['last_spot']! | number: '1.0-3') : '—' }}</td>
-              <td>
-                @if (c['pnl_pct'] != null) {
-                  @let pv = +c['pnl_pct']!;
-                  @let pCls = pv > 0.0001 ? 'pnl-profit' : pv < -0.0001 ? 'pnl-loss' : 'pnl-flat';
-                  <span [class]="pCls">{{ pv > 0 ? '+' : '' }}{{ pv | number: '1.0-2' }}%</span>
-                } @else {
-                  —
-                }
-              </td>
-              <td>{{ c['days_held'] != null ? c['days_held'] + 'd' : '—' }}</td>
-              <td>{{ c['atr_hold_est'] != null ? c['atr_hold_est'] + 'd' : '—' }}</td>
-              <td>{{ c['alert_summary'] }}</td>
-              <td class="code">{{ (c['ts_utc'] || '').toString().slice(0, 19).replace('T', ' ') }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
+    <div
+      class="signals-toolbar monitor-toolbar"
+      *ngIf="!loadError()"
+    >
+      <div class="signals-pagination" role="navigation" aria-label="Monitor pages">
+        <label class="signals-page-size signals-ledger-filter universe-page-meta">
+          Action
+          <select
+            [value]="tagFilter()"
+            (change)="onTagFilterChange($any($event.target).value)"
+            title="Filter by WAIT vs SELL tag"
+          >
+            <option value="all">All</option>
+            <option value="WAIT">WAIT</option>
+            <option value="SELL">SELL</option>
+          </select>
+        </label>
+        <label class="signals-page-size signals-ledger-filter universe-page-meta">
+          AI advice
+          <select
+            [value]="aiAdviceFilter()"
+            (change)="onAiAdviceFilterChange($any($event.target).value)"
+            title="Filter by whether holding AI advice is present"
+          >
+            <option value="all">All</option>
+            <option value="has">Has AI</option>
+            <option value="none">No AI</option>
+          </select>
+        </label>
+        <label class="signals-page-size universe-page-meta">
+          Per page
+          <select
+            [value]="str(pageSize())"
+            (change)="onPageSizeChange($any($event.target).value)"
+          >
+            <option *ngFor="let n of pageSizeOptions" [value]="str(n)">{{ n }}</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          class="universe-page-btn"
+          [disabled]="!canPrevPage() || loading() || loadingPage()"
+          (click)="prevPage()"
+        >
+          Previous
+        </button>
+        <span class="universe-page-meta"
+          >Page {{ pageLabel() }}
+          <span class="universe-page-loading" *ngIf="loading() || loadingPage()"> …</span>
+        </span>
+        <button
+          type="button"
+          class="universe-page-btn"
+          [disabled]="!canNextPage() || loading() || loadingPage()"
+          (click)="nextPage()"
+        >
+          Next
+        </button>
+      </div>
     </div>
+
+    @if (loading() && !hasAnyRows()) {
+      <p class="empty-state" id="monitor-hint">Loading monitor checks…</p>
+    } @else if (loadError()) {
+      <p class="empty-state" id="monitor-hint">Monitor error: {{ loadError() }}</p>
+    } @else if (!loading() && !loadingPage() && rows().length === 0) {
+      <p class="empty-state" id="monitor-hint">
+        @if (tagFilter() !== 'all' || aiAdviceFilter() !== 'all') {
+          No monitor checks match these filters. Try Action All or AI advice All.
+        } @else {
+          No monitor checks yet. The monitor job writes data here.
+        }
+      </p>
+    } @else if (rows().length > 0) {
+      <div class="table-wrap" id="monitor-table-wrap">
+        <table class="monitor-table">
+          <thead>
+            <tr>
+              <th>ticker</th>
+              <th>action</th>
+              <th>AI advice</th>
+              <th>AI headline</th>
+              <th>confidence</th>
+              <th>spot</th>
+              <th>P/L %</th>
+              <th>days held</th>
+              <th>ATR est</th>
+              <th>reason</th>
+              <th>timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="monitor-body">
+            @for (r of rows(); track r.id) {
+              @let c = r.data;
+              @let tag = c['tag'] ?? c['alert_kind'] ?? '';
+              @let tagCls = tag === 'SELL' ? 'tag-sell' : 'tag-wait';
+              @let headline = aiHeadline(c);
+              <tr>
+                <td class="code"><strong>{{ c['ticker'] }}</strong></td>
+                <td><span [class]="tagCls">{{ tag }}</span></td>
+                <td>
+                  <span class="monitor-ai-advice">{{ aiAdviceLabel(c) }}</span>
+                </td>
+                <td class="monitor-ai-headline" [attr.title]="headline || null">
+                  {{ headline ? truncate(headline) : '—' }}
+                </td>
+                <td>{{ c['confidence'] != null ? (+c['confidence']! | number: '1.0-2') : '—' }}</td>
+                <td>{{ c['last_spot'] != null ? (+c['last_spot']! | number: '1.0-3') : '—' }}</td>
+                <td>
+                  @if (c['pnl_pct'] != null) {
+                    @let pv = +c['pnl_pct']!;
+                    @let pCls = pv > 0.0001 ? 'pnl-profit' : pv < -0.0001 ? 'pnl-loss' : 'pnl-flat';
+                    <span [class]="pCls">{{ pv > 0 ? '+' : '' }}{{ pv | number: '1.0-2' }}%</span>
+                  } @else {
+                    —
+                  }
+                </td>
+                <td>{{ c['days_held'] != null ? c['days_held'] + 'd' : '—' }}</td>
+                <td>{{ c['atr_hold_est'] != null ? c['atr_hold_est'] + 'd' : '—' }}</td>
+                <td>{{ c['alert_summary'] }}</td>
+                <td class="code">{{ (c['ts_utc'] || '').toString().slice(0, 19).replace('T', ' ') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
   }
 </section>

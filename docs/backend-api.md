@@ -72,7 +72,8 @@ For real Google sign-in locally, set `AUTH_BYPASS_LOCAL=false`, provide `GOOGLE_
 
 ## Main HTTP routes
 
-- `GET /api/health` — liveness.
+- `GET /api/health` — liveness plus `{ version, botVersion }` (Nest package + bot semver).
+- `GET /api/monitor/checks?limit&cursor&tag&aiAdvice` — paginated monitor checks (session); enriches `holding_advice` from the parent position when missing.
 - `GET /api/auth/me` — `{ user: { uid, email?, ... } | null }`.
 - `GET /api/auth/google` — start OAuth.
 - `GET /api/auth/google/callback` — OAuth callback; sets session; redirects to `FRONTEND_URL/dashboard`.
