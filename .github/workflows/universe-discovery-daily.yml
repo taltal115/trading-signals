@@ -1,12 +1,12 @@
 # Daily Finnhub → strategy-filtered universe snapshot to Firestore (`universe/{asof_date}`).
 # Persists `data/universe_state.json` via workflow artifacts so batch rotation continues across runs.
 #
-# Schedule: weekdays ~07:30 America/New_York (11:30 UTC during EDT, 06:30 during EST).
+# Schedule: weekdays ~07:00-07:30 America/New_York. Trigger earlier to account for GitHub Actions delays.
 name: Daily universe discovery
 
 on:
   schedule:
-    - cron: "30 11 * * 1-5"
+    - cron: "0 11 * * 1-5"  # 11:00 UTC = 07:00 EDT / 06:00 EST (was 11:30 UTC)
   workflow_dispatch:
 
 permissions:

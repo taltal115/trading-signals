@@ -2,10 +2,12 @@ name: Premarket trading bot scan
 
 on:
   schedule:
-    # ~1 hour before US cash open (09:30 America/New_York). UTC crons + NY gate (see below).
-    - cron: "30 12 * * 1-5"
-    - cron: "30 13 * * 1-5"
-    # Mid-day scan to capture afternoon breakouts
+    # GitHub Actions scheduled workflows can be delayed by hours. Trigger earlier + widen gate.
+    # Target: 08:00-08:30 ET premarket. Trigger 12:00 UTC (08:00 EDT / 07:00 EST).
+    - cron: "0 12 * * 1-5"
+    # Target: 09:00 ET premarket. Trigger 13:00 UTC (09:00 EDT / 08:00 EST).
+    - cron: "0 13 * * 1-5"
+    # Mid-day scan to capture afternoon breakouts. 17:30 UTC = 13:30 EDT / 12:30 EST.
     - cron: "30 17 * * 1-5"
   workflow_dispatch:
     inputs:
@@ -21,7 +23,7 @@ jobs:
       contents: write
 
     steps:
-      - name: Gate (~08:30 America/New_York, Mon–Fri) or manual dispatch
+      - name: Gate (premarket 08:00-10:00 ET or midday 13:00-17:00 ET) or manual dispatch
         id: gate
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -39,12 +41,17 @@ jobs:
               print("run=false — weekend")
               open(os.environ["GITHUB_OUTPUT"], "a").write("run=false\n")
               raise SystemExit(0)
-          # Allow premarket (08:05-09:15 ET) and mid-day (13:05-13:55 ET) scans.
-          premarket_ok = ny.hour == 8 and 5 <= ny.minute <= 59
-          premarket_extended = ny.hour == 9 and ny.minute <= 15
-          midday_ok = ny.hour == 13 and 5 <= ny.minute <= 55
-          ok = premarket_ok or premarket_extended or midday_ok
-          print(f"NY={ny.isoformat()} gate_ok={ok} (premarket 08:05-09:15 or midday 13:05-13:55 ET)")
+          # Widened windows to catch GitHub Actions delays (can be 4-7 hours late).
+          # Premarket: 08:00-10:00 ET (was 08:05-09:15)
+          premarket_ok = ny.hour == 8
+          premarket_extended = ny.hour == 9
+          premarket_late = ny.hour == 10  # Catch 2+ hour delays
+          # Midday + afternoon: 13:00-17:00 ET (was 13:05-13:55)
+          # This catches the 13:00 UTC cron even when delayed 4-7 hours (runs 14:00-17:00 ET)
+          midday_ok = ny.hour in [13, 14, 15, 16]
+          ok = premarket_ok or premarket_extended or premarket_late or midday_ok
+          window = "premarket" if (premarket_ok or premarket_extended or premarket_late) else "midday"
+          print(f"NY={ny.isoformat()} gate_ok={ok} window={window} (premarket 08:00-10:00 or midday 13:00-17:00 ET)")
           open(os.environ["GITHUB_OUTPUT"], "a").write(f"run={'true' if ok else 'false'}\n")
           PY
 
