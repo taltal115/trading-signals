@@ -8,10 +8,10 @@ on:
         description: "Firestore signals run doc id (empty = latest)"
         required: false
         default: ""
-  # After typical Premarket scan (~08:30 ET). 13:30 & 14:00 UTC cover EST/EDT.
+  # After typical Premarket scan (~08:00-09:00 ET). Trigger earlier to account for delays.
   schedule:
-    - cron: "30 13 * * 1-5"
-    - cron: "0 14 * * 1-5"
+    - cron: "0 13 * * 1-5"   # 13:00 UTC = 09:00 EDT (was 13:30)
+    - cron: "30 13 * * 1-5"  # 13:30 UTC = 09:30 EDT (was 14:00)
   # Chain when Premarket trading bot scan finishes successfully.
   workflow_run:
     workflows: ["Premarket trading bot scan"]
