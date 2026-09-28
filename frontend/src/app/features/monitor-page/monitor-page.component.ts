@@ -140,6 +140,39 @@ export class MonitorPageComponent implements OnDestroy {
     return s.slice(0, max - 1) + '…';
   }
 
+  tagDisplay(data: Record<string, unknown>): { cls: string; text: string } {
+    const tag = String(data['tag'] || data['alert_kind'] || '').toUpperCase();
+    const alertKind = String(data['alert_kind'] || '').toUpperCase();
+    
+    // Add visual indicators for stop loss vs target hit
+    if (alertKind === 'STOP_HIT') {
+      return {
+        cls: 'tag-sell tag-stop-loss',
+        text: '🔴 STOP',
+      };
+    } else if (alertKind === 'TARGET_HIT') {
+      return {
+        cls: 'tag-sell tag-target-hit',
+        text: '🎯 TARGET',
+      };
+    } else if (tag === 'SELL') {
+      return {
+        cls: 'tag-sell',
+        text: 'SELL',
+      };
+    } else if (tag === 'WAIT') {
+      return {
+        cls: 'tag-wait',
+        text: 'WAIT',
+      };
+    }
+    
+    return {
+      cls: 'tag-unknown',
+      text: tag || '—',
+    };
+  }
+
   private resetAndFetch(): void {
     this.pages.set([]);
     this.pageIndex.set(0);

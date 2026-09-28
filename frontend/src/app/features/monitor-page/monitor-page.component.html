@@ -103,12 +103,11 @@
           <tbody id="monitor-body">
             @for (r of rows(); track r.id) {
               @let c = r.data;
-              @let tag = c['tag'] ?? c['alert_kind'] ?? '';
-              @let tagCls = tag === 'SELL' ? 'tag-sell' : 'tag-wait';
+              @let tagInfo = tagDisplay(c);
               @let headline = aiHeadline(c);
               <tr>
                 <td class="code"><strong>{{ c['ticker'] }}</strong></td>
-                <td><span [class]="tagCls">{{ tag }}</span></td>
+                <td><span [class]="tagInfo.cls">{{ tagInfo.text }}</span></td>
                 <td>
                   <span class="monitor-ai-advice">{{ aiAdviceLabel(c) }}</span>
                 </td>

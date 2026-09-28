@@ -270,15 +270,26 @@ def _eval_position(
     target_touched = target_f is not None and high_for_brackets >= target_f
 
     # If both bands traded through in the same bar/session, assume stop (risk) triggered first.
+    # Track this scenario explicitly as it indicates a losing trade.
+    both_hit_same_session = stop_touched and target_touched
+    
     if stop_touched:
         rp = float(stop_f)
         pnl_rp = _pnl_str(entry_f, rp)
+        
+        # Emphasize when stop hit before target (or same session) = loss scenario
+        loss_emphasis = ""
+        if both_hit_same_session:
+            loss_emphasis = " ⚠️ BOTH STOP AND TARGET HIT SAME SESSION — Stop assumed to trigger first. This is a LOSING TRADE."
+        elif target_f is not None:
+            loss_emphasis = " ⚠️ STOP HIT BEFORE TARGET — This is a LOSING TRADE."
+        
         return Alert(
             "STOP_HIT",
             88,
-            f"{ticker} hit your stop loss.{rng} Session/trade low reached or breached stop "
+            f"🔴 {ticker} STOP LOSS TRIGGERED.{loss_emphasis}{rng} Session/trade low reached or breached stop "
             f"${stop_f:.2f}; last close ${last_close:.2f}. Assuming fill at stop ${rp:.2f}.{pnl_rp} "
-            f"Consider exiting to limit losses (confirm broker execution).",
+            f"❌ EXIT NOW to limit losses (confirm broker execution).",
             atr_hold_est=atr_hold_est,
             report_price=rp,
             session_high=session_high,
@@ -293,17 +304,17 @@ def _eval_position(
             excess_in_atr = (high_for_brackets - target_f) / atr14
             hi_pct = ((high_for_brackets - target_f) / target_f) * 100.0 if target_f else 0
             if hi_pct > 5 or excess_in_atr > 1.5:
-                momentum_ctx = " Strong momentum — high moved well past target."
+                momentum_ctx = " 🚀 Strong momentum — high moved well past target."
             elif hi_pct > 2 or excess_in_atr > 0.5:
-                momentum_ctx = " Good continuation past target."
+                momentum_ctx = " 📈 Good continuation past target."
 
         return Alert(
             "TARGET_HIT",
             80,
-            f"{ticker} reached your target!{rng} Session/trade high ${high_for_brackets:.2f} "
+            f"🎯 {ticker} TARGET REACHED!{rng} Session/trade high ${high_for_brackets:.2f} "
             f"reached or exceeded target ${target_f:.2f}; last close ${last_close:.2f}. "
             f"Assuming fill at target ${rp:.2f}.{pnl_rp}{momentum_ctx} "
-            f"Consider taking profit (confirm broker execution).",
+            f"✅ Consider taking profit (confirm broker execution).",
             atr_hold_est=atr_hold_est,
             report_price=rp,
             session_high=session_high,
@@ -651,9 +662,19 @@ def _build_exit_attachment(
     )
 
     tag = "SELL" if alert.kind in EXIT_KINDS else "REVIEW"
-    action_emoji = ":red_circle:" if tag == "SELL" else ":warning:"
+    
+    # Special emphasis for stop loss (losing trade)
+    if alert.kind == "STOP_HIT":
+        action_emoji = "🔴"
+        tag_display = "🛑 STOP LOSS HIT"
+    elif alert.kind == "TARGET_HIT":
+        action_emoji = "🎯"
+        tag_display = "✅ TARGET HIT"
+    else:
+        action_emoji = ":warning:"
+        tag_display = tag
 
-    lines = [_format_owner_tag(data), "", f"{action_emoji} *{tag}* `{ticker}` — {alert.kind.replace('_', ' ').lower()}"]
+    lines = [_format_owner_tag(data), "", f"{action_emoji} *{tag_display}* `{ticker}` — {alert.kind.replace('_', ' ').lower()}"]
 
     if entry_f is not None and display_px is not None:
         pnl_str = f"{pnl_pct:+.1f}%" if pnl_pct is not None else ""
@@ -938,6 +959,19 @@ def main() -> int:
                 "pnl_pct": round(pnl_pct, 2) if pnl_pct is not None else None,
                 "days_held": days_held,
             }
+            
+            # Track if both stop and target were hit (stop loss before target scenario)
+            if alert.kind == "STOP_HIT":
+                stop_f = float(data.get("stop_price")) if isinstance(data.get("stop_price"), (int, float)) else None
+                target_f = float(data.get("target_price")) if isinstance(data.get("target_price"), (int, float)) else None
+                if session_high is not None and stop_f is not None and target_f is not None:
+                    both_hit = session_high >= target_f
+                    check_data["stop_before_target"] = True
+                    check_data["both_brackets_hit"] = both_hit
+                    if both_hit:
+                        check_data["loss_scenario_note"] = "Both stop and target hit same session - stop assumed first (LOSS)"
+                    else:
+                        check_data["loss_scenario_note"] = "Stop hit before target reached (LOSS)"
             advice = data.get("holding_advice")
             if isinstance(advice, dict):
                 check_data["holding_advice"] = advice
