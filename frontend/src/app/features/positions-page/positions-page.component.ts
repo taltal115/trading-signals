@@ -237,10 +237,26 @@ export class PositionsPageComponent {
     };
   }
 
-  actionCell(d: PositionData): { cls: string; text: string } | null {
+  actionCell(d: PositionData): { cls: string; text: string; icon?: string } | null {
     if (!d.last_alert_kind) return null;
-    const isSell =
-      ['STOP_HIT', 'TARGET_HIT', 'DURATION_DUE'].indexOf(String(d.last_alert_kind)) !== -1;
+    const kind = String(d.last_alert_kind);
+    const isSell = ['STOP_HIT', 'TARGET_HIT', 'DURATION_DUE'].indexOf(kind) !== -1;
+    
+    // Add visual indicators for stop loss vs target hit
+    if (kind === 'STOP_HIT') {
+      return {
+        cls: 'tag-sell tag-stop-loss',
+        text: '🔴 STOP',
+        icon: '🛑',
+      };
+    } else if (kind === 'TARGET_HIT') {
+      return {
+        cls: 'tag-sell tag-target-hit',
+        text: '🎯 TARGET',
+        icon: '✅',
+      };
+    }
+    
     return {
       cls: isSell ? 'tag-sell' : 'tag-wait',
       text: isSell ? 'SELL' : 'WAIT',
